@@ -226,6 +226,24 @@
           <div id="private-favorites-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;"></div>
         </div>
 
+        <!-- Seção de Nome do Harém -->
+        <div id="private-harem-name-section" style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm); flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 800; font-size: 15px;">👑 Nome do Harém:</span>
+                <span id="display-harem-name" style="font-weight: 800; font-size: 15px; color: #ec4899;"><em>(Sem nome definido)</em></span>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;">
+                Defina um nome para seu harém (máximo 20 caracteres). Ele aparece no comando <b>!mu-harem</b> e na sua página pública.
+              </p>
+            </div>
+            <button class="btn-retro btn-sm btn-purple" id="btn-open-edit-harem-name" onclick="openEditHaremNameModal()">
+              <i class="fas fa-edit"></i> Alterar Nome
+            </button>
+          </div>
+        </div>
+
         <!-- Seção de Coleções / Pastas -->
         <div id="private-collections-section" style="margin-bottom: 24px;">
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm); margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
@@ -1202,6 +1220,61 @@
         <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-assign-collection')">Cancelar</button>
         <button type="button" class="btn-retro btn-sm btn-gold" id="btn-submit-assign-collection" onclick="submitAssignCollection()">
           <i class="fas fa-check"></i> Salvar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Nome do Harém -->
+  <div class="modal-overlay hidden" id="modal-edit-harem-name" style="z-index: 10007;">
+    <div class="modal-box" style="max-width: min(440px, 90vw);">
+      <div class="modal-header">
+        <span class="modal-title">👑 Nome do Harém</span>
+        <button class="modal-close" onclick="closeModal('modal-edit-harem-name')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          Defina um nome personalizado para o seu harém. Ele aparecerá no comando <b>!mu-harem</b> e no topo da sua página pública.
+        </p>
+        <div style="margin-bottom: 12px; text-align: left;">
+          <label style="font-weight: 800; font-size: 13px; display: block; margin-bottom: 4px;">Nome do Harém (máximo 20 caracteres):</label>
+          <input type="text" id="input-harem-name" class="retro-input" placeholder="Ex: Harém Imperial" maxlength="20" style="width: 100%;" oninput="updateHaremNameCharCounter()">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            <span>Deixe vazio para remover o nome</span>
+            <span id="harem-name-char-count">0/20</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-edit-harem-name')">Cancelar</button>
+        <button type="button" class="btn-retro btn-sm btn-gold" id="btn-save-harem-name" onclick="submitHaremName()">
+          <i class="fas fa-save"></i> Salvar Nome
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Adicionar Múltiplos Personagens à Coleção -->
+  <div class="modal-overlay hidden" id="modal-batch-add-collection" style="z-index: 10007;">
+    <div class="modal-box" style="max-width: min(650px, 95vw); max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <span class="modal-title" id="batch-add-modal-title">📁 Adicionar Personagens à Coleção</span>
+        <button class="modal-close" onclick="closeModal('modal-batch-add-collection')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 14px; flex: 1; overflow-y: auto;">
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+          <input type="text" id="batch-add-search-input" class="retro-input" placeholder="Filtrar por nome ou anime..." style="flex: 1; min-width: 180px;" oninput="filterBatchAddCharacters()">
+          <button type="button" class="btn-retro btn-sm" id="btn-batch-select-all" onclick="toggleSelectAllBatchAdd()">Selecionar Todos</button>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+          Selecione os personagens que deseja incluir nesta coleção (<span id="batch-add-selected-count">0</span> selecionados):
+        </div>
+        <div id="batch-add-characters-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; max-height: 50vh; overflow-y: auto; padding: 4px;"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-batch-add-collection')">Cancelar</button>
+        <button type="button" class="btn-retro btn-sm btn-gold" id="btn-confirm-batch-add" onclick="submitBatchAddCharacters()">
+          <i class="fas fa-check"></i> Adicionar Selecionados (<span id="batch-add-btn-count">0</span>)
         </button>
       </div>
     </div>

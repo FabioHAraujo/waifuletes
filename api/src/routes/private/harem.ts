@@ -34,17 +34,27 @@ export const privateHaremRoutes: FastifyPluginAsync = async (fastify) => {
 
       const withoutCol = query.withoutCollection === true || query.withoutCollection === 'true' || query.withoutCollection === 1 || query.withoutCollection === '1';
 
-      const result = await haremService.getUserHarem(
-        userId,
-        query.page ? Number(query.page) : 1,
-        query.limit ? Number(query.limit) : 20,
-        query.sort || 'keys',
-        withoutCol
-      );
+      const [result, user] = await Promise.all([
+        haremService.getUserHarem(
+          userId,
+          query.page ? Number(query.page) : 1,
+          query.limit ? Number(query.limit) : 20,
+          query.sort || 'keys',
+          withoutCol
+        ),
+        fastify.prisma.user.findUnique({
+          where: { id: userId },
+          select: { haremName: true, name: true },
+        }),
+      ]);
 
       return reply.send({
         success: true,
-        data: result,
+        data: {
+          ...result,
+          haremName: user?.haremName || null,
+          userName: user?.name || null,
+        },
       });
     },
   });

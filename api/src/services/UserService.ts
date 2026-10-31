@@ -171,6 +171,15 @@ export class UserService {
     });
   }
 
+  async updateHaremName(userId: string, haremName: string | null) {
+    const trimmed = haremName ? haremName.trim() : null;
+    const finalName = trimmed && trimmed.length > 0 ? trimmed.substring(0, 20) : null;
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { haremName: finalName },
+    });
+  }
+
   async getUserGroups(userId: string) {
     return this.prisma.userGroup.findMany({
       where: { userId },

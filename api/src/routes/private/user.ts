@@ -115,6 +115,45 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
     },
   });
 
+  fastify.patch('/user/:userId/harem-name', {
+    preHandler: verifyApiKey,
+    schema: {
+      description: 'Atualiza o nome do harém do usuário (limite 20 caracteres)',
+      tags: ['Usuários (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: { userId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          haremName: { type: ['string', 'null'], maxLength: 20 },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const { haremName } = (request.body as { haremName?: string | null }) || {};
+
+      try {
+        const updated = await userService.updateHaremName(userId, haremName || null);
+        return reply.send({
+          success: true,
+          data: {
+            userId: updated.id,
+            haremName: updated.haremName,
+          },
+        });
+      } catch (err) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+        });
+      }
+    },
+  });
+
   fastify.get('/user/:userId/cooldowns', {
     preHandler: verifyApiKey,
     schema: {

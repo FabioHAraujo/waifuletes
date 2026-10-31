@@ -46,6 +46,7 @@ model User {
   name        String
   platform    Platform     @default(WHATSAPP)
   kakera      Int          @default(0)
+  haremName   String?      @map("harem_name")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 

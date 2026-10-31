@@ -11,6 +11,7 @@ import { CovetService } from '../../services/CovetService.js';
 import { NotificationService } from '../../services/NotificationService.js';
 import { CatalogService } from '../../services/CatalogService.js';
 import { CollectionService } from '../../services/CollectionService.js';
+import { UserService } from '../../services/UserService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
 import { Rarity } from '@prisma/client';
@@ -87,6 +88,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   const notificationService = new NotificationService(fastify.prisma);
   const catalogService = new CatalogService(fastify.prisma, fastify.redis);
   const collectionService = new CollectionService(fastify.prisma, characterService);
+  const userService = new UserService(fastify.prisma, fastify.redis);
 
   /**
    * Retorna um número de WhatsApp ativo da Ravena para redirecionamento com !mu-adm
@@ -166,7 +168,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       const user = await fastify.prisma.user.findUnique({
         where: { publicId },
-        select: { id: true, publicId: true, name: true, kakera: true },
+        select: { id: true, publicId: true, name: true, kakera: true, haremName: true },
       });
 
       if (!user) {
@@ -199,12 +201,39 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           totalCovetsCount: covetCountsMap[item.character.id]?.total || 0,
         }));
 
+        let currentInventory = session.inventory || null;
+        if (currentInventory) {
+          try {
+            const cleanId = user.id.replace(/\D/g, '');
+            const jardimRes = await fetch(`${process.env.JARDIM_API_URL || 'http://172.22.0.1:3040'}/inventory/${cleanId}`, {
+              signal: AbortSignal.timeout(1500),
+            });
+            if (jardimRes.ok) {
+              const jData = (await jardimRes.json()) as any;
+              if (jData && Array.isArray(jData.items)) {
+                currentInventory = {
+                  ...currentInventory,
+                  farmItems: jData.items.map((it: any) => ({
+                    itemId: it.itemId,
+                    name: it.name,
+                    quantity: it.quantity,
+                    type: it.type,
+                  })),
+                };
+              }
+            }
+          } catch {
+            // fallback para snapshot em session.inventory
+          }
+        }
+
         return reply.send({
           success: true,
           data: {
             isAdmin: true,
             publicId: user.publicId,
             name: user.name,
+            haremName: user.haremName || null,
             kakera: user.kakera,
             expiresIn: session.expiresIn,
             isPersistent: session.isPersistent,
@@ -214,7 +243,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             collections: userCollections,
             wishlist: wishlistResult,
             covetedCharacterIds,
-            inventory: session.inventory || null,
+            inventory: currentInventory,
           },
         });
       }
@@ -268,11 +297,59 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           isAdmin: false,
           publicId: user.publicId,
           name: user.name,
+          haremName: user.haremName || null,
           kakera: user.kakera,
           harem: publicHarem,
           collections: userCollections,
           totalHarem: haremResult.total,
           listings: publicListings,
+        },
+      });
+    },
+  });
+
+  /**
+   * Altera o nome de exibição do harém do usuário (limite 20 caracteres)
+   */
+  fastify.patch('/api/web/user/:publicId/harem-name', {
+    schema: {
+      description: 'Altera o nome do harém do usuário via painel web administrativo',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string' },
+          haremName: { type: ['string', 'null'], maxLength: 20 },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const { token, haremName } = request.body as { token: string; haremName?: string | null };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const updatedUser = await userService.updateHaremName(session.userId, haremName || null);
+
+      return reply.send({
+        success: true,
+        data: {
+          haremName: updatedUser.haremName,
         },
       });
     },

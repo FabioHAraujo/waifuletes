@@ -647,9 +647,23 @@ async function loadUserData() {
     const isOwner = Boolean(userSessionData.isAdmin);
     userCovetedSet = new Set(userSessionData.covetedCharacterIds || []);
 
+    const haremNameDisplay = userSessionData.haremName ? ` — "${userSessionData.haremName}"` : '';
     document.getElementById('user-title').textContent = isOwner
       ? `Painel de ${userSessionData.name}`
-      : `Harém de ${userSessionData.name}`;
+      : `Harém de ${userSessionData.name}${haremNameDisplay}`;
+
+    document.title = userSessionData.haremName
+      ? `"${userSessionData.haremName}" • Harém de ${userSessionData.name} • Waifuletes ✨`
+      : `${isOwner ? 'Painel de' : 'Harém de'} ${userSessionData.name} • Waifuletes ✨`;
+
+    const displayHaremNameEl = document.getElementById('display-harem-name');
+    if (displayHaremNameEl) {
+      if (userSessionData.haremName) {
+        displayHaremNameEl.innerHTML = `"${escapeHtml(userSessionData.haremName)}"`;
+      } else {
+        displayHaremNameEl.innerHTML = `<em>(Sem nome definido)</em>`;
+      }
+    }
 
     const harem = userSessionData.harem || [];
     const totalHaremCount = userSessionData.totalHarem !== undefined ? userSessionData.totalHarem : harem.length;
@@ -1005,9 +1019,14 @@ function renderPrivateHarem(harem) {
               <span style="font-size: 16px; font-weight: 800;">📂 ${escapeHtml(col.name)}</span>
               <span class="badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;">${colChars.length} waifus</span>
             </div>
-            <button class="btn-retro btn-sm btn-danger" onclick="confirmDeleteCollection('${col.id}', '${escapeHtml(col.name)}')">
-              <i class="fas fa-trash"></i> Excluir Pasta
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button class="btn-retro btn-sm btn-primary" onclick="openBatchAddCharactersModal('${col.id}', '${escapeHtml(col.name)}')">
+                <i class="fas fa-plus"></i> + Adicionar Personagens
+              </button>
+              <button class="btn-retro btn-sm btn-danger" onclick="confirmDeleteCollection('${col.id}', '${escapeHtml(col.name)}')">
+                <i class="fas fa-trash"></i> Excluir Pasta
+              </button>
+            </div>
           </div>
           ${col.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${escapeHtml(col.description)}</div>` : ''}
           <div class="waifu-grid" id="col-grid-${col.id}"></div>
@@ -1429,6 +1448,230 @@ async function confirmDeleteCollection(collectionId, collectionName) {
     }
   } catch (err) {
     Api.showToast('Erro ao apagar coleção.', '❌');
+  }
+}
+
+// --- Gestão de Nome do Harém ---
+function openEditHaremNameModal() {
+  const input = document.getElementById('input-harem-name');
+  if (input) {
+    input.value = userSessionData?.haremName || '';
+    updateHaremNameCharCounter();
+  }
+  openModal('modal-edit-harem-name');
+  if (input) setTimeout(() => input.focus(), 100);
+}
+
+function updateHaremNameCharCounter() {
+  const input = document.getElementById('input-harem-name');
+  const counter = document.getElementById('harem-name-char-count');
+  if (input && counter) {
+    counter.textContent = `${input.value.length}/20`;
+  }
+}
+
+async function submitHaremName() {
+  const input = document.getElementById('input-harem-name');
+  const haremName = input ? input.value.trim() : '';
+  const btn = document.getElementById('btn-save-harem-name');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await Api.patch(`/api/web/user/${encodeURIComponent(userPublicId)}/harem-name`, {
+      token: userSessionToken,
+      haremName: haremName || null,
+    });
+    if (res?.success) {
+      Api.showToast('Nome do harém atualizado com sucesso!', '👑');
+      closeModal('modal-edit-harem-name');
+      loadUserData();
+    } else {
+      Api.showToast(res?.error?.message || 'Falha ao atualizar nome do harém.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao salvar nome.', '❌');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// --- Inclusão em Lote na Coleção ---
+let currentBatchTargetColId = null;
+let currentBatchTargetColName = '';
+let batchSelectedCharIds = new Set();
+let batchAvailableHaremEntries = [];
+
+function openBatchAddCharactersModal(colId, colName) {
+  currentBatchTargetColId = colId;
+  currentBatchTargetColName = colName;
+  batchSelectedCharIds.clear();
+
+  const titleEl = document.getElementById('batch-add-modal-title');
+  if (titleEl) {
+    titleEl.textContent = `📁 Adicionar Waifus: "${colName}"`;
+  }
+
+  const harem = userSessionData?.harem || [];
+  // Filtra waifus que NÃO estão em nenhuma coleção (ou seja, pertencem ao Harém Geral)
+  batchAvailableHaremEntries = harem.filter(e => !e.collectionId);
+
+  if (batchAvailableHaremEntries.length === 0) {
+    Api.showToast('Todos os seus personagens já pertencem a alguma pasta!', 'ℹ️');
+    return;
+  }
+
+  const searchInput = document.getElementById('batch-add-search-input');
+  if (searchInput) searchInput.value = '';
+
+  renderBatchAddCharactersList(batchAvailableHaremEntries);
+  updateBatchAddCounters();
+  openModal('modal-batch-add-collection');
+}
+
+function renderBatchAddCharactersList(entries) {
+  const container = document.getElementById('batch-add-characters-list');
+  if (!container) return;
+
+  if (entries.length === 0) {
+    container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">Nenhum personagem encontrado.</div>';
+    return;
+  }
+
+  container.innerHTML = entries.map(entry => {
+    const char = entry.character;
+    const isChecked = batchSelectedCharIds.has(char.id);
+    const rarityClass = (char.baseRarity || 'COMMON').toLowerCase();
+    const rarityLabel = RARITY_LABELS[char.baseRarity] || char.baseRarity;
+    const imgUrl = char.imageUrl || `/media/characters/${char.id}.jpg`;
+
+    return `
+      <label class="batch-char-card ${isChecked ? 'selected' : ''}" style="display: flex; flex-direction: column; background: var(--bg-card); border: 2px solid ${isChecked ? 'var(--color-primary, #ec4899)' : 'var(--border-retro)'}; border-radius: 6px; padding: 6px; cursor: pointer; user-select: none; transition: all 0.15s ease;">
+        <div style="position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 6px; overflow: hidden; border-radius: 4px; background: #000;">
+          <img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="handleImgError(this)" loading="lazy">
+          <input type="checkbox" data-char-id="${char.id}" ${isChecked ? 'checked' : ''} onchange="toggleBatchCharSelection('${char.id}', this.checked)" style="position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; cursor: pointer; accent-color: #ec4899;">
+          <span class="badge-tag badge-${rarityClass}" style="position: absolute; bottom: 4px; left: 4px; font-size: 10px; padding: 1px 4px;">${rarityLabel}</span>
+        </div>
+        <div style="font-weight: 800; font-size: 12px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(char.name)}">
+          ${escapeHtml(char.name)}
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(char.series || '')}">
+          ${escapeHtml(char.series || '-')}
+        </div>
+      </label>
+    `;
+  }).join('');
+}
+
+function toggleBatchCharSelection(charId, isSelected) {
+  if (isSelected) {
+    batchSelectedCharIds.add(charId);
+  } else {
+    batchSelectedCharIds.delete(charId);
+  }
+  updateBatchAddCounters();
+
+  // Atualiza visual do card
+  const checkbox = document.querySelector(`input[data-char-id="${charId}"]`);
+  if (checkbox && checkbox.closest('.batch-char-card')) {
+    const card = checkbox.closest('.batch-char-card');
+    card.style.borderColor = isSelected ? 'var(--color-primary, #ec4899)' : 'var(--border-retro)';
+  }
+}
+
+function filterBatchAddCharacters() {
+  const searchInput = document.getElementById('batch-add-search-input');
+  const term = (searchInput?.value || '').toLowerCase().trim();
+
+  const filtered = batchAvailableHaremEntries.filter(entry => {
+    const name = (entry.character.name || '').toLowerCase();
+    const series = (entry.character.series || '').toLowerCase();
+    return name.includes(term) || series.includes(term);
+  });
+
+  renderBatchAddCharactersList(filtered);
+}
+
+function toggleSelectAllBatchAdd() {
+  const searchInput = document.getElementById('batch-add-search-input');
+  const term = (searchInput?.value || '').toLowerCase().trim();
+
+  const visibleEntries = batchAvailableHaremEntries.filter(entry => {
+    if (!term) return true;
+    const name = (entry.character.name || '').toLowerCase();
+    const series = (entry.character.series || '').toLowerCase();
+    return name.includes(term) || series.includes(term);
+  });
+
+  const allVisibleSelected = visibleEntries.every(e => batchSelectedCharIds.has(e.character.id));
+
+  visibleEntries.forEach(entry => {
+    if (allVisibleSelected) {
+      batchSelectedCharIds.delete(entry.character.id);
+    } else {
+      batchSelectedCharIds.add(entry.character.id);
+    }
+  });
+
+  renderBatchAddCharactersList(visibleEntries);
+  updateBatchAddCounters();
+}
+
+function updateBatchAddCounters() {
+  const count = batchSelectedCharIds.size;
+  const countEl = document.getElementById('batch-add-selected-count');
+  const btnCountEl = document.getElementById('batch-add-btn-count');
+  const btnConfirm = document.getElementById('btn-confirm-batch-add');
+
+  if (countEl) countEl.textContent = String(count);
+  if (btnCountEl) btnCountEl.textContent = String(count);
+  if (btnConfirm) btnConfirm.disabled = count === 0;
+
+  const btnSelectAll = document.getElementById('btn-batch-select-all');
+  if (btnSelectAll && batchAvailableHaremEntries.length > 0) {
+    btnSelectAll.textContent = count === batchAvailableHaremEntries.length ? 'Desmarcar Todos' : 'Selecionar Todos';
+  }
+}
+
+async function submitBatchAddCharacters() {
+  if (batchSelectedCharIds.size === 0 || !currentBatchTargetColId) return;
+
+  const btn = document.getElementById('btn-confirm-batch-add');
+  if (btn) btn.disabled = true;
+
+  const charIds = Array.from(batchSelectedCharIds);
+  Api.showToast(`Adicionando ${charIds.length} waifus à coleção...`, '⏳');
+
+  let successCount = 0;
+  let failCount = 0;
+
+  // Envia em lotes concorrentes de 5 requisições por vez
+  const chunkSize = 5;
+  for (let i = 0; i < charIds.length; i += chunkSize) {
+    const chunk = charIds.slice(i, i + chunkSize);
+    await Promise.all(chunk.map(async (charId) => {
+      try {
+        const res = await Api.post(
+          `/api/web/user/${encodeURIComponent(userPublicId)}/collections/${encodeURIComponent(currentBatchTargetColId)}/characters`,
+          {
+            token: userSessionToken,
+            characterId: charId,
+          }
+        );
+        if (res?.success) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }));
+  }
+
+  if (successCount > 0) {
+    Api.showToast(`✨ ${successCount} waifu(s) adicionada(s) à pasta "${currentBatchTargetColName}"!`, '📁');
+    closeModal('modal-batch-add-collection');
+    loadUserData();
+  } else {
+    Api.showToast('Falha ao adicionar personagens à coleção.', '❌');
+    if (btn) btn.disabled = false;
   }
 }
 
