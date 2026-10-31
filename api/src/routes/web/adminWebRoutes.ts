@@ -442,6 +442,7 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
       },
       body: {
         type: 'object',
+        nullable: true,
         additionalProperties: false,
         properties: {
           overrideRarity: { type: 'string' },
@@ -505,6 +506,7 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
       },
       body: {
         type: 'object',
+        nullable: true,
         properties: {
           rejectionReason: { type: 'string' },
         },

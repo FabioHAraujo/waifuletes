@@ -207,7 +207,7 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
         token: testUserToken,
         type: 'RARITY',
         characterId: testCharacterId,
-        suggestedRarity: 'LEGENDARY',
+        suggestedRarity: 'EPIC',
         reason: 'Personagem extremamente poderoso e icônico na história da obra.',
       }),
     });
@@ -495,7 +495,11 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
   it('POST /api/admin/suggestions/:id/approve deve aprovar e aplicar a sugestão', async () => {
     const res = await fetch(`${BASE_URL}/api/admin/suggestions/${createdSuggestionId}/approve`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
     });
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -508,7 +512,11 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
 
     const res = await fetch(`${BASE_URL}/api/admin/suggestions/${createdEditSuggestionId}/approve`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
     });
     expect(res.status).toBe(200);
     const json = await res.json();

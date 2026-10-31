@@ -50,7 +50,7 @@ describe('✨ Novas Funcionalidades: Manter Login, Likes, Ranks e Notificações
     testToken = tokenJson.data.token;
 
     // 4. Seleciona personagem para teste de curtida
-    const charRes = await fetch(`${BASE_URL}/characters?limit=1&maritalStatus=single&rarity=COMMON`);
+    const charRes = await fetch(`${BASE_URL}/characters?limit=1`);
     const charJson = await charRes.json();
     testCharacterId = charJson.data?.data?.[0]?.id || 'test-char';
   });
