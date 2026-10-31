@@ -8,16 +8,26 @@ export const RARITY_BASE_WEIGHTS: Record<Rarity, number> = {
   COMMON: 100,
 };
 
-export const RARITY_DIVORCE_VALUES: Record<Rarity, number> = {
-  COMMON: 50,
-  UNCOMMON: 150,
-  RARE: 350,
-  EPIC: 700,
-  LEGENDARY: 1500,
+// Valores de cristal de Kakera gerado em sorteios casuais de personagens já casados
+export const KAKERA_CRYSTAL_BASE: Record<Rarity, number> = {
+  COMMON: 10,
+  UNCOMMON: 30,
+  RARE: 70,
+  EPIC: 140,
+  LEGENDARY: 300,
 };
 
-export const KEY_KAKERA_BONUS = 15;
-export const DIVORCE_PENALTY_RATE = 0.05; // 5%
+// Valores de divórcio equivalentes a 4 COTAS (100% do preço base de mercado da waifu: RARITY_DAYS * 30.000 Zinthos)
+export const RARITY_DIVORCE_VALUES: Record<Rarity, number> = {
+  COMMON: 450000,      // 15 dias x 30.000 Zinthos (4 cotas)
+  UNCOMMON: 900000,    // 30 dias x 30.000 Zinthos (4 cotas)
+  RARE: 1800000,       // 60 dias x 30.000 Zinthos (4 cotas)
+  EPIC: 3000000,       // 100 dias x 30.000 Zinthos (4 cotas)
+  LEGENDARY: 6300000,  // 210 dias x 30.000 Zinthos (4 cotas)
+};
+
+export const KEY_KAKERA_BONUS = 30000; // 30.000 Zinthos de bônus por chave (1 diário completo por chave)
+export const DIVORCE_PENALTY_RATE = 0.05; // 5% de taxa de divórcio
 
 export interface RollBonuses {
   donorBadge?: string;

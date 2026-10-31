@@ -225,6 +225,9 @@ export class MarketService {
               _count: {
                 select: { wishlists: true },
               },
+              haremEntries: {
+                select: { userId: true, keys: true, isFavorite: true },
+              },
             },
           },
         },
@@ -248,10 +251,21 @@ export class MarketService {
       );
     }
 
-    const formattedListings = sorted.map((l) => ({
-      ...l,
-      character: this.formatCharacter(l.character),
-    }));
+    const formattedListings = sorted.map((l) => {
+      const ownerHarem = (l.character as any).haremEntries?.find((h: any) => h.userId === l.userId);
+      const keys = ownerHarem?.keys || 1;
+      const isSoulmate = keys >= 10;
+      return {
+        ...l,
+        keys,
+        isSoulmate,
+        character: {
+          ...this.formatCharacter(l.character),
+          keys,
+          isSoulmate,
+        },
+      };
+    });
 
     return {
       listings: formattedListings,
@@ -269,7 +283,14 @@ export class MarketService {
       where: { userId, status: ListingStatus.ACTIVE },
       orderBy: { createdAt: 'desc' },
       include: {
-        character: true,
+        character: {
+          include: {
+            haremEntries: {
+              where: { userId },
+              select: { keys: true, isFavorite: true },
+            },
+          },
+        },
         offers: {
           where: { status: OfferStatus.PENDING },
           select: { id: true },
@@ -284,10 +305,20 @@ export class MarketService {
       },
     });
 
-    return listings.map((l) => ({
-      ...l,
-      character: this.formatCharacter(l.character),
-    }));
+    return listings.map((l) => {
+      const keys = (l.character as any).haremEntries?.[0]?.keys || 1;
+      const isSoulmate = keys >= 10;
+      return {
+        ...l,
+        keys,
+        isSoulmate,
+        character: {
+          ...this.formatCharacter(l.character),
+          keys,
+          isSoulmate,
+        },
+      };
+    });
   }
 
   /**

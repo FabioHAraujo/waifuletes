@@ -1716,12 +1716,19 @@ function renderPublicMarketListings(listings) {
     card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
     card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
 
+    const keys = listing.keys || char.keys || 1;
+    const isSoulmate = Boolean(listing.isSoulmate || char.isSoulmate || keys >= 10);
+    const keysBadgeHtml = isSoulmate
+      ? `<div class="badge-keys" style="background: #ec4899; color: white; border-color: #f472b6;" title="💖 Soulmate (${keys} chaves)"><span>💖</span> <span>${keys}</span></div>`
+      : `<div class="badge-keys" title="🔑 ${keys} chave(s)"><span>🔑</span> <span>${keys}</span></div>`;
+
     card.innerHTML = `
       <div class="card-img-wrapper">
         <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
         <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
           ${rarity.emoji} ${rarity.label}
         </div>
+        ${keysBadgeHtml}
       </div>
       <div class="card-info">
         <div class="card-name">${escapeHtml(char.name)}</div>
@@ -3407,13 +3414,20 @@ async function loadMyListings() {
         ? `<i class="fas fa-bell"></i> <strong>Ver Ofertas (${pendingOffersCount})</strong>`
         : `<i class="fas fa-envelope-open"></i> Ver Ofertas (0)`;
 
+      const keys = listing.keys || char.keys || 1;
+      const isSoulmate = Boolean(listing.isSoulmate || char.isSoulmate || keys >= 10);
+      const keysBadgeHtml = isSoulmate
+        ? `<div class="badge-keys" style="background: #ec4899; color: white; border-color: #f472b6;" title="💖 Soulmate (${keys} chaves)"><span>💖</span> <span>${keys}</span></div>`
+        : `<div class="badge-keys" title="🔑 ${keys} chave(s)"><span>🔑</span> <span>${keys}</span></div>`;
+
       card.innerHTML = `
         <div class="card-img-wrapper">
           <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
           <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
             ${rarity.emoji} ${rarity.label}
           </div>
-          ${hasOffers ? `<div class="badge-married" style="background: #f59e0b; color: black; font-weight: 800;">${pendingOffersCount} 🫰</div>` : ''}
+          ${keysBadgeHtml}
+          ${hasOffers ? `<div class="badge-married" style="background: #f59e0b; color: black; font-weight: 800; top: 8px; left: 8px;">${pendingOffersCount} 🫰</div>` : ''}
         </div>
         <div class="card-info">
           <div class="card-name">${escapeHtml(char.name)}</div>
@@ -3642,13 +3656,20 @@ async function loadGlobalMarket() {
       card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
       card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
 
+      const keys = listing.keys || char.keys || 1;
+      const isSoulmate = Boolean(listing.isSoulmate || char.isSoulmate || keys >= 10);
+      const keysBadgeHtml = isSoulmate
+        ? `<div class="badge-keys" style="background: #ec4899; color: white; border-color: #f472b6;" title="💖 Soulmate (${keys} chaves)"><span>💖</span> <span>${keys}</span></div>`
+        : `<div class="badge-keys" title="🔑 ${keys} chave(s)"><span>🔑</span> <span>${keys}</span></div>`;
+
       card.innerHTML = `
         <div class="card-img-wrapper">
           <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
           <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
             ${rarity.emoji} ${rarity.label}
           </div>
-          ${isOwnListing ? `<div class="badge-married" style="background: #3b82f6; color: white;">SEU ANÚNCIO</div>` : ''}
+          ${keysBadgeHtml}
+          ${isOwnListing ? `<div class="badge-married" style="background: #3b82f6; color: white; top: 8px; left: 8px;">SEU ANÚNCIO</div>` : ''}
         </div>
         <div class="card-info">
           <div class="card-name">${escapeHtml(char.name)}</div>
@@ -3706,10 +3727,13 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
   } else {
     waifusList.innerHTML = harem.map(item => {
       const char = item.character;
+      const k = item.keys || 1;
+      const sm = k >= 10;
       return `
         <label style="border: var(--border-retro); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; cursor: pointer; background: var(--bg-card); font-size: 11px; text-align: center;">
           <img src="${getCharImg(char)}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-bottom: 4px;" onerror="handleImgError(this)">
           <span style="font-weight: 700; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(char.name)}</span>
+          <span style="font-size: 10px; color: ${sm ? '#ec4899' : '#f59e0b'}; font-weight: 800; margin-top: 2px;">${sm ? '💖' : '🔑'} ${k}</span>
           <input type="checkbox" name="offer-waifu-cb" value="${char.id}" style="margin-top: 4px;">
         </label>
       `;

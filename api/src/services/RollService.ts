@@ -4,6 +4,7 @@ import { CharacterService } from './CharacterService.js';
 import {
   calculateCharacterWeight,
   RARITY_DIVORCE_VALUES,
+  KAKERA_CRYSTAL_BASE,
   RARITY_BASE_WEIGHTS,
   RollBonuses,
 } from '../utils/rarityCalculator.js';
@@ -413,8 +414,8 @@ export class RollService {
           };
         } else {
           // Outro usuário é dono -> cristal de kakera
-          const baseRefund = RARITY_DIVORCE_VALUES[chosen.baseRarity] ?? 50;
-          kakeraCrystalValue = Math.round(baseRefund * 0.2) + existingHaremEntry.keys * 5;
+          const crystalBase = KAKERA_CRYSTAL_BASE[chosen.baseRarity] ?? 10;
+          kakeraCrystalValue = crystalBase + existingHaremEntry.keys * 5;
         }
       } else if (rollerShares > 0) {
         // CASAMENTO INSTANTÂNEO POR COTA!

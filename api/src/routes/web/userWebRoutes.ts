@@ -1620,17 +1620,31 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           character: {
             include: {
               _count: { select: { wishlists: true } },
+              haremEntries: {
+                where: { userId: user.id },
+                select: { keys: true, isFavorite: true },
+              },
             },
           },
         },
       });
 
-      const formatted = listings.map((l) => ({
-        id: l.id,
-        interest: l.interest,
-        createdAt: l.createdAt,
-        character: marketService.formatCharacter(l.character),
-      }));
+      const formatted = listings.map((l) => {
+        const keys = (l.character as any).haremEntries?.[0]?.keys || 1;
+        const isSoulmate = keys >= 10;
+        return {
+          id: l.id,
+          interest: l.interest,
+          createdAt: l.createdAt,
+          keys,
+          isSoulmate,
+          character: {
+            ...marketService.formatCharacter(l.character),
+            keys,
+            isSoulmate,
+          },
+        };
+      });
 
       return reply.send({ success: true, data: formatted });
     },
