@@ -6,6 +6,7 @@ import { DivorceService } from '../../services/DivorceService.js';
 import { MarryService } from '../../services/MarryService.js';
 import { parseManifestString } from '../../utils/manifestLoader.js';
 import { calculateDivorceRefund } from '../../utils/rarityCalculator.js';
+import { config } from '../../config.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { KakeraReason } from '@prisma/client';
 
@@ -577,9 +578,17 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const refunds: Array<{ userId: string; refundedKakera: number }> = [];
 
+      const soulmateUserIds = new Set(
+        (await fastify.prisma.soulmate.findMany({
+          where: { characterId: character.id },
+          select: { userId: true },
+        })).map((s) => s.userId)
+      );
+
       await fastify.prisma.$transaction(async (tx) => {
         for (const entry of character.haremEntries) {
-          const refund = calculateDivorceRefund(character.baseRarity, entry.keys);
+          const isSoulmate = entry.keys >= (config.SOULMATE_KEYS_REQUIRED ?? 10) || soulmateUserIds.has(entry.userId);
+          const refund = calculateDivorceRefund(character.baseRarity, entry.keys, { isSoulmate });
           await tx.user.update({
             where: { id: entry.userId },
             data: { kakera: { increment: refund.netKakera } },

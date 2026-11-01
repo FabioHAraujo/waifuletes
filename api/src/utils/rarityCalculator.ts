@@ -17,8 +17,26 @@ export const KAKERA_CRYSTAL_BASE: Record<Rarity, number> = {
   LEGENDARY: 300,
 };
 
-// Valores de divórcio equivalentes a 4 COTAS (100% do preço base de mercado da waifu: RARITY_DAYS * 30.000 Zinthos)
+// Valores de divórcio comum (não-soulmate)
 export const RARITY_DIVORCE_VALUES: Record<Rarity, number> = {
+  COMMON: 50,
+  UNCOMMON: 150,
+  RARE: 350,
+  EPIC: 700,
+  LEGENDARY: 1500,
+};
+
+// Bônus por chave escalonado por raridade para divórcio comum
+export const RARITY_KEY_DIVORCE_BONUS: Record<Rarity, number> = {
+  COMMON: 500,
+  UNCOMMON: 2000,
+  RARE: 5000,
+  EPIC: 25000,
+  LEGENDARY: 75000,
+};
+
+// Valores de divórcio equivalentes a 4 COTAS exclusivo para SOULMATES (100% do preço base de mercado da waifu: RARITY_DAYS * 30.000 Zinthos)
+export const SOULMATE_DIVORCE_VALUES: Record<Rarity, number> = {
   COMMON: 450000,      // 15 dias x 30.000 Zinthos (4 cotas)
   UNCOMMON: 900000,    // 30 dias x 30.000 Zinthos (4 cotas)
   RARE: 1800000,       // 60 dias x 30.000 Zinthos (4 cotas)
@@ -26,8 +44,14 @@ export const RARITY_DIVORCE_VALUES: Record<Rarity, number> = {
   LEGENDARY: 6300000,  // 210 dias x 30.000 Zinthos (4 cotas)
 };
 
-export const KEY_KAKERA_BONUS = 30000; // 30.000 Zinthos de bônus por chave (1 diário completo por chave)
+export const SOULMATE_KEY_KAKERA_BONUS = 30000; // 30.000 Zinthos de bônus por chave para soulmates
+export const KEY_KAKERA_BONUS = 15; // Legado mantido para compatibilidade
 export const DIVORCE_PENALTY_RATE = 0.05; // 5% de taxa de divórcio
+
+export interface DivorceRefundOptions {
+  isSoulmate?: boolean;
+  inflationMultiplier?: number;
+}
 
 export interface RollBonuses {
   donorBadge?: string;
@@ -88,10 +112,38 @@ export function calculateCharacterWeight(params: WeightCalculationParams): numbe
   return Math.max(1, Math.round(finalWeight));
 }
 
-export function calculateDivorceRefund(baseRarity: Rarity, keys: number) {
-  const baseValue = RARITY_DIVORCE_VALUES[baseRarity] ?? 50;
-  const keysBonus = Math.max(0, keys) * KEY_KAKERA_BONUS;
-  const rawValue = baseValue + keysBonus;
+export function calculateDivorceRefund(
+  baseRarity: Rarity,
+  keys: number,
+  optionsOrIsSoulmate?: boolean | DivorceRefundOptions,
+  legacyInflation?: number
+) {
+  let isSoulmate = false;
+  let inflationMultiplier = 1.0;
+
+  if (typeof optionsOrIsSoulmate === 'boolean') {
+    isSoulmate = optionsOrIsSoulmate;
+    if (typeof legacyInflation === 'number' && legacyInflation > 0) {
+      inflationMultiplier = legacyInflation;
+    }
+  } else if (optionsOrIsSoulmate && typeof optionsOrIsSoulmate === 'object') {
+    isSoulmate = Boolean(optionsOrIsSoulmate.isSoulmate);
+    if (typeof optionsOrIsSoulmate.inflationMultiplier === 'number' && optionsOrIsSoulmate.inflationMultiplier > 0) {
+      inflationMultiplier = optionsOrIsSoulmate.inflationMultiplier;
+    }
+  }
+
+  const baseValue = isSoulmate
+    ? (SOULMATE_DIVORCE_VALUES[baseRarity] ?? 450000)
+    : (RARITY_DIVORCE_VALUES[baseRarity] ?? 50);
+
+  const bonusPerKey = isSoulmate
+    ? SOULMATE_KEY_KAKERA_BONUS
+    : (RARITY_KEY_DIVORCE_BONUS[baseRarity] ?? 500);
+
+  const keysBonus = Math.max(0, keys) * bonusPerKey;
+  const rawBeforeInflation = baseValue + keysBonus;
+  const rawValue = Math.round(rawBeforeInflation * inflationMultiplier);
 
   // 5% penalty on refund
   const netKakera = Math.floor(rawValue * (1 - DIVORCE_PENALTY_RATE));
@@ -101,8 +153,11 @@ export function calculateDivorceRefund(baseRarity: Rarity, keys: number) {
   return {
     baseValue,
     keysBonus,
+    rawBeforeInflation,
     rawValue,
     netKakera,
     remainingKeys,
+    isSoulmate,
+    inflationMultiplier,
   };
 }

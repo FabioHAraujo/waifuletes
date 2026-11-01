@@ -90,9 +90,12 @@ export class MarketInvestmentService {
       }
     }
 
-    // 1. Massa monetária em circulação (M2)
+    // 1. Massa monetária em circulação (M2) - exclui usuário sintético de testes
     const kakeraSumResult = await this.prisma.user.aggregate({
       _sum: { kakera: true },
+      where: {
+        id: { not: 'test_web_user_1' },
+      },
     });
     const circulatingKakera = kakeraSumResult._sum.kakera ?? BASE_MONEY_SUPPLY;
 
