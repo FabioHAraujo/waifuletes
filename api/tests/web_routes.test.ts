@@ -188,7 +188,7 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
         token: testUserToken,
         type: 'RARITY',
         characterId: testCharacterId,
-        suggestedRarity: 'LEGENDARY',
+        suggestedRarity: 'EPIC',
         reason: '', // Vazio
       }),
     });
