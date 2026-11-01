@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Harém do Usuário • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261029-col2">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261101-slideshow">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -218,6 +218,67 @@
 
       <!-- Aba 3: Harém -->
       <div class="tab-content hidden" id="tab-harem">
+        <!-- Container "Configurações do Harém" -->
+        <div id="private-harem-settings-container" style="background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 16px; box-shadow: var(--shadow-retro-sm); margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color, #2d241e);">
+            <i class="fas fa-cog" style="color: #ec4899; font-size: 18px;"></i>
+            <span style="font-weight: 800; font-size: 16px; color: var(--text-main);">Configurações do Harém</span>
+          </div>
+
+          <!-- 1. Nome do Harém -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--border-retro); flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 800; font-size: 14px;">👑 Nome do Harém:</span>
+                <span id="display-harem-name" style="font-weight: 800; font-size: 14px; color: #ec4899;"><em>(Sem nome definido)</em></span>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                Defina um nome para seu harém (máximo 20 caracteres). Ele aparece no comando <b>!mu-harem</b> e no topo da sua página pública.
+              </p>
+            </div>
+            <button class="btn-retro btn-sm btn-purple" id="btn-open-edit-harem-name" onclick="openEditHaremNameModal()">
+              <i class="fas fa-edit"></i> Alterar Nome
+            </button>
+          </div>
+
+          <!-- 2. Harém Privado -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px dashed var(--border-retro); flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 800; font-size: 14px;">🔒 Visibilidade do Harém:</span>
+                <span id="harem-privacy-status-badge" class="badge-tag" style="background: #22c55e; color: #fff; font-weight: 800;">Público</span>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                Se ativado, visitantes na sua página pública verão apenas <i>"O usuário xxx decidiu privar seu harém."</i>
+              </p>
+            </div>
+            <button class="btn-retro btn-sm" id="btn-toggle-harem-privacy" onclick="toggleHaremPrivacy()">
+              <i class="fas fa-lock"></i> Alternar Privacidade
+            </button>
+          </div>
+
+          <!-- 3. Pastas & Coleções Reordenáveis -->
+          <div style="padding-top: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <span style="font-weight: 800; font-size: 14px;">📁 Pastas & Coleções:</span>
+                <span id="collections-count-badge" class="badge-tag" style="background: #3b82f6; color: #fff; margin-left: 6px; font-weight: 800;">0/15</span>
+                <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                  Arraste para alterar a ordem das coleções. Clique no olho para torná-la privada (oculta no harém público).
+                </p>
+              </div>
+              <button class="btn-retro btn-sm btn-gold" id="btn-open-new-collection" onclick="openNewCollectionModal()">
+                <i class="fas fa-folder-plus"></i> + Nova Coleção
+              </button>
+            </div>
+
+            <!-- Lista Reordenável Drag & Drop -->
+            <div id="collections-reorder-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+              <!-- Injetado dinamicamente via JS -->
+            </div>
+          </div>
+        </div>
+
         <!-- Seção de Favoritas Privadas -->
         <div id="private-favorites-section" class="hidden" style="margin-bottom: 24px; text-align: center;">
           <div style="display: inline-block; background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 8px 24px; box-shadow: var(--shadow-retro-sm); margin-bottom: 14px;">
@@ -226,40 +287,8 @@
           <div id="private-favorites-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;"></div>
         </div>
 
-        <!-- Seção de Nome do Harém -->
-        <div id="private-harem-name-section" style="margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm); flex-wrap: wrap; gap: 10px;">
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-weight: 800; font-size: 15px;">👑 Nome do Harém:</span>
-                <span id="display-harem-name" style="font-weight: 800; font-size: 15px; color: #ec4899;"><em>(Sem nome definido)</em></span>
-              </div>
-              <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;">
-                Defina um nome para seu harém (máximo 20 caracteres). Ele aparece no comando <b>!mu-harem</b> e na sua página pública.
-              </p>
-            </div>
-            <button class="btn-retro btn-sm btn-purple" id="btn-open-edit-harem-name" onclick="openEditHaremNameModal()">
-              <i class="fas fa-edit"></i> Alterar Nome
-            </button>
-          </div>
-        </div>
-
-        <!-- Seção de Coleções / Pastas -->
-        <div id="private-collections-section" style="margin-bottom: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm); margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-            <div>
-              <span style="font-weight: 800; font-size: 15px;">📁 Pastas & Coleções</span>
-              <span id="collections-count-badge" class="badge-tag" style="background: #3b82f6; color: #fff; margin-left: 8px; font-weight: 800;">0/15</span>
-              <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;">
-                Organize seu harém em pastas temáticas exclusivas. Cada waifu pertence a no máximo uma coleção por vez.
-              </p>
-            </div>
-            <button class="btn-retro btn-sm btn-gold" id="btn-open-new-collection" onclick="openNewCollectionModal()">
-              <i class="fas fa-folder-plus"></i> + Nova Coleção
-            </button>
-          </div>
-          <div id="private-collections-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
-        </div>
+        <!-- Seção de Coleções / Pastas (Containers com Grids de Waifus) -->
+        <div id="private-collections-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;"></div>
 
         <!-- Título do Harém Geral -->
         <div id="private-harem-general-title" style="margin-bottom: 14px;">
@@ -449,8 +478,16 @@
 
     <!-- Container do Painel Público (Apenas leitura) -->
     <div id="public-panel" class="hidden">
-      <!-- Abas da Página Pública -->
-      <div class="retro-tabs">
+      <!-- Aviso de Harém Privado -->
+      <div id="public-private-harem-notice" class="hidden" style="text-align: center; padding: 48px 20px; background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); margin: 24px 0; box-shadow: var(--shadow-retro);">
+        <div style="font-size: 48px; margin-bottom: 14px;">🔒</div>
+        <h3 style="font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--text-main);" id="public-private-notice-text">O usuário decidiu privar seu harém.</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 0;">As waifus e coleções deste jogador estão configuradas como privadas.</p>
+      </div>
+
+      <div id="public-content-wrapper">
+        <!-- Abas da Página Pública -->
+        <div class="retro-tabs">
         <button class="retro-tab active" data-publictab="public-tab-harem">
           <i class="fas fa-ring"></i> Harém (<span id="public-harem-count">0</span>)
         </button>
@@ -507,6 +544,7 @@
         </div>
       </div>
     </div>
+  </div>
 
     <!-- Rodapé -->
     <footer class="retro-footer">
@@ -1280,11 +1318,84 @@
     </div>
   </div>
 
+  <!-- Modal: Opções do Card de Waifu -->
+  <div class="modal-overlay hidden" id="modal-card-options" style="z-index: 10008;">
+    <div class="modal-box" style="max-width: min(420px, 92vw);">
+      <div class="modal-header">
+        <span class="modal-title" id="card-options-title">⚙️ Opções</span>
+        <button class="modal-close" onclick="closeModal('modal-card-options')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; background: var(--bg-card-subtle); border: var(--border-retro); border-radius: 6px; padding: 10px; margin-bottom: 14px;">
+          <img id="card-options-char-img" src="/media/characters/default.jpg" style="width: 52px; height: 52px; object-fit: cover; border-radius: 4px; border: var(--border-retro);" onerror="handleImgError(this)">
+          <div style="overflow: hidden;">
+            <div id="card-options-char-name" style="font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Nome</div>
+            <div id="card-options-char-series" style="font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Série</div>
+          </div>
+        </div>
+        <div id="card-options-buttons-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Botões renderizados dinamicamente pelo JS -->
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-card-options')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Escolher Foto Fixa da Waifu -->
+  <div class="modal-overlay hidden" id="modal-choose-photo" style="z-index: 10009;">
+    <div class="modal-box" style="max-width: min(600px, 95vw); max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <span class="modal-title" id="choose-photo-title">📷 Escolher Foto Fixa</span>
+        <button class="modal-close" onclick="closeModal('modal-choose-photo')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; flex: 1; overflow-y: auto;">
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+          A foto selecionada ficará <b>fixa</b> no seu harém (tanto na sua visão privada quanto na página pública).
+        </p>
+
+        <!-- Seção: Foto Oficial do Casamento -->
+        <div style="margin-bottom: 18px; background: var(--bg-card-subtle); border: var(--border-retro); border-radius: 8px; padding: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 800; font-size: 13px; color: #ec4899;">💍 FOTO DO CASAMENTO</span>
+            <span id="choose-photo-marriage-badge" class="badge-tag hidden" style="background: #ec4899; color: #fff; font-weight: 800;">Fixada</span>
+          </div>
+          <div id="choose-photo-marriage-container">
+            <!-- Injetado via JS: imagem ou aviso de sem foto -->
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border-retro); font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <span>💡 Quer tentar uma foto de casamento nova?</span>
+            <button class="btn-retro btn-sm btn-pink" id="btn-copy-new-photo-cmd" style="font-size: 11px; padding: 3px 8px;">
+              <i class="fas fa-copy"></i> Copiar !mu-foto nova
+            </button>
+          </div>
+        </div>
+
+        <!-- Seção: Fotos Oficiais do Catálogo -->
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 800; font-size: 13px;">📸 Fotos do Catálogo</span>
+            <button class="btn-retro btn-sm" id="btn-restore-random-photo" onclick="submitPinnedPhoto(null)" style="font-size: 11px;">
+              🎲 Restaurar Aleatória
+            </button>
+          </div>
+          <div id="choose-photo-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px;">
+            <!-- Fotos do catálogo injetadas via JS -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-choose-photo')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast de Notificação -->
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261029-col2"></script>
-  <script src="/js/user.js?v=20261029-col2"></script>
+  <script src="/js/api.js?v=20261101-patch"></script>
+  <script src="/js/user.js?v=20261101-slideshow"></script>
 </body>
 </html>

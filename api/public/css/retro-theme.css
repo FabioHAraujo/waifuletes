@@ -613,7 +613,11 @@ body.dark-mode .waifu-card.rarity-common {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.2s ease;
+  transition: opacity 0.35s ease-in-out, transform 0.2s ease;
+}
+
+.card-img-wrapper img.card-img-fading {
+  opacity: 0;
 }
 
 .waifu-card:hover .card-img-wrapper img {

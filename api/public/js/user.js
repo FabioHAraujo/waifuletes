@@ -32,6 +32,9 @@ let activeCovetsChar = null;
 let userCovetedSet = new Set();
 let visitorSessionData = null;
 let visitorWishlistSet = new Set();
+let haremEntryCache = new Map();
+let currentChoosePhotoCharId = null;
+let draggedColIndex = null;
 
 function getActiveAuthUser() {
   const isOwner = Boolean(userSessionData?.isAdmin);
@@ -709,6 +712,18 @@ async function loadUserData() {
       // Exibe botão de compartilhar apenas para o dono
       document.getElementById('btn-share-public')?.classList.remove('hidden');
 
+      // Atualiza badge de privacidade nas configurações do harém
+      const privacyBadge = document.getElementById('harem-privacy-status-badge');
+      if (privacyBadge) {
+        if (userSessionData.haremPrivate) {
+          privacyBadge.textContent = 'Privado';
+          privacyBadge.style.background = '#ef4444';
+        } else {
+          privacyBadge.textContent = 'Público';
+          privacyBadge.style.background = '#22c55e';
+        }
+      }
+
       document.getElementById('private-panel').classList.remove('hidden');
       document.getElementById('public-panel').classList.add('hidden');
 
@@ -722,6 +737,20 @@ async function loadUserData() {
       document.getElementById('btn-share-public')?.classList.add('hidden');
       document.getElementById('private-panel').classList.add('hidden');
       document.getElementById('public-panel').classList.remove('hidden');
+
+      if (userSessionData.isPrivate) {
+        document.getElementById('public-private-harem-notice')?.classList.remove('hidden');
+        document.getElementById('public-content-wrapper')?.classList.add('hidden');
+        const noticeEl = document.getElementById('public-private-notice-text');
+        if (noticeEl) {
+          noticeEl.textContent = userSessionData.message || `O usuário ${userSessionData.name} decidiu privar seu harém.`;
+        }
+        document.getElementById('user-subtitle').textContent = 'Harém Privado';
+        return;
+      } else {
+        document.getElementById('public-private-harem-notice')?.classList.add('hidden');
+        document.getElementById('public-content-wrapper')?.classList.remove('hidden');
+      }
 
       // Se o visitante tiver sessão salva em cookie, valida e ativa seus dados
       const savedPublicId = getCookie('waifu_user_public_id') || getCookie('waifu_public_id') || localStorage.getItem('waifu_user_public_id');
@@ -888,7 +917,80 @@ function sortHaremCards(harem) {
   });
 }
 
-function createPrivateHaremCard(entry) {
+/* ────────────────────────────────────────────────────────────────────────── */
+/* SLIDESHOW ESCALONADO (STAGGERED) PARA CARDS COM MÚLTIPLAS FOTOS            */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+let activeSlideshowTimers = [];
+let slideshowStaggerOffset = 0;
+
+function clearAllCardSlideshows() {
+  activeSlideshowTimers.forEach(id => clearTimeout(id));
+  activeSlideshowTimers = [];
+  slideshowStaggerOffset = 0;
+}
+
+function initCardSlideshow(card, imgEl, imageUrls, isPinned) {
+  // Não fazer slideshow em personagens com foto fixada nos haréns ou com apenas 1 foto
+  if (isPinned) return;
+  if (!Array.isArray(imageUrls) || imageUrls.length <= 1) return;
+
+  // Pré-carrega as imagens para evitar flash em branco ou latência de rede
+  imageUrls.forEach(url => {
+    if (url) {
+      const pre = new Image();
+      pre.src = url;
+    }
+  });
+
+  let currentIndex = 0;
+  const currentSrc = imgEl.getAttribute('src') || imgEl.src || '';
+  const matchIdx = imageUrls.findIndex(u => u && currentSrc.includes(u));
+  if (matchIdx !== -1) currentIndex = matchIdx;
+
+  // Animações staggered: começar o timer com diferença de 1 a 2 segundos (ex: 1.1, 1.25, 1.48...)
+  const step = 1100 + ((slideshowStaggerOffset * 173 + Math.random() * 320) % 800);
+  slideshowStaggerOffset = (slideshowStaggerOffset + step) % 5000;
+  const initialDelay = 1000 + slideshowStaggerOffset;
+
+  function cycle() {
+    if (!card.isConnected) return;
+    if (document.hidden) {
+      const t = setTimeout(cycle, 5000);
+      activeSlideshowTimers.push(t);
+      return;
+    }
+
+    // Fade-out suave
+    imgEl.classList.add('card-img-fading');
+    const fadeTimer = setTimeout(() => {
+      if (!card.isConnected) return;
+      currentIndex = (currentIndex + 1) % imageUrls.length;
+      imgEl.src = imageUrls[currentIndex];
+
+      let restored = false;
+      const restore = () => {
+        if (restored) return;
+        restored = true;
+        imgEl.classList.remove('card-img-fading');
+      };
+
+      imgEl.onload = restore;
+      imgEl.onerror = restore;
+      setTimeout(restore, 120);
+
+      // Próxima foto a cada 5 segundos
+      const nextTimer = setTimeout(cycle, 5000);
+      activeSlideshowTimers.push(nextTimer);
+    }, 350);
+    activeSlideshowTimers.push(fadeTimer);
+  }
+
+  const firstTimer = setTimeout(cycle, initialDelay);
+  activeSlideshowTimers.push(firstTimer);
+}
+
+function createPrivateHaremCard(entry, options = {}) {
   const char = entry.character;
   const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
   const card = document.createElement('div');
@@ -897,21 +999,22 @@ function createPrivateHaremCard(entry) {
   card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
 
   const unseenCovets = Number(entry.unseenCovetsCount || 0);
-  const covetsLabel = unseenCovets > 0 ? `Interessados (${unseenCovets})` : 'Interessados';
-  const covetsBtnClass = unseenCovets > 0 ? 'btn-gold' : '';
-  const covetsBtnStyle = unseenCovets > 0 ? 'border-color: #f59e0b; font-weight: 800;' : '';
 
   if (entry.collectionId) {
     try { localStorage.setItem(`waifu_last_col_${char.id}`, entry.collectionId); } catch (_) {}
   }
 
-  const photosCount = (char.imageUrls && Array.isArray(char.imageUrls)) ? char.imageUrls.length : 1;
-  const photosBadgeHtml = photosCount > 1
-    ? `<div class="badge-photos" onclick="event.stopPropagation(); openWaifuPreview('${char.id}')" title="${photosCount} fotos cadastradas">📷 ${photosCount}</div>`
+  // Oculta badge de coleção nos favoritos e dentro de categorias (pastas)
+  const showCollectionBadge = !options.hideCollectionBadge && Boolean(entry.collection);
+  const colBadgeHtml = showCollectionBadge
+    ? `<div class="badge-collection-tag" style="bottom: ${unseenCovets > 0 ? '34px' : '8px'};" title="Coleção: ${escapeHtml(entry.collection.name)}">📁 ${escapeHtml(entry.collection.name)}</div>`
     : '';
 
-  const colBadgeHtml = entry.collection
-    ? `<div class="badge-collection-tag" style="bottom: ${unseenCovets > 0 ? '34px' : '8px'};" title="Coleção: ${escapeHtml(entry.collection.name)}">📁 ${escapeHtml(entry.collection.name)}</div>`
+  const isInCollection = Boolean(entry.collectionId);
+  const colBtnHtml = isInCollection
+    ? `<button class="btn-retro btn-sm" style="width: 100%; border-color: #3b82f6; color: #3b82f6; font-weight: 800;" onclick="openAssignCollectionModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${entry.collectionId || ''}')">
+        📁 ${entry.collection ? `Pasta: ${escapeHtml(entry.collection.name)}` : 'Mover Pasta'}
+      </button>`
     : '';
 
   card.innerHTML = `
@@ -923,54 +1026,422 @@ function createPrivateHaremCard(entry) {
       ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
       ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
       ${unseenCovets > 0 ? `<div class="badge-covets" onclick="event.stopPropagation(); openHaremCovetsModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')" title="${unseenCovets} jogador(es) interessados">👀 ${unseenCovets}</div>` : ''}
-      ${photosBadgeHtml}
       ${colBadgeHtml}
     </div>
     <div class="card-info">
       <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
       <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
       <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-        <!-- 1. Favoritar -->
-        <button class="btn-retro btn-sm" style="width: 100%; background: #ec4899; color: white; border-color: #db2777;" onclick="toggleFavorite('${char.id}')">
-          💖 ${entry.isFavorite ? 'Desfavoritar' : 'Favoritar'}
-        </button>
-        <!-- 2. Coleção -->
-        <button class="btn-retro btn-sm" style="width: 100%; border-color: #3b82f6; color: #3b82f6; font-weight: 800;" onclick="openAssignCollectionModal('${char.id}', '${escapeHtml(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${entry.collectionId || ''}')">
-          📁 ${entry.collection ? `Pasta: ${escapeHtml(entry.collection.name)}` : 'Mover para Coleção'}
-        </button>
-        <!-- 3. Divorciar -->
-        <button class="btn-retro btn-sm btn-danger" style="width: 100%;" onclick="openDivorceModal('${char.id}', '${escapeHtml(char.name)}')">
-          <i class="fas fa-heart-crack"></i> Divorciar
-        </button>
-        <!-- 4. Vender -->
-        <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="openSellModal('${char.id}', '${escapeHtml(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeHtml(char.series || '')}')">
-          <i class="fas fa-tag"></i> 💰 Vender
-        </button>
-        <!-- 5. Interessados -->
-        <button class="btn-retro btn-sm ${covetsBtnClass}" style="width: 100%; ${covetsBtnStyle}" onclick="openHaremCovetsModal('${char.id}', '${escapeHtml(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeHtml(char.series || '')}')">
-          <i class="fas fa-eye"></i> 👀 ${covetsLabel}
-        </button>
-        <!-- 6. Sugerir Mudança -->
-        <button class="btn-retro btn-sm" style="width: 100%;" onclick="openSuggestModal('${char.id}', '${escapeHtml(char.name)}', '${char.baseRarity}')">
-          <i class="fas fa-lightbulb"></i> Sugerir Alterações
+        ${colBtnHtml}
+        <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openCardOptionsModal('${char.id}')">
+          ⚙️ Opções
         </button>
       </div>
     </div>
   `;
+
+  const imgEl = card.querySelector('.card-img-wrapper img');
+  if (imgEl) {
+    initCardSlideshow(card, imgEl, char.imageUrls, Boolean(entry.pinnedPhoto));
+  }
+
   return card;
 }
 
+function openCardOptionsModal(charId) {
+  const entry = haremEntryCache.get(charId);
+  if (!entry) return;
+
+  const char = entry.character;
+  const nameEl = document.getElementById('card-options-char-name');
+  const seriesEl = document.getElementById('card-options-char-series');
+  const imgEl = document.getElementById('card-options-char-img');
+  const listEl = document.getElementById('card-options-buttons-list');
+
+  if (nameEl) nameEl.textContent = char.name;
+  if (seriesEl) seriesEl.textContent = char.series || 'Sem série';
+  if (imgEl) imgEl.src = char.imageUrl || '/media/characters/default.jpg';
+
+  const unseenCovets = Number(entry.unseenCovetsCount || 0);
+  const totalCovets = Number(entry.totalCovetsCount || 0);
+  const covetsCount = unseenCovets > 0 ? unseenCovets : totalCovets;
+  const covetsLabel = covetsCount > 0 ? `Interessados (${covetsCount})` : 'Interessados';
+  const covetsBtnClass = unseenCovets > 0 ? 'btn-gold' : '';
+  const covetsBtnStyle = unseenCovets > 0 ? 'border-color: #f59e0b; font-weight: 800;' : '';
+
+  let html = `
+    <!-- 1. Favoritar -->
+    <button class="btn-retro btn-sm" style="width: 100%; background: #ec4899; color: white; border-color: #db2777;" onclick="closeModal('modal-card-options'); toggleFavorite('${char.id}')">
+      💖 ${entry.isFavorite ? 'Desfavoritar' : 'Favoritar'}
+    </button>
+    <!-- 2. Coleção -->
+    <button class="btn-retro btn-sm" style="width: 100%; border-color: #3b82f6; color: #3b82f6; font-weight: 800;" onclick="closeModal('modal-card-options'); openAssignCollectionModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${entry.collectionId || ''}')">
+      📁 ${entry.collection ? `Mudar de Pasta (${escapeHtml(entry.collection.name)})` : 'Mover para Coleção'}
+    </button>
+    <!-- 3. Escolher Foto -->
+    <button class="btn-retro btn-sm btn-purple" style="width: 100%; font-weight: 800;" onclick="closeModal('modal-card-options'); openChoosePhotoModal('${char.id}')">
+      📷 Escolher Foto
+    </button>
+    <!-- 4. Vender -->
+    <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="closeModal('modal-card-options'); openSellModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')">
+      <i class="fas fa-tag"></i> 💰 Vender
+    </button>
+    <!-- 5. Divorciar -->
+    <button class="btn-retro btn-sm btn-danger" style="width: 100%;" onclick="closeModal('modal-card-options'); openDivorceModal('${char.id}', '${escapeAttr(char.name)}')">
+      <i class="fas fa-heart-crack"></i> Divorciar
+    </button>
+    <!-- 6. Sugerir Mudança -->
+    <button class="btn-retro btn-sm" style="width: 100%;" onclick="closeModal('modal-card-options'); openSuggestModal('${char.id}', '${escapeAttr(char.name)}', '${char.baseRarity}')">
+      <i class="fas fa-lightbulb"></i> Sugerir Alterações
+    </button>
+  `;
+
+  // 7. Interessados: Mostrar só se >0
+  if (unseenCovets > 0 || totalCovets > 0) {
+    html += `
+      <button class="btn-retro btn-sm ${covetsBtnClass}" style="width: 100%; ${covetsBtnStyle}" onclick="closeModal('modal-card-options'); openHaremCovetsModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')">
+        <i class="fas fa-eye"></i> 👀 ${covetsLabel}
+      </button>
+    `;
+  }
+
+  if (listEl) listEl.innerHTML = html;
+  openModal('modal-card-options');
+}
+
+async function openChoosePhotoModal(charId) {
+  currentChoosePhotoCharId = charId;
+  const entry = haremEntryCache.get(charId);
+  const char = entry?.character;
+  const titleEl = document.getElementById('choose-photo-title');
+  if (titleEl && char) titleEl.textContent = `📷 Escolher Foto • ${char.name}`;
+
+  const marriageContainer = document.getElementById('choose-photo-marriage-container');
+  const marriageBadge = document.getElementById('choose-photo-marriage-badge');
+  const gridEl = document.getElementById('choose-photo-grid');
+
+  if (marriageContainer) marriageContainer.innerHTML = '<div style="text-align: center; padding: 12px; font-size: 12px; color: var(--text-muted);">Carregando opções...</div>';
+  if (gridEl) gridEl.innerHTML = '<div style="text-align: center; padding: 12px; font-size: 12px; color: var(--text-muted); grid-column: 1 / -1;">Buscando fotos...</div>';
+
+  openModal('modal-choose-photo');
+
+  try {
+    const res = await Api.get(`/api/web/user/${encodeURIComponent(userPublicId)}/harem/${encodeURIComponent(charId)}/photos?token=${encodeURIComponent(userSessionToken)}`);
+    if (!res?.success) {
+      Api.showToast(res?.error?.message || 'Falha ao buscar opções de fotos.', '❌');
+      closeModal('modal-choose-photo');
+      return;
+    }
+
+    const data = res.data;
+
+    // Foto do casamento
+    if (data.marriage?.isPinned) {
+      marriageBadge?.classList.remove('hidden');
+    } else {
+      marriageBadge?.classList.add('hidden');
+    }
+
+    if (marriageContainer) {
+      if (data.marriage?.exists) {
+        marriageContainer.innerHTML = `
+          <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
+            <img src="${data.marriage.url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 6px; border: 2.5px solid ${data.marriage.isPinned ? '#ec4899' : 'var(--border-retro)'}; box-shadow: var(--shadow-retro-sm);" onerror="handleImgError(this)">
+            <div style="flex: 1; min-width: 160px;">
+              <div style="font-weight: 800; font-size: 13px; color: #ec4899;">Foto Oficial do Casal 💍</div>
+              <p style="font-size: 11px; color: var(--text-muted); margin: 3px 0 8px 0;">
+                Gerada pelas Ravenas no momento do casamento ou via comando <code>!mu-foto</code>.
+              </p>
+              <button class="btn-retro btn-sm ${data.marriage.isPinned ? 'btn-pink' : 'btn-gold'}" style="font-weight: 800;" onclick="submitPinnedPhoto('marriage')">
+                ${data.marriage.isPinned ? '✓ Foto Fixa Atual' : 'Fixar Foto do Casamento'}
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        marriageContainer.innerHTML = `
+          <div style="text-align: center; padding: 14px; border: 1.5px dashed var(--border-retro); border-radius: 6px; background: var(--bg-card);">
+            <div style="font-size: 24px; margin-bottom: 4px;">💍</div>
+            <div style="font-size: 13px; font-weight: 800; margin-bottom: 4px;">Ainda não há foto de casamento gerada!</div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+              Envie no WhatsApp para as Ravenas gerarem a foto do casal:
+            </p>
+            <button class="btn-retro btn-sm btn-pink" onclick="copyTextToClipboard('${escapeAttr(data.marriage?.requestCommand || `!mu-foto ${charId}`)}')">
+              <i class="fas fa-copy"></i> Copiar ${escapeHtml(data.marriage?.requestCommand || `!mu-foto ${charId}`)}
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // Botão de copiar !mu-foto nova
+    const btnNewPhoto = document.getElementById('btn-copy-new-photo-cmd');
+    if (btnNewPhoto) {
+      btnNewPhoto.onclick = () => copyTextToClipboard(data.marriage?.newPhotoCommand || `!mu-foto nova ${charId}`);
+    }
+
+    // Fotos do catálogo
+    if (gridEl) {
+      gridEl.innerHTML = '';
+      if (!data.photos || data.photos.length === 0) {
+        gridEl.innerHTML = '<div style="grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); text-align: center;">Nenhuma foto adicional cadastrada.</div>';
+      } else {
+        data.photos.forEach(photo => {
+          const item = document.createElement('div');
+          item.style.cssText = `cursor: pointer; position: relative; border-radius: 6px; overflow: hidden; border: 2.5px solid ${photo.isPinned ? '#22c55e' : 'var(--border-retro)'}; background: #000; box-shadow: var(--shadow-retro-sm);`;
+          item.innerHTML = `
+            <img src="${photo.url}" style="width: 100%; height: 130px; object-fit: cover; display: block;" onerror="handleImgError(this)">
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.75); color: #fff; font-size: 10px; font-weight: 800; text-align: center; padding: 3px 2px;">
+              Foto ${photo.index} ${photo.isPinned ? '✓' : ''}
+            </div>
+            ${photo.isPinned ? '<div style="position: absolute; top: 4px; right: 4px; background: #22c55e; color: #fff; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 3px;">Fixa</div>' : ''}
+          `;
+          item.onclick = () => submitPinnedPhoto(photo.id);
+          gridEl.appendChild(item);
+        });
+      }
+    }
+  } catch (err) {
+    Api.showToast('Erro ao carregar opções de fotos.', '❌');
+    closeModal('modal-choose-photo');
+  }
+}
+
+async function submitPinnedPhoto(photo) {
+  if (!currentChoosePhotoCharId) return;
+  try {
+    const res = await Api.put(`/api/web/user/${encodeURIComponent(userPublicId)}/harem/${encodeURIComponent(currentChoosePhotoCharId)}/photo`, {
+      token: userSessionToken,
+      photo: photo,
+    });
+    if (res?.success) {
+      Api.showToast(res.data?.message || 'Foto fixa atualizada!', '📷');
+      closeModal('modal-choose-photo');
+      loadUserData();
+    } else {
+      Api.showToast(res?.error?.message || 'Falha ao atualizar foto fixa.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao salvar foto fixa.', '❌');
+  }
+}
+
+function copyTextToClipboard(text) {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    Api.showToast(`Copiado: ${text}`, '📋');
+  }).catch(() => {
+    Api.showToast(`Comando: ${text}`, '📋');
+  });
+}
+
+async function toggleHaremPrivacy() {
+  const currentPrivacy = Boolean(userSessionData?.haremPrivate);
+  const nextPrivacy = !currentPrivacy;
+  const btn = document.getElementById('btn-toggle-harem-privacy');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await Api.patch(`/api/web/user/${encodeURIComponent(userPublicId)}/harem-privacy`, {
+      token: userSessionToken,
+      isPrivate: nextPrivacy,
+    });
+    if (res?.success) {
+      userSessionData.haremPrivate = nextPrivacy;
+      const badge = document.getElementById('harem-privacy-status-badge');
+      if (badge) {
+        if (nextPrivacy) {
+          badge.textContent = 'Privado';
+          badge.style.background = '#ef4444';
+        } else {
+          badge.textContent = 'Público';
+          badge.style.background = '#22c55e';
+        }
+      }
+      Api.showToast(res.data?.message || 'Privacidade do harém atualizada!', nextPrivacy ? '🔒' : '🔓');
+    } else {
+      Api.showToast(res?.error?.message || 'Falha ao alterar privacidade.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao alterar privacidade.', '❌');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function toggleCollectionPrivacy(collectionId) {
+  try {
+    const res = await Api.patch(`/api/web/user/${encodeURIComponent(userPublicId)}/collections/${encodeURIComponent(collectionId)}/privacy`, {
+      token: userSessionToken,
+    });
+    if (res?.success) {
+      Api.showToast(res.data?.message || 'Privacidade da coleção atualizada!', res.data?.isPrivate ? '🔒' : '👁️');
+      loadUserData();
+    } else {
+      Api.showToast(res?.error?.message || 'Falha ao atualizar coleção.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao atualizar privacidade da pasta.', '❌');
+  }
+}
+
+function renderCollectionsReorderList(collections) {
+  const listEl = document.getElementById('collections-reorder-list');
+  if (!listEl) return;
+
+  if (!collections || collections.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align: center; padding: 14px; border: 1.5px dashed var(--border-retro); border-radius: var(--radius-retro); font-size: 12px; color: var(--text-muted); background: var(--bg-card-subtle);">
+        Nenhuma coleção criada ainda. Clique em "+ Nova Coleção" para organizar seu harém!
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = '';
+  collections.forEach((col, idx) => {
+    const item = document.createElement('div');
+    item.className = 'collection-reorder-item';
+    item.draggable = true;
+    item.dataset.id = col.id;
+    item.dataset.index = idx;
+    item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle); border: var(--border-retro); border-radius: 6px; padding: 8px 12px; gap: 8px; user-select: none; transition: background 0.2s;';
+
+    const isPriv = Boolean(col.isPrivate);
+    const eyeIcon = isPriv ? 'fa-eye-slash' : 'fa-eye';
+    const eyeTitle = isPriv ? 'Coleção Privada (oculta no harém público)' : 'Coleção Pública (visível no harém público)';
+    const eyeBtnClass = isPriv ? 'btn-danger' : '';
+
+    item.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden;">
+        <span class="drag-handle" style="cursor: grab; color: var(--text-muted); font-size: 14px;" title="Arraste para reordenar">
+          <i class="fas fa-grip-vertical"></i>
+        </span>
+        <span style="font-weight: 800; font-size: 12px; color: var(--text-muted); width: 18px;">${idx + 1}.</span>
+        <span style="font-weight: 800; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          📂 ${escapeHtml(col.name)}
+        </span>
+        <span class="badge-tag" style="background: #3b82f6; color: #fff; font-size: 10px; font-weight: 800; padding: 2px 6px;">
+          ${col.characterCount || 0} waifus
+        </span>
+        ${isPriv ? '<span class="badge-tag" style="background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; padding: 2px 6px;"><i class="fas fa-eye-slash"></i> Privada</span>' : ''}
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <!-- Botão Olho (Privacidade) -->
+        <button class="btn-retro btn-sm ${eyeBtnClass}" style="padding: 4px 8px; font-size: 11px;" onclick="toggleCollectionPrivacy('${col.id}')" title="${eyeTitle}">
+          <i class="fas ${eyeIcon}"></i>
+        </button>
+        <!-- Botões Subir / Descer (Fallback mobile) -->
+        <button class="btn-retro btn-sm" style="padding: 4px 7px; font-size: 10px;" onclick="moveCollectionOrder(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} title="Subir">
+          ▲
+        </button>
+        <button class="btn-retro btn-sm" style="padding: 4px 7px; font-size: 10px;" onclick="moveCollectionOrder(${idx}, 1)" ${idx === collections.length - 1 ? 'disabled' : ''} title="Descer">
+          ▼
+        </button>
+        <!-- Adicionar waifus -->
+        <button class="btn-retro btn-sm btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openBatchAddCharactersModal('${col.id}', '${escapeAttr(col.name)}')" title="Adicionar personagens">
+          <i class="fas fa-plus"></i>
+        </button>
+        <!-- Excluir pasta -->
+        <button class="btn-retro btn-sm btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="confirmDeleteCollection('${col.id}', '${escapeAttr(col.name)}')" title="Excluir pasta">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    `;
+
+    // HTML5 Drag and Drop events
+    item.addEventListener('dragstart', (e) => {
+      draggedColIndex = idx;
+      item.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(idx));
+    });
+
+    item.addEventListener('dragend', () => {
+      item.style.opacity = '1';
+      document.querySelectorAll('.collection-reorder-item').forEach(el => el.style.borderTop = '');
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.style.borderTop = '2px solid #ec4899';
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.style.borderTop = '';
+    });
+
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.style.borderTop = '';
+      const sourceIndex = draggedColIndex;
+      const targetIndex = idx;
+      if (sourceIndex !== null && sourceIndex !== targetIndex) {
+        applyCollectionReorder(sourceIndex, targetIndex);
+      }
+    });
+
+    listEl.appendChild(item);
+  });
+}
+
+async function moveCollectionOrder(index, delta) {
+  const collections = userSessionData?.collections || [];
+  const targetIndex = index + delta;
+  if (targetIndex < 0 || targetIndex >= collections.length) return;
+  applyCollectionReorder(index, targetIndex);
+}
+
+async function applyCollectionReorder(sourceIndex, targetIndex) {
+  const collections = [...(userSessionData?.collections || [])];
+  const [moved] = collections.splice(sourceIndex, 1);
+  collections.splice(targetIndex, 0, moved);
+
+  userSessionData.collections = collections;
+  renderCollectionsReorderList(collections);
+
+  // Envia a nova ordem para o backend
+  try {
+    const orderedIds = collections.map(c => c.id);
+    const res = await Api.put(`/api/web/user/${encodeURIComponent(userPublicId)}/collections/order`, {
+      token: userSessionToken,
+      order: orderedIds,
+    });
+    if (res?.success) {
+      Api.showToast('Ordem das coleções salva!', '📁');
+      loadUserData();
+    } else {
+      Api.showToast(res?.error?.message || 'Falha ao salvar nova ordem.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao salvar ordem.', '❌');
+  }
+}
+
 function renderPrivateHarem(harem) {
+  clearAllCardSlideshows();
+
   const grid = document.getElementById('harem-grid');
   const favSection = document.getElementById('private-favorites-section');
   const favGrid = document.getElementById('private-favorites-grid');
-  const colSection = document.getElementById('private-collections-section');
   const colContainer = document.getElementById('private-collections-container');
   const colBadge = document.getElementById('collections-count-badge');
   const generalTitle = document.getElementById('private-harem-general-title');
 
+  // Atualiza cache de entradas para acesso rápido nas opções
+  haremEntryCache.clear();
+  harem.forEach(e => haremEntryCache.set(e.character.id, e));
+
   const totalCount = userSessionData?.totalHarem !== undefined ? userSessionData.totalHarem : harem.length;
   document.getElementById('harem-count').textContent = totalCount;
+
+  // 1. Renderiza lista reordenável de coleções no container Configurações do Harém
+  const collections = userSessionData?.collections || [];
+  if (colBadge) colBadge.textContent = `${collections.length}/15`;
+  const btnNewCol = document.getElementById('btn-open-new-collection');
+  if (btnNewCol) btnNewCol.disabled = collections.length >= 15;
+  renderCollectionsReorderList(collections);
 
   if (harem.length === 0) {
     if (favSection) favSection.classList.add('hidden');
@@ -981,70 +1452,60 @@ function renderPrivateHarem(harem) {
 
   sortHaremCards(harem);
 
-  // 1. Favoritas (até 5)
+  // 2. Favoritas (até 5) - omite badge-collection-tag
   const favorites = harem.filter(e => e.isFavorite).slice(0, 5);
   if (favorites.length > 0 && favSection && favGrid) {
     favSection.classList.remove('hidden');
     favGrid.innerHTML = '';
-    favorites.forEach(entry => favGrid.appendChild(createPrivateHaremCard(entry)));
+    favorites.forEach(entry => favGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
   } else if (favSection) {
     favSection.classList.add('hidden');
   }
 
-  // 2. Coleções
-  const collections = userSessionData?.collections || [];
-  if (colBadge) colBadge.textContent = `${collections.length}/15`;
-  const btnNewCol = document.getElementById('btn-open-new-collection');
-  if (btnNewCol) btnNewCol.disabled = collections.length >= 15;
-
+  // 3. Coleções (blocos com grid de waifus) - omite badge-collection-tag dentro da pasta
   if (colContainer) {
     colContainer.innerHTML = '';
-    if (collections.length === 0) {
-      colContainer.innerHTML = `
-        <div style="text-align: center; padding: 18px; border: 1.5px dashed var(--border-retro); border-radius: var(--radius-retro); font-size: 13px; color: var(--text-muted); background: var(--bg-card);">
-          <i class="fas fa-folder-open" style="font-size: 24px; display: block; margin-bottom: 6px;"></i>
-          Você ainda não possui pastas criadas. Crie até 15 coleções usando o botão acima para organizar suas waifus!
-        </div>
-      `;
-    } else {
-      collections.forEach(col => {
-        const colCard = document.createElement('div');
-        colCard.style.cssText = 'background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 14px; box-shadow: var(--shadow-retro-sm);';
+    collections.forEach(col => {
+      const colCard = document.createElement('div');
+      colCard.style.cssText = 'background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 14px; box-shadow: var(--shadow-retro-sm);';
 
-        const colChars = harem.filter(e => e.collectionId === col.id);
+      const colChars = harem.filter(e => e.collectionId === col.id);
 
-        colCard.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 16px; font-weight: 800;">📂 ${escapeHtml(col.name)}</span>
-              <span class="badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;">${colChars.length} waifus</span>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <button class="btn-retro btn-sm btn-primary" onclick="openBatchAddCharactersModal('${col.id}', '${escapeHtml(col.name)}')">
-                <i class="fas fa-plus"></i> + Adicionar Personagens
-              </button>
-              <button class="btn-retro btn-sm btn-danger" onclick="confirmDeleteCollection('${col.id}', '${escapeHtml(col.name)}')">
-                <i class="fas fa-trash"></i> Excluir Pasta
-              </button>
-            </div>
+      colCard.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px; font-weight: 800;">📂 ${escapeHtml(col.name)}</span>
+            <span class="badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;">${colChars.length} waifus</span>
+            ${col.isPrivate ? '<span class="badge-tag" style="background: #ef4444; color: #fff; font-weight: 800;"><i class="fas fa-eye-slash"></i> Privada</span>' : ''}
           </div>
-          ${col.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${escapeHtml(col.description)}</div>` : ''}
-          <div class="waifu-grid" id="col-grid-${col.id}"></div>
-        `;
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn-retro btn-sm btn-primary" onclick="openBatchAddCharactersModal('${col.id}', '${escapeAttr(col.name)}')">
+              <i class="fas fa-plus"></i> + Adicionar Personagens
+            </button>
+            <button class="btn-retro btn-sm ${col.isPrivate ? 'btn-danger' : ''}" onclick="toggleCollectionPrivacy('${col.id}')" title="${col.isPrivate ? 'Privada (oculta no público)' : 'Pública'}">
+              <i class="fas ${col.isPrivate ? 'fa-eye-slash' : 'fa-eye'}"></i> ${col.isPrivate ? 'Privada' : 'Pública'}
+            </button>
+            <button class="btn-retro btn-sm btn-danger" onclick="confirmDeleteCollection('${col.id}', '${escapeAttr(col.name)}')">
+              <i class="fas fa-trash"></i> Excluir Pasta
+            </button>
+          </div>
+        </div>
+        ${col.description ? `<div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">${escapeHtml(col.description)}</div>` : ''}
+        <div class="waifu-grid" id="col-grid-${col.id}"></div>
+      `;
 
-        const subGrid = colCard.querySelector(`#col-grid-${col.id}`);
-        if (colChars.length > 0) {
-          colChars.forEach(entry => subGrid.appendChild(createPrivateHaremCard(entry)));
-        } else {
-          subGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 14px; text-align: center; font-size: 13px; color: var(--text-muted); font-style: italic;">Esta pasta está vazia. Clique em "📁 Coleção" em qualquer waifu abaixo para movê-la para cá.</div>`;
-        }
+      const subGrid = colCard.querySelector(`#col-grid-${col.id}`);
+      if (colChars.length > 0) {
+        colChars.forEach(entry => subGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
+      } else {
+        subGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 14px; text-align: center; font-size: 13px; color: var(--text-muted); font-style: italic;">Esta pasta está vazia. Clique em "📁 Coleção" em qualquer waifu abaixo para movê-la para cá.</div>`;
+      }
 
-        colContainer.appendChild(colCard);
-      });
-    }
+      colContainer.appendChild(colCard);
+    });
   }
 
-  // 3. Harém Geral (waifus que não estão em nenhuma coleção)
+  // 4. Harém Geral (waifus que não estão em nenhuma coleção)
   const generalEntries = harem.filter(e => !e.collectionId);
   if (generalTitle) generalTitle.style.display = 'block';
 
@@ -1074,6 +1535,8 @@ async function toggleFavorite(characterId) {
 }
 
 function renderPrivateWishlist(wishlist) {
+  clearAllCardSlideshows();
+
   const grid = document.getElementById('wishlist-grid');
   document.getElementById('wishlist-count').textContent = wishlist.length;
 
@@ -1116,13 +1579,8 @@ function renderPrivateWishlist(wishlist) {
     }
 
     if (entry.collectionId) {
-    try { localStorage.setItem(`waifu_last_col_${char.id}`, entry.collectionId); } catch (_) {}
-  }
-
-  const photosCount = (char.imageUrls && Array.isArray(char.imageUrls)) ? char.imageUrls.length : 1;
-    const photosBadgeHtml = photosCount > 1
-      ? `<div class="badge-photos" style="bottom: 38px; left: 8px;" onclick="event.stopPropagation(); openWaifuPreview('${char.id}')" title="${photosCount} fotos cadastradas">📷 ${photosCount}</div>`
-      : '';
+      try { localStorage.setItem(`waifu_last_col_${char.id}`, entry.collectionId); } catch (_) {}
+    }
 
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
@@ -1132,7 +1590,6 @@ function renderPrivateWishlist(wishlist) {
         </div>
         ${marriedBadgeHtml}
         ${entry.isStarWish ? '<div class="badge-married" title="Starwish!">⭐</div>' : ''}
-        ${photosBadgeHtml}
         <div class="badge-wishes" data-char-id="${char.id}" title="Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para remover da Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
           <span>✨</span> <span>${char.wishlistCount || 0}</span>
         </div>
@@ -1171,6 +1628,12 @@ function renderPrivateWishlist(wishlist) {
         </div>
       </div>
     `;
+
+    const imgEl = card.querySelector('.card-img-wrapper img');
+    if (imgEl) {
+      initCardSlideshow(card, imgEl, char.imageUrls, false);
+    }
+
     grid.appendChild(card);
   });
 }
@@ -1188,11 +1651,6 @@ function createPublicHaremCard(entry) {
     ? (isWish ? 'Na sua Wishlist! Clique para remover' : `Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para adicionar à sua Wishlist`)
     : `Desejado por ${char.wishlistCount || 0} pessoa(s). Faça login para adicionar!`;
 
-  const photosCount = (char.imageUrls && Array.isArray(char.imageUrls)) ? char.imageUrls.length : 1;
-  const photosBadgeHtml = photosCount > 1
-    ? `<div class="badge-photos" style="bottom: 38px; left: 8px;" onclick="event.stopPropagation(); openWaifuPreview('${char.id}')" title="${photosCount} fotos cadastradas">📷 ${photosCount}</div>`
-    : '';
-
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
       <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
@@ -1201,7 +1659,6 @@ function createPublicHaremCard(entry) {
       </div>
       ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
       ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
-      ${photosBadgeHtml}
       <div class="badge-wishes ${isWish ? 'is-in-wishlist' : ''}" data-char-id="${char.id}" title="${wishTitle}" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
         <span>${isWish ? '⭐' : '✨'}</span> <span class="wishes-count">${char.wishlistCount || 0}</span>
       </div>
@@ -1214,10 +1671,18 @@ function createPublicHaremCard(entry) {
       <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
     </div>
   `;
+
+  const imgEl = card.querySelector('.card-img-wrapper img');
+  if (imgEl) {
+    initCardSlideshow(card, imgEl, char.imageUrls, Boolean(entry.pinnedPhoto));
+  }
+
   return card;
 }
 
 function renderPublicHarem(harem) {
+  clearAllCardSlideshows();
+
   const haremCountBadge = document.getElementById('public-harem-count');
   const totalCount = userSessionData?.totalHarem !== undefined ? userSessionData.totalHarem : (harem ? harem.length : 0);
   if (haremCountBadge) haremCountBadge.textContent = String(totalCount);

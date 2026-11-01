@@ -1,5 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { CharacterService } from './CharacterService.js';
+import { config } from '../config.js';
+import { DomainError } from '../errors/DomainError.js';
+
+export const MARRIAGE_PHOTO = 'marriage';
 
 export class HaremService {
   constructor(
@@ -57,13 +61,161 @@ export class HaremService {
         isFavorite: e.isFavorite,
         note: e.note,
         collectionId: e.collectionId || null,
-        collection: e.collection ? { id: e.collection.id, name: e.collection.name } : null,
+        collection: e.collection
+          ? { id: e.collection.id, name: e.collection.name, isPrivate: e.collection.isPrivate }
+          : null,
+        pinnedPhoto: e.pinnedPhoto || null,
         character: {
           ...e.character,
-          imageUrl: this.characterService.getRandomImageUrl(e.character.id, e.character.imageUrls),
+          imageUrl: this.resolveCardImageUrl(e.character.id, e.character.imageUrls, e.pinnedPhoto),
           imageUrls: e.character.imageUrls.map((img) => this.characterService.formatImageUrl(e.character.id, img)),
         },
       })),
+    };
+  }
+
+  /**
+   * URL (absoluta) da foto de casamento servida pelo Waifuletes (proxy da ravena-ai)
+   */
+  marriagePhotoUrl(characterId: string): string {
+    return `${config.PUBLIC_BASE_URL.replace(/\/+$/, '')}/api/web/marriage-photo/${encodeURIComponent(characterId)}`;
+  }
+
+  /**
+   * Imagem do card: foto fixa (se válida) ou aleatória
+   */
+  resolveCardImageUrl(characterId: string, imageUrls: string[], pinnedPhoto?: string | null): string {
+    if (pinnedPhoto === MARRIAGE_PHOTO) {
+      return this.marriagePhotoUrl(characterId);
+    }
+    if (pinnedPhoto && imageUrls.includes(pinnedPhoto)) {
+      return this.characterService.formatImageUrl(characterId, pinnedPhoto);
+    }
+    return this.characterService.getRandomImageUrl(characterId, imageUrls);
+  }
+
+  /**
+   * Consulta na ravena-ai se existe foto de casamento para o personagem
+   */
+  async hasMarriagePhoto(characterId: string): Promise<boolean> {
+    try {
+      const res = await fetch(
+        `${config.RAVENA_API_URL}/api/waifuletes/marriage-photo/${encodeURIComponent(characterId)}`,
+        { method: 'HEAD', signal: AbortSignal.timeout(3000) }
+      );
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async findOwnedEntry(userId: string, characterId: string) {
+    const charId = (characterId || '').trim();
+    const entry =
+      (await this.prisma.haremEntry.findUnique({
+        where: { userId_characterId: { userId, characterId: charId } },
+        include: { character: true },
+      })) ||
+      (await this.prisma.haremEntry.findFirst({
+        where: {
+          userId,
+          character: {
+            OR: [
+              { id: { equals: charId, mode: 'insensitive' } },
+              { name: { equals: charId, mode: 'insensitive' } },
+            ],
+          },
+        },
+        include: { character: true },
+      }));
+    if (!entry) {
+      throw new DomainError('NOT_IN_HAREM', 'Você não é casado com este personagem.', 404);
+    }
+    return entry;
+  }
+
+  /**
+   * Lista as opções de foto: imagens do personagem + foto do casamento
+   */
+  async getPhotoOptions(userId: string, characterId: string) {
+    const entry = await this.findOwnedEntry(userId, characterId);
+    const char = entry.character;
+    const marriageExists = await this.hasMarriagePhoto(char.id);
+    const pinned = entry.pinnedPhoto && (entry.pinnedPhoto === MARRIAGE_PHOTO || char.imageUrls.includes(entry.pinnedPhoto))
+      ? entry.pinnedPhoto
+      : null;
+
+    return {
+      characterId: char.id,
+      characterName: char.name,
+      pinnedPhoto: pinned,
+      photos: char.imageUrls.map((raw, index) => ({
+        index: index + 1,
+        id: raw,
+        url: this.characterService.formatImageUrl(char.id, raw),
+        isPinned: pinned === raw,
+      })),
+      marriage: {
+        exists: marriageExists,
+        url: marriageExists ? this.marriagePhotoUrl(char.id) : null,
+        isPinned: pinned === MARRIAGE_PHOTO,
+        hint: marriageExists
+          ? `Para gerar uma nova foto: !mu-foto nova ${char.id}`
+          : `Sem foto de casamento. Peça às ravenas: !mu-foto ${char.id}`,
+        newPhotoCommand: `!mu-foto nova ${char.id}`,
+        requestCommand: `!mu-foto ${char.id}`,
+      },
+    };
+  }
+
+  /**
+   * Fixa (ou remove, com null) a foto do personagem no harém do usuário.
+   * Aceita: null | "random" | "marriage" | índice 1-based (número/string) | id/URL de uma das fotos
+   */
+  async setPinnedPhoto(userId: string, characterId: string, photo: string | number | null | undefined) {
+    const entry = await this.findOwnedEntry(userId, characterId);
+    const char = entry.character;
+
+    let value: string | null = null;
+    const raw = photo === undefined || photo === null ? '' : String(photo).trim();
+
+    if (raw === '' || /^(random|aleatoria|aleatória|null|none)$/i.test(raw)) {
+      value = null;
+    } else if (/^(marriage|casamento)$/i.test(raw)) {
+      if (!(await this.hasMarriagePhoto(char.id))) {
+        throw new DomainError(
+          'NO_MARRIAGE_PHOTO',
+          `Ainda não existe foto de casamento. Use !mu-foto ${char.id} para gerar.`,
+          400
+        );
+      }
+      value = MARRIAGE_PHOTO;
+    } else if (/^\d+$/.test(raw)) {
+      const idx = Number(raw);
+      if (idx < 1 || idx > char.imageUrls.length) {
+        throw new DomainError('INVALID_PHOTO', `Foto inválida. Este personagem tem ${char.imageUrls.length} foto(s).`, 400);
+      }
+      value = char.imageUrls[idx - 1];
+    } else {
+      const match = char.imageUrls.find(
+        (u) => u === raw || this.characterService.formatImageUrl(char.id, u) === raw
+      );
+      if (!match) {
+        throw new DomainError('INVALID_PHOTO', 'Foto não pertence a este personagem.', 400);
+      }
+      value = match;
+    }
+
+    await this.prisma.haremEntry.update({ where: { id: entry.id }, data: { pinnedPhoto: value } });
+
+    return {
+      success: true,
+      character: { id: char.id, name: char.name },
+      pinnedPhoto: value,
+      imageUrl: this.resolveCardImageUrl(char.id, char.imageUrls, value),
+      message: value
+        ? `Foto fixa definida para ${char.name}.`
+        : `${char.name} voltou a exibir fotos aleatórias.`,
     };
   }
 

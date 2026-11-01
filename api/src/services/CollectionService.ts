@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { CharacterService } from './CharacterService.js';
 import { DomainError } from '../errors/DomainError.js';
+import { config } from '../config.js';
 
 export class CollectionService {
   constructor(
@@ -9,12 +10,30 @@ export class CollectionService {
   ) {}
 
   /**
+   * Resolve a URL de exibição do card respeitando pinnedPhoto (foto fixa ou aleatória)
+   */
+  private resolveCardImageUrl(characterId: string, imageUrls: string[], pinnedPhoto?: string | null): string {
+    if (pinnedPhoto === 'marriage') {
+      return `${config.PUBLIC_BASE_URL.replace(/\/+$/, '')}/api/web/marriage-photo/${encodeURIComponent(characterId)}`;
+    }
+    if (pinnedPhoto && imageUrls.includes(pinnedPhoto)) {
+      return this.characterService.formatImageUrl(characterId, pinnedPhoto);
+    }
+    return this.characterService.getRandomImageUrl(characterId, imageUrls);
+  }
+
+  /**
    * Lista todas as coleções do usuário com contagem e detalhes de personagens
    */
-  async listUserCollections(userId: string) {
+  async listUserCollections(userId: string, onlyPublic = false) {
+    const where: any = { userId };
+    if (onlyPublic) {
+      where.isPrivate = false;
+    }
+
     const collections = await this.prisma.userCollection.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
+      where,
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       include: {
         haremEntries: {
           include: {
@@ -34,6 +53,8 @@ export class CollectionService {
       id: col.id,
       name: col.name,
       description: col.description,
+      isPrivate: col.isPrivate,
+      position: col.position,
       createdAt: col.createdAt,
       updatedAt: col.updatedAt,
       characterCount: col.haremEntries.length,
@@ -45,7 +66,8 @@ export class CollectionService {
         gender: e.character.gender,
         keys: e.keys,
         isFavorite: e.isFavorite,
-        imageUrl: this.characterService.getRandomImageUrl(e.character.id, e.character.imageUrls),
+        pinnedPhoto: e.pinnedPhoto || null,
+        imageUrl: this.resolveCardImageUrl(e.character.id, e.character.imageUrls, e.pinnedPhoto),
         imageUrls: e.character.imageUrls.map((img) => this.characterService.formatImageUrl(e.character.id, img)),
       })),
     }));
@@ -81,11 +103,19 @@ export class CollectionService {
       throw new DomainError('COLLECTION_NAME_EXISTS', 'Já existe uma coleção com este nome no seu harém.', 409);
     }
 
+    const maxPos = await this.prisma.userCollection.aggregate({
+      where: { userId },
+      _max: { position: true },
+    });
+    const nextPosition = (maxPos._max.position ?? 0) + 1;
+
     const collection = await this.prisma.userCollection.create({
       data: {
         userId,
         name: trimmedName,
         description: description ? description.trim() : null,
+        position: nextPosition,
+        isPrivate: false,
       },
     });
 
@@ -93,6 +123,8 @@ export class CollectionService {
       id: collection.id,
       name: collection.name,
       description: collection.description,
+      isPrivate: collection.isPrivate,
+      position: collection.position,
       createdAt: collection.createdAt,
       totalCollections: currentCount + 1,
       message: `Coleção "${collection.name}" criada com sucesso! (${currentCount + 1}/15)`,
@@ -262,6 +294,81 @@ export class CollectionService {
       character: { id: haremEntry.character.id, name: haremEntry.character.name },
       previousCollection: previousColName,
       message: `${haremEntry.character.name} foi removida da coleção "${previousColName}" e retornou ao harém geral.`,
+    };
+  }
+
+  /**
+   * Reordena as coleções do usuário conforme lista de IDs recebida
+   */
+  async reorderCollections(userId: string, orderedIds: string[]) {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      throw new DomainError('INVALID_ORDER', 'Lista de ordenação inválida.', 400);
+    }
+
+    const userCols = await this.prisma.userCollection.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const userColIdSet = new Set(userCols.map((c) => c.id));
+
+    // Valida que todos os IDs informados pertencem ao usuário
+    for (const id of orderedIds) {
+      if (!userColIdSet.has(id)) {
+        throw new DomainError('INVALID_COLLECTION_ID', `Coleção "${id}" não pertence a este usuário.`, 400);
+      }
+    }
+
+    // Atualiza em transação atômica
+    await this.prisma.$transaction(
+      orderedIds.map((id, index) =>
+        this.prisma.userCollection.update({
+          where: { id },
+          data: { position: index + 1 },
+        })
+      )
+    );
+
+    return this.listUserCollections(userId);
+  }
+
+  /**
+   * Alterna ou define a visibilidade privada de uma coleção
+   */
+  async setCollectionPrivacy(userId: string, collectionIdOrName: string, isPrivate?: boolean) {
+    const identifier = (collectionIdOrName || '').trim();
+    if (!identifier) {
+      throw new DomainError('INVALID_IDENTIFIER', 'Informe o ID ou nome da coleção.', 400);
+    }
+
+    const collection = await this.prisma.userCollection.findFirst({
+      where: {
+        userId,
+        OR: [
+          { id: identifier },
+          { name: { equals: identifier, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!collection) {
+      throw new DomainError('COLLECTION_NOT_FOUND', 'Coleção não encontrada.', 404);
+    }
+
+    const nextState = typeof isPrivate === 'boolean' ? isPrivate : !collection.isPrivate;
+
+    const updated = await this.prisma.userCollection.update({
+      where: { id: collection.id },
+      data: { isPrivate: nextState },
+    });
+
+    return {
+      success: true,
+      id: updated.id,
+      name: updated.name,
+      isPrivate: updated.isPrivate,
+      message: updated.isPrivate
+        ? `A coleção "${updated.name}" agora é privada e não será exibida no harém público.`
+        : `A coleção "${updated.name}" agora é pública.`,
     };
   }
 }

@@ -35,6 +35,16 @@ const Api = {
     return res.json();
   },
 
+  async patch(url, data, headers = {}) {
+    const isFormData = data instanceof FormData;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: isFormData ? headers : { 'Content-Type': 'application/json', ...headers },
+      body: isFormData ? data : JSON.stringify(data)
+    });
+    return res.json();
+  },
+
   async delete(url, headers = {}) {
     const res = await fetch(url, {
       method: 'DELETE',

@@ -168,4 +168,66 @@ export const privateCollectionRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ success: true, data: result });
     },
   });
+
+  /**
+   * Reordena as coleções do usuário
+   */
+  fastify.put('/user/:userId/collections/order', {
+    preHandler: verifyApiKey,
+    schema: {
+      description: 'Reordena as coleções do usuário a partir da lista ordenada de IDs',
+      tags: ['Coleções (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: { userId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['order'],
+        additionalProperties: false,
+        properties: {
+          order: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const { order } = request.body as { order: string[] };
+      const updated = await collectionService.reorderCollections(userId, order);
+      return reply.send({ success: true, data: updated });
+    },
+  });
+
+  /**
+   * Alterna a visibilidade privada da coleção
+   */
+  fastify.patch('/user/:userId/collections/:collectionId/privacy', {
+    preHandler: verifyApiKey,
+    schema: {
+      description: 'Define a privacidade da coleção (privada ou pública)',
+      tags: ['Coleções (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId', 'collectionId'],
+        properties: {
+          userId: { type: 'string' },
+          collectionId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          isPrivate: { type: 'boolean' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId, collectionId } = request.params as { userId: string; collectionId: string };
+      const { isPrivate } = (request.body as { isPrivate?: boolean }) || {};
+      const result = await collectionService.setCollectionPrivacy(userId, collectionId, isPrivate);
+      return reply.send({ success: true, data: result });
+    },
+  });
 };

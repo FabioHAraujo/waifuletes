@@ -44,7 +44,7 @@ export const privateHaremRoutes: FastifyPluginAsync = async (fastify) => {
         ),
         fastify.prisma.user.findUnique({
           where: { id: userId },
-          select: { haremName: true, name: true },
+          select: { haremName: true, name: true, haremPrivate: true },
         }),
       ]);
 
@@ -54,6 +54,7 @@ export const privateHaremRoutes: FastifyPluginAsync = async (fastify) => {
           ...result,
           haremName: user?.haremName || null,
           userName: user?.name || null,
+          haremPrivate: Boolean(user?.haremPrivate),
         },
       });
     },
@@ -169,6 +170,101 @@ export const privateHaremRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send(result);
       }
 
+      return reply.send(result);
+    },
+  });
+
+  /**
+   * Altera a visibilidade privada do harém do usuário
+   */
+  fastify.patch('/harem/:userId/privacy', {
+    schema: {
+      description: 'Define se o harém do usuário é privado ou público',
+      tags: ['Harém & Coleção (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: { userId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['isPrivate'],
+        additionalProperties: false,
+        properties: {
+          isPrivate: { type: 'boolean' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const { isPrivate } = request.body as { isPrivate: boolean };
+
+      const user = await fastify.prisma.user.update({
+        where: { id: userId },
+        data: { haremPrivate: isPrivate },
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          userId: user.id,
+          haremPrivate: user.haremPrivate,
+          message: user.haremPrivate ? 'Harém definido como privado.' : 'Harém definido como público.',
+        },
+      });
+    },
+  });
+
+  /**
+   * Retorna opções de fotos de um personagem no harém
+   */
+  fastify.get('/harem/:userId/:characterId/photos', {
+    schema: {
+      description: 'Retorna todas as opções de foto de um personagem no harém (fotos do catálogo e casamento)',
+      tags: ['Harém & Coleção (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId', 'characterId'],
+        properties: {
+          userId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId, characterId } = request.params as { userId: string; characterId: string };
+      const data = await haremService.getPhotoOptions(userId, characterId);
+      return reply.send({ success: true, data });
+    },
+  });
+
+  /**
+   * Fixa a foto escolhida do personagem no harém
+   */
+  fastify.put('/harem/:userId/:characterId/photo', {
+    schema: {
+      description: 'Define a foto fixa do personagem no harém ou restaura para aleatória',
+      tags: ['Harém & Coleção (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId', 'characterId'],
+        properties: {
+          userId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          photo: { type: ['string', 'number', 'null'] },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId, characterId } = request.params as { userId: string; characterId: string };
+      const { photo } = (request.body as { photo?: string | number | null }) || {};
+      const result = await haremService.setPinnedPhoto(userId, characterId, photo);
       return reply.send(result);
     },
   });

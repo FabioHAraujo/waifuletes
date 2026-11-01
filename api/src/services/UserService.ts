@@ -180,6 +180,13 @@ export class UserService {
     });
   }
 
+  async updateHaremPrivacy(userId: string, isPrivate: boolean) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { haremPrivate: isPrivate },
+    });
+  }
+
   async getUserGroups(userId: string) {
     return this.prisma.userGroup.findMany({
       where: { userId },

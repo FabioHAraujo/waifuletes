@@ -14,6 +14,7 @@ import { CollectionService } from '../../services/CollectionService.js';
 import { UserService } from '../../services/UserService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
+import { config } from '../../config.js';
 import { Rarity } from '@prisma/client';
 
 interface RavenaBotHealth {
@@ -168,7 +169,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       const user = await fastify.prisma.user.findUnique({
         where: { publicId },
-        select: { id: true, publicId: true, name: true, kakera: true, haremName: true },
+        select: { id: true, publicId: true, name: true, kakera: true, haremName: true, haremPrivate: true },
       });
 
       if (!user) {
@@ -234,6 +235,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             publicId: user.publicId,
             name: user.name,
             haremName: user.haremName || null,
+            haremPrivate: Boolean(user.haremPrivate),
             kakera: user.kakera,
             expiresIn: session.expiresIn,
             isPersistent: session.isPersistent,
@@ -248,8 +250,26 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
+      // Se o usuário optou por privar seu harém, não exibe informações públicas
+      if (user.haremPrivate) {
+        return reply.send({
+          success: true,
+          data: {
+            isAdmin: false,
+            isPrivate: true,
+            publicId: user.publicId,
+            name: user.name,
+            message: `O usuário ${user.name} decidiu privar seu harém.`,
+          },
+        });
+      }
+
+      // Visualização pública: filtra coleções privadas e waifus contidas nelas
+      const publicCollections = userCollections.filter((c) => !c.isPrivate);
+      const visibleEntries = haremResult.data.filter((item) => !item.collection?.isPrivate);
+
       // Visualização pública: proteção estrita de PII (omite claimedInGroup, notas privadas e IDs internos)
-      const publicHarem = haremResult.data.map((item) => ({
+      const publicHarem = visibleEntries.map((item) => ({
         id: item.id,
         character: {
           id: item.character.id,
@@ -264,6 +284,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         claimedAt: item.claimedAt,
         collectionId: item.collectionId,
         collection: item.collection,
+        pinnedPhoto: item.pinnedPhoto || null,
       }));
 
       // Busca os classificados ativos deste usuário para a aba pública de classificados
@@ -295,13 +316,14 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         success: true,
         data: {
           isAdmin: false,
+          isPrivate: false,
           publicId: user.publicId,
           name: user.name,
           haremName: user.haremName || null,
           kakera: user.kakera,
           harem: publicHarem,
-          collections: userCollections,
-          totalHarem: haremResult.total,
+          collections: publicCollections,
+          totalHarem: visibleEntries.length,
           listings: publicListings,
         },
       });
@@ -352,6 +374,292 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           haremName: updatedUser.haremName,
         },
       });
+    },
+  });
+
+  /**
+   * Altera a visibilidade pública/privada do harém do usuário
+   */
+  fastify.patch('/api/web/user/:publicId/harem-privacy', {
+    schema: {
+      description: 'Define se o harém do usuário é privado ou público',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['token', 'isPrivate'],
+        additionalProperties: false,
+        properties: {
+          token: { type: 'string' },
+          isPrivate: { type: 'boolean' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const { token, isPrivate } = request.body as { token: string; isPrivate: boolean };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const updatedUser = await userService.updateHaremPrivacy(session.userId, isPrivate);
+
+      return reply.send({
+        success: true,
+        data: {
+          haremPrivate: updatedUser.haremPrivate,
+          message: updatedUser.haremPrivate
+            ? 'Seu harém agora é privado. Visitantes não poderão visualizar seus personagens.'
+            : 'Seu harém agora é público.',
+        },
+      });
+    },
+  });
+
+  /**
+   * Reordena as coleções do usuário via drag-and-drop
+   */
+  fastify.put('/api/web/user/:publicId/collections/order', {
+    schema: {
+      description: 'Reordena as coleções do usuário via lista ordenada de IDs',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['token', 'order'],
+        additionalProperties: false,
+        properties: {
+          token: { type: 'string' },
+          order: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const { token, order } = request.body as { token: string; order: string[] };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const updatedCollections = await collectionService.reorderCollections(session.userId, order);
+
+      return reply.send({
+        success: true,
+        data: {
+          collections: updatedCollections,
+        },
+      });
+    },
+  });
+
+  /**
+   * Alterna ou define a visibilidade privada de uma coleção
+   */
+  fastify.patch('/api/web/user/:publicId/collections/:collectionId/privacy', {
+    schema: {
+      description: 'Alterna a privacidade de uma coleção (privada ou pública)',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'collectionId'],
+        properties: {
+          publicId: { type: 'string' },
+          collectionId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
+        additionalProperties: false,
+        properties: {
+          token: { type: 'string' },
+          isPrivate: { type: 'boolean' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, collectionId } = request.params as { publicId: string; collectionId: string };
+      const { token, isPrivate } = request.body as { token: string; isPrivate?: boolean };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const result = await collectionService.setCollectionPrivacy(session.userId, collectionId, isPrivate);
+
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    },
+  });
+
+  /**
+   * Retorna as fotos disponíveis para escolha (fotos oficiais + foto de casamento)
+   */
+  fastify.get('/api/web/user/:publicId/harem/:characterId/photos', {
+    schema: {
+      description: 'Retorna todas as opções de fotos de um personagem no harém',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'characterId'],
+        properties: {
+          publicId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+      querystring: {
+        type: 'object',
+        required: ['token'],
+        additionalProperties: false,
+        properties: {
+          token: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, characterId } = request.params as { publicId: string; characterId: string };
+      const { token } = request.query as { token: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const data = await haremService.getPhotoOptions(session.userId, characterId);
+
+      return reply.send({
+        success: true,
+        data,
+      });
+    },
+  });
+
+  /**
+   * Fixa a foto escolhida do personagem no harém ou volta para aleatória
+   */
+  fastify.put('/api/web/user/:publicId/harem/:characterId/photo', {
+    schema: {
+      description: 'Define a foto fixa do personagem no harém ou restaura para aleatória',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'characterId'],
+        properties: {
+          publicId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
+        additionalProperties: false,
+        properties: {
+          token: { type: 'string' },
+          photo: { type: ['string', 'number', 'null'] },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, characterId } = request.params as { publicId: string; characterId: string };
+      const { token, photo } = request.body as { token: string; photo: string | number | null };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const result = await haremService.setPinnedPhoto(session.userId, characterId, photo);
+
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    },
+  });
+
+  /**
+   * Proxy de streaming da foto oficial de casamento (provida pela Ravena)
+   */
+  fastify.get('/api/web/marriage-photo/:characterId', {
+    schema: {
+      description: 'Proxy de streaming da foto de casamento',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['characterId'],
+        properties: { characterId: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { characterId } = request.params as { characterId: string };
+      const targetUrl = `${config.RAVENA_API_URL}/api/waifuletes/marriage-photo/${encodeURIComponent(characterId)}`;
+
+      try {
+        const response = await fetch(targetUrl, { signal: AbortSignal.timeout(5000) });
+        if (!response.ok || !response.body) {
+          return reply.status(response.status === 404 ? 404 : 502).send({
+            success: false,
+            error: { code: 'PHOTO_NOT_FOUND', message: 'Foto de casamento não encontrada.' },
+          });
+        }
+
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        reply.header('Content-Type', contentType);
+        reply.header('Cache-Control', 'public, max-age=3600');
+
+        const arrayBuffer = await response.arrayBuffer();
+        return reply.send(Buffer.from(arrayBuffer));
+      } catch {
+        return reply.status(502).send({
+          success: false,
+          error: { code: 'UPSTREAM_ERROR', message: 'Erro ao consultar foto de casamento na Ravena.' },
+        });
+      }
     },
   });
 

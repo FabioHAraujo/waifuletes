@@ -47,6 +47,7 @@ model User {
   platform    Platform     @default(WHATSAPP)
   kakera      Int          @default(0)
   haremName   String?      @map("harem_name")
+  haremPrivate Boolean     @default(false) @map("harem_private")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -153,6 +154,7 @@ model HaremEntry {
   isFavorite     Boolean         @default(false)
   note           String?
   collectionId   String?         @map("collection_id")
+  pinnedPhoto    String?         @map("pinned_photo")
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   character      Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
@@ -170,6 +172,8 @@ model UserCollection {
   userId      String       @map("user_id")
   name        String
   description String?
+  isPrivate   Boolean      @default(false) @map("is_private")
+  position    Int          @default(0)
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
