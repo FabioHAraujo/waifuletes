@@ -1,7 +1,7 @@
 import { Rarity } from '@prisma/client';
 
 export const RARITY_BASE_WEIGHTS: Record<Rarity, number> = {
-  LEGENDARY: 5,
+  LEGENDARY: 2.5,
   EPIC: 8,
   RARE: 25,
   UNCOMMON: 60,
