@@ -102,6 +102,12 @@ export const publicLeaderboardRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!topRich || topRich.length === 0) {
         topRich = await fastify.prisma.user.findMany({
+          where: {
+            NOT: [
+              { id: 'test_web_user_1' },
+              { name: { contains: 'Jogador Web Teste', mode: 'insensitive' } },
+            ],
+          },
           take: parsedLimit,
           orderBy: { kakera: 'desc' },
           select: {
@@ -201,6 +207,7 @@ export const publicLeaderboardRoutes: FastifyPluginAsync = async (fastify) => {
           FROM users u
           JOIN harem_entries h ON h."userId" = u.id
           JOIN characters c ON c.id = h."characterId"
+          WHERE u.id != 'test_web_user_1' AND LOWER(u.name) NOT LIKE '%jogador web teste%'
           GROUP BY u.id, u.name, u.platform
           ORDER BY "collectionPoints" DESC, "totalMarriages" DESC
           LIMIT ${parsedLimit}

@@ -253,13 +253,25 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
 
       const [topKakera, topHaremUsers, topGroupClaims, totalClaimsInGroup] = await Promise.all([
         fastify.prisma.user.findMany({
-          where: { id: { in: memberUserIds } },
+          where: {
+            id: { in: memberUserIds },
+            NOT: [
+              { id: 'test_web_user_1' },
+              { name: { contains: 'Jogador Web Teste', mode: 'insensitive' } },
+            ],
+          },
           orderBy: { kakera: 'desc' },
           take,
           select: { id: true, name: true, kakera: true, publicId: true },
         }),
         fastify.prisma.user.findMany({
-          where: { id: { in: memberUserIds } },
+          where: {
+            id: { in: memberUserIds },
+            NOT: [
+              { id: 'test_web_user_1' },
+              { name: { contains: 'Jogador Web Teste', mode: 'insensitive' } },
+            ],
+          },
           include: {
             _count: { select: { harem: true } },
           },
@@ -267,7 +279,15 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
           take,
         }),
         fastify.prisma.haremEntry.findMany({
-          where: { claimedInGroup: groupId },
+          where: {
+            claimedInGroup: groupId,
+            user: {
+              NOT: [
+                { id: 'test_web_user_1' },
+                { name: { contains: 'Jogador Web Teste', mode: 'insensitive' } },
+              ],
+            },
+          },
           take,
           orderBy: [{ keys: 'desc' }, { character: { popularityScore: 'desc' } }],
           include: {
