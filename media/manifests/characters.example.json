@@ -96,6 +96,18 @@
       "images": [
         "characters/marian-nikke/default.jpg"
       ]
+    },
+    {
+      "id": "trish",
+      "name": "Trish",
+      "series": "Devil May Cry",
+      "description": "Demônio criada por Mundus com a imagem da mãe de Dante, que mais tarde se junta a ele.",
+      "gender": "OTHER",
+      "baseRarity": "EPIC",
+      "tags": ["game", "demon", "devil-may-cry"],
+      "images": [
+        "characters/trish/default.jpg"
+      ]
     }
   ]
 }

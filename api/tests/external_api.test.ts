@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
 
 const BASE_URL = process.env.TEST_API_URL || 'http://127.0.0.1:3030';
-const EXTERNAL_KEY = (process.env.EXTERNAL_USAGE_API || '').split(',')[0].trim();
+const EXTERNAL_KEY = (process.env.EXTERNAL_USAGE_API || process.env.API_KEY || 'test_api_key_0123456789abcdef0123456789abcdef').split(',')[0].trim();
 
 describe('🌐 API Externa de Catálogo & Storage Remoto', () => {
   it('deve rejeitar chamadas sem chave com 401 UNAUTHORIZED', async () => {

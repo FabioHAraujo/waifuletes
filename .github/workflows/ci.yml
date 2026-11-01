@@ -80,6 +80,8 @@ jobs:
           TEST_API_URL: http://127.0.0.1:3030
           API_KEY: test_api_key_0123456789abcdef0123456789abcdef
           API_KEYS: test_api_key_0123456789abcdef0123456789abcdef
+          EXTERNAL_USAGE_API: test_api_key_0123456789abcdef0123456789abcdef
+          EXTERNAL_USAGE_API_KEYS: test_api_key_0123456789abcdef0123456789abcdef
           DATABASE_URL: postgresql://waifu_user:test_password@localhost:5433/waifuletes_db?schema=public
           REDIS_URL: redis://localhost:6380
         run: |
