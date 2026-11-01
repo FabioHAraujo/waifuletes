@@ -738,10 +738,14 @@ export class MarketService {
 
     // 5. Executa a transferência de Waifus e Zinthos atomicamente no PostgreSQL
     await this.prisma.$transaction(async (tx) => {
-      // Passa a waifu anunciada do vendedor para o comprador
+      // Passa a waifu anunciada do vendedor para o comprador (remove da coleção do antigo dono e reseta favorito)
       await tx.haremEntry.update({
         where: { characterId: listing.characterId },
-        data: { userId: offer.buyerId },
+        data: {
+          userId: offer.buyerId,
+          collectionId: null,
+          isFavorite: false,
+        },
       });
 
       // Se o comprador tiver cobiçado este personagem anunciado, remove o covet dele
@@ -755,11 +759,15 @@ export class MarketService {
         data: { ownerId: offer.buyerId },
       });
 
-      // Passa as waifus ofertadas do comprador para o vendedor
+      // Passa as waifus ofertadas do comprador para o vendedor (remove da coleção do comprador e reseta favorito)
       for (const wId of waifuIds) {
         await tx.haremEntry.update({
           where: { characterId: wId },
-          data: { userId: sellerId },
+          data: {
+            userId: sellerId,
+            collectionId: null,
+            isFavorite: false,
+          },
         });
 
         // Atualiza covets das waifus ofertadas para o novo dono
