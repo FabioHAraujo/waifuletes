@@ -130,6 +130,20 @@ describe('🏰 Harem Settings, Privacy & Pinned Photo — Waifuletes', () => {
     expect(cols[1].id).toBe(createdCollectionId);
   });
 
+  it('2.1 Deve renomear uma coleção via PATCH /collections/:collectionId', async () => {
+    const patchRes = await fetch(`${BASE_URL}/api/web/user/${testPublicId}/collections/${createdCollectionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: testSessionToken,
+        name: 'Coleção Teste Renomeada',
+      }),
+    });
+    const patchJson = await patchRes.json();
+    expect(patchJson.success).toBe(true);
+    expect(patchJson.data.name).toBe('Coleção Teste Renomeada');
+  });
+
   it('3. Deve alternar privacidade de uma coleção e ocultar no público', async () => {
     // Vincula testChar1Id à Coleção A
     if (testChar1Id && createdCollectionId) {

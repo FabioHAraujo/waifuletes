@@ -35,7 +35,7 @@ async function getActiveRavenaNumber(): Promise<string | null> {
       process.env.BOT_HEALTH_URL,
       'http://172.22.0.1:5001/health',
       'http://host.docker.internal:5001/health',
-      'https://ravena.moothz.win/health',
+      'https://ravena.moothz.com/health',
     ].filter(Boolean) as string[];
 
     for (const url of urlsToTry) {
@@ -1110,6 +1110,50 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const result = await collectionService.createCollection(session.userId, name, description);
+      return reply.send({ success: true, data: result });
+    },
+  });
+
+  /**
+   * Atualiza o nome ou descrição de uma coleção via painel web
+   */
+  fastify.patch('/api/web/user/:publicId/collections/:collectionId', {
+    schema: {
+      description: 'Atualiza o nome ou descrição de uma coleção do usuário',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'collectionId'],
+        properties: {
+          publicId: { type: 'string' },
+          collectionId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string' },
+          name: { type: 'string', minLength: 1, maxLength: 50 },
+          description: { type: 'string', maxLength: 200 },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, collectionId } = request.params as { publicId: string; collectionId: string };
+      const { token, name, description } = request.body as { token: string; name?: string; description?: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const result = await collectionService.updateCollection(session.userId, collectionId, { name, description });
       return reply.send({ success: true, data: result });
     },
   });

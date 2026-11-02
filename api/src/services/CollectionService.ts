@@ -132,6 +132,73 @@ export class CollectionService {
   }
 
   /**
+   * Atualiza o nome ou descrição de uma coleção
+   */
+  async updateCollection(userId: string, collectionIdOrName: string, data: { name?: string; description?: string }) {
+    const identifier = (collectionIdOrName || '').trim();
+    if (!identifier) {
+      throw new DomainError('INVALID_IDENTIFIER', 'Informe o ID ou nome da coleção.', 400);
+    }
+
+    const collection = await this.prisma.userCollection.findFirst({
+      where: {
+        userId,
+        OR: [
+          { id: identifier },
+          { name: { equals: identifier, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!collection) {
+      throw new DomainError('COLLECTION_NOT_FOUND', 'Coleção não encontrada.', 404);
+    }
+
+    const updateData: { name?: string; description?: string | null } = {};
+
+    if (data.name !== undefined) {
+      const trimmedName = data.name.trim();
+      if (!trimmedName || trimmedName.length > 50) {
+        throw new DomainError('INVALID_COLLECTION_NAME', 'O nome da coleção deve ter entre 1 e 50 caracteres.', 400);
+      }
+
+      if (trimmedName.toLowerCase() !== collection.name.toLowerCase()) {
+        const existing = await this.prisma.userCollection.findUnique({
+          where: {
+            userId_name: {
+              userId,
+              name: trimmedName,
+            },
+          },
+        });
+        if (existing && existing.id !== collection.id) {
+          throw new DomainError('COLLECTION_NAME_EXISTS', 'Já existe uma coleção com este nome no seu harém.', 409);
+        }
+      }
+      updateData.name = trimmedName;
+    }
+
+    if (data.description !== undefined) {
+      updateData.description = (data.description || '').trim() || null;
+    }
+
+    const updated = await this.prisma.userCollection.update({
+      where: { id: collection.id },
+      data: updateData,
+    });
+
+    return {
+      success: true,
+      id: updated.id,
+      name: updated.name,
+      description: updated.description,
+      isPrivate: updated.isPrivate,
+      position: updated.position,
+      message: `Coleção renomeada para "${updated.name}" com sucesso!`,
+    };
+  }
+
+  /**
    * Apaga uma coleção (os personagens permanecem no harém geral)
    */
   async deleteCollection(userId: string, collectionIdOrName: string) {

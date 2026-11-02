@@ -71,8 +71,8 @@
         <button id="btn-share-public" class="btn-retro btn-sm btn-gold hidden" title="Copiar link público para amigos">
           <i class="fas fa-share-alt"></i> Compartilhar Harém
         </button>
-        <button id="btn-session-auth" class="btn-retro btn-sm hidden" title="Gerenciar sessão">
-          <i class="fas fa-lock"></i> Manter Login!
+        <button id="btn-session-auth" class="btn-retro btn-sm btn-logout hidden" title="Encerrar sessão (Logout)">
+          <i class="fas fa-sign-out-alt"></i> Logout
         </button>
       </div>
     </header>
@@ -1286,6 +1286,34 @@
       <div class="modal-footer" style="justify-content: space-between;">
         <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-edit-harem-name')">Cancelar</button>
         <button type="button" class="btn-retro btn-sm btn-gold" id="btn-save-harem-name" onclick="submitHaremName()">
+          <i class="fas fa-save"></i> Salvar Nome
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Nome da Coleção -->
+  <div class="modal-overlay hidden" id="modal-edit-collection-name" style="z-index: 10007;">
+    <div class="modal-box" style="max-width: min(440px, 90vw);">
+      <div class="modal-header">
+        <span class="modal-title">📁 Nome da Coleção</span>
+        <button class="modal-close" onclick="closeModal('modal-edit-collection-name')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          Altere o nome da sua pasta de coleção (máximo 50 caracteres).
+        </p>
+        <div style="margin-bottom: 12px; text-align: left;">
+          <label style="font-weight: 800; font-size: 13px; display: block; margin-bottom: 4px;">Nome da Coleção:</label>
+          <input type="text" id="input-edit-collection-name" class="retro-input" placeholder="Ex: Favoritas" maxlength="50" style="width: 100%;" oninput="updateEditCollectionNameCharCounter()" onkeydown="if(event.key==='Enter') submitEditCollectionName()">
+          <div style="display: flex; justify-content: flex-end; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            <span id="edit-collection-name-char-count">0/50</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-edit-collection-name')">Cancelar</button>
+        <button type="button" class="btn-retro btn-sm btn-gold" id="btn-save-collection-name" onclick="submitEditCollectionName()">
           <i class="fas fa-save"></i> Salvar Nome
         </button>
       </div>

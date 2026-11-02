@@ -8,6 +8,14 @@ const RARITY_CONFIG = {
   LEGENDARY: { emoji: '⭐', label: 'Lendário', color: '#eab308' }
 };
 
+const RARITY_LABELS = {
+  COMMON: 'Comum',
+  UNCOMMON: 'Incomum',
+  RARE: 'Raro',
+  EPIC: 'Épico',
+  LEGENDARY: 'Lendário'
+};
+
 window.DEFAULT_CHAR_IMG = window.DEFAULT_CHAR_IMG || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400' viewBox='0 0 300 400'%3E%3Cdefs%3E%3ClinearGradient id='bgGrad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231a1410'/%3E%3Cstop offset='100%25' stop-color='%23100a06'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23bgGrad)'/%3E%3Crect x='10' y='10' width='280' height='380' fill='%23221a14' stroke='%23ec4899' stroke-width='2' stroke-dasharray='4,4' rx='8'/%3E%3Ccircle cx='150' cy='135' r='54' fill='%2332241c' stroke='%23ec4899' stroke-width='2.5'/%3E%3Cg transform='translate(118, 100) scale(2.6)'%3E%3Cpath d='M 12,21.35 C 7.5,17.2 2,12.8 2,8.5 C 2,5.42 4.42,3 7.5,3 C 9.24,3 10.91,3.81 12,5.09 L 10.5,8.5 L 13,11.5 L 10,14.5 L 12,17.5 Z' fill='%23ec4899'/%3E%3Cpath d='M 12.5,5.09 C 13.59,3.81 15.26,3 17,3 C 20.08,3 22.5,5.42 22.5,8.5 C 22.5,12.8 17,17.2 12.5,21.35 L 12.5,17.5 L 10.5,14.5 L 13.5,11.5 L 11,8.5 Z' fill='%23f43f5e' transform='translate(2.5, -1)'/%3E%3C/g%3E%3Ctext x='150' y='225' font-family='sans-serif' font-weight='800' font-size='22' fill='%23ec4899' text-anchor='middle'%3EWaifuletes%3C/text%3E%3Ctext x='150' y='255' font-family='sans-serif' font-weight='700' font-size='15' fill='%23ffffff' text-anchor='middle'%3ESem imagem disponível%3C/text%3E%3Crect x='30' y='278' width='240' height='50' rx='6' fill='%232d1f18' stroke='%23f43f5e' stroke-width='1.5' stroke-dasharray='2,2'/%3E%3Ctext x='150' y='299' font-family='sans-serif' font-weight='700' font-size='13' fill='%23fca5a5' text-anchor='middle'%3EEnvie uma sugestão%3C/text%3E%3Ctext x='150' y='317' font-family='sans-serif' font-weight='800' font-size='13' fill='%23ec4899' text-anchor='middle'%3Ede imagem no site!%3C/text%3E%3C/svg%3E";
 window.handleImgError = window.handleImgError || function(img) {
   if (!img) return;
@@ -677,19 +685,28 @@ async function loadUserData() {
     if (zinthosEl) zinthosEl.textContent = `${zinthos} zinthos`;
 
     if (isOwner) {
-      // Inicia contador de sessão ativa
-      renderSessionTimer(userSessionData.expiresIn);
-
-      // Renderiza botão de Manter Login / Sair
-      renderSessionAuthButton(Boolean(userSessionData.isPersistent));
-
-      // Se a sessão for persistente, renova/salva cookies por 3 dias
-      if (userSessionData.isPersistent && userSessionToken) {
+      // Auto-manter login de forma transparente e persistente por 3 dias
+      if (!userSessionData.isPersistent) {
+        userSessionData.isPersistent = true;
+        Api.post(`/api/web/user/${encodeURIComponent(userPublicId)}/persist-session`, { token: userSessionToken }).catch(() => {});
+      }
+      if (userSessionToken) {
         setCookie(`waifu_session_${userPublicId}`, userSessionToken, 3);
         setCookie('waifu_session', userSessionToken, 3);
         setCookie('waifu_user_public_id', userPublicId, 3);
         setCookie('waifu_public_id', userPublicId, 3);
+        try {
+          localStorage.setItem('waifu_session', userSessionToken);
+          localStorage.setItem('waifu_user_public_id', userPublicId);
+          localStorage.setItem('waifu_public_id', userPublicId);
+        } catch (_) {}
       }
+
+      // Inicia contador de sessão ativa
+      renderSessionTimer(userSessionData.expiresIn);
+
+      // Renderiza botão de Logout (Manter Login é mantido automático)
+      renderSessionAuthButton();
 
       // Atualiza link do Waifinder com sessão ativa
       const btnWaifinder = document.getElementById('btn-open-waifinder');
@@ -812,54 +829,22 @@ async function loadUserData() {
   }
 }
 
-function renderSessionAuthButton(isPersistent) {
+function renderSessionAuthButton() {
   const btn = document.getElementById('btn-session-auth');
   if (!btn) return;
 
-  btn.classList.remove('hidden');
-
-  if (isPersistent) {
-    btn.classList.remove('btn-keep-login');
-    btn.classList.add('btn-logout');
-    btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Sair';
-    btn.title = 'Encerrar sessão mantida neste navegador';
-    btn.onclick = async () => {
-      btn.disabled = true;
-      try {
-        await Api.post(`/api/web/user/${userPublicId}/logout`, { token: userSessionToken });
-      } catch (_) {}
-      deleteCookie(`waifu_session_${userPublicId}`);
-      deleteCookie('waifu_session');
-      deleteCookie('waifu_user_public_id');
-      window.location.href = `/user/${userPublicId}`;
-    };
-  } else {
-    btn.classList.add('btn-keep-login');
-    btn.classList.remove('btn-logout');
-    btn.innerHTML = '<i class="fas fa-thumbtack"></i> Manter Login!';
-    btn.title = 'Salvar login por 3 dias sem precisar de novo link do bot';
-    btn.onclick = async () => {
-      btn.disabled = true;
-      try {
-        const res = await Api.post(`/api/web/user/${userPublicId}/persist-session`, { token: userSessionToken });
-        if (res.success) {
-          setCookie(`waifu_session_${userPublicId}`, userSessionToken, 3);
-          setCookie('waifu_session', userSessionToken, 3);
-          setCookie('waifu_user_public_id', userPublicId, 3);
-          userSessionData.isPersistent = true;
-          Api.showToast('Login mantido por 3 dias com sucesso! Quando voltar ao site você continuará autenticado.', '🔒');
-          renderSessionAuthButton(true);
-          renderSessionTimer(259200);
-        } else {
-          Api.showToast(res.error?.message || 'Falha ao manter login.', '❌');
-          btn.disabled = false;
-        }
-      } catch (err) {
-        Api.showToast('Erro ao manter login.', '❌');
-        btn.disabled = false;
-      }
-    };
-  }
+  btn.classList.remove('hidden', 'btn-keep-login');
+  btn.classList.add('btn-logout');
+  btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+  btn.title = 'Encerrar sessão (Logout)';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await Api.post(`/api/web/user/${userPublicId}/logout`, { token: userSessionToken });
+    } catch (_) {}
+    performFullLogout();
+    window.location.href = `/user/${userPublicId}`;
+  };
 }
 
 function renderSessionTimer(remainingSeconds) {
@@ -1327,6 +1312,10 @@ function renderCollectionsReorderList(collections) {
         ${isPriv ? '<span class="badge-tag" style="background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; padding: 2px 6px;"><i class="fas fa-eye-slash"></i> Privada</span>' : ''}
       </div>
       <div style="display: flex; align-items: center; gap: 6px;">
+        <!-- Botão Editar Nome da Pasta -->
+        <button class="btn-retro btn-sm" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCollectionModal('${col.id}', '${escapeAttr(col.name)}')" title="Editar nome da pasta">
+          <i class="fas fa-edit"></i>
+        </button>
         <!-- Botão Olho (Privacidade) -->
         <button class="btn-retro btn-sm ${eyeBtnClass}" style="padding: 4px 8px; font-size: 11px;" onclick="toggleCollectionPrivacy('${col.id}')" title="${eyeTitle}">
           <i class="fas ${eyeIcon}"></i>
@@ -1478,9 +1467,12 @@ function renderPrivateHarem(harem) {
             <span class="badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;">${colChars.length} waifus</span>
             ${col.isPrivate ? '<span class="badge-tag" style="background: #ef4444; color: #fff; font-weight: 800;"><i class="fas fa-eye-slash"></i> Privada</span>' : ''}
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <button class="btn-retro btn-sm btn-primary" onclick="openBatchAddCharactersModal('${col.id}', '${escapeAttr(col.name)}')">
               <i class="fas fa-plus"></i> + Adicionar Personagens
+            </button>
+            <button class="btn-retro btn-sm" onclick="openEditCollectionModal('${col.id}', '${escapeAttr(col.name)}')" title="Editar nome da pasta">
+              <i class="fas fa-edit"></i> Editar Nome
             </button>
             <button class="btn-retro btn-sm ${col.isPrivate ? 'btn-danger' : ''}" onclick="toggleCollectionPrivacy('${col.id}')" title="${col.isPrivate ? 'Privada (oculta no público)' : 'Pública'}">
               <i class="fas ${col.isPrivate ? 'fa-eye-slash' : 'fa-eye'}"></i> ${col.isPrivate ? 'Privada' : 'Pública'}
@@ -1960,6 +1952,60 @@ async function submitHaremName() {
   }
 }
 
+// --- Gestão de Nome da Coleção ---
+let currentEditCollectionId = null;
+
+function openEditCollectionModal(colId, currentName) {
+  currentEditCollectionId = colId;
+  const input = document.getElementById('input-edit-collection-name');
+  if (input) {
+    input.value = currentName || '';
+    updateEditCollectionNameCharCounter();
+  }
+  openModal('modal-edit-collection-name');
+  if (input) setTimeout(() => { input.focus(); input.select(); }, 100);
+}
+
+function updateEditCollectionNameCharCounter() {
+  const input = document.getElementById('input-edit-collection-name');
+  const counter = document.getElementById('edit-collection-name-char-count');
+  if (input && counter) {
+    counter.textContent = `${input.value.length}/50`;
+  }
+}
+
+async function submitEditCollectionName() {
+  if (!currentEditCollectionId) return;
+  const input = document.getElementById('input-edit-collection-name');
+  const newName = (input ? input.value : '').trim();
+
+  if (!newName) {
+    Api.showToast('Informe o novo nome da pasta.', '⚠️');
+    return;
+  }
+
+  const btn = document.getElementById('btn-save-collection-name');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await Api.patch(`/api/web/user/${encodeURIComponent(userPublicId)}/collections/${encodeURIComponent(currentEditCollectionId)}`, {
+      token: userSessionToken,
+      name: newName,
+    });
+    if (res?.success) {
+      Api.showToast('Nome da coleção atualizado com sucesso!', '📁');
+      closeModal('modal-edit-collection-name');
+      await loadUserData();
+    } else {
+      Api.showToast(res?.error?.message || 'Falha ao renomear coleção.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao atualizar coleção.', '❌');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // --- Inclusão em Lote na Coleção ---
 let currentBatchTargetColId = null;
 let currentBatchTargetColName = '';
@@ -2006,7 +2052,7 @@ function renderBatchAddCharactersList(entries) {
     const char = entry.character;
     const isChecked = batchSelectedCharIds.has(char.id);
     const rarityClass = (char.baseRarity || 'COMMON').toLowerCase();
-    const rarityLabel = RARITY_LABELS[char.baseRarity] || char.baseRarity;
+    const rarityLabel = (RARITY_CONFIG[char.baseRarity]?.label) || RARITY_LABELS[char.baseRarity] || char.baseRarity;
     const imgUrl = char.imageUrl || `/media/characters/${char.id}.jpg`;
 
     return `
