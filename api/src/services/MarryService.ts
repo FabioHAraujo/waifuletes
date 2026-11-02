@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, Rarity } from '@prisma/client';
 import { CooldownService } from './CooldownService.js';
 import { CharacterService } from './CharacterService.js';
 import { UserService } from './UserService.js';
@@ -22,32 +22,9 @@ export class MarryService {
   async marry(params: MarryParams) {
     const { userId, groupId, characterId } = params;
 
-    // 1. Reserva atômica de cooldown de claim (3h) via SET ... NX
-    const acquiredClaim = await this.cooldownService.acquireClaimLock(userId);
-    if (!acquiredClaim) {
-      const cooldown = await this.cooldownService.getClaimCooldown(userId);
-      const hours = Math.floor(cooldown.remainingSeconds / 3600);
-      const mins = Math.ceil((cooldown.remainingSeconds % 3600) / 60);
-      return {
-        success: false,
-        error: {
-          code: 'CLAIM_COOLDOWN_ACTIVE',
-          message: `Você precisa aguardar ${hours > 0 ? `${hours}h ` : ''}${mins}min para realizar outro casamento.`,
-          remainingSeconds: cooldown.remainingSeconds,
-          retryAfter: cooldown.retryAfter,
-        },
-      };
-    }
-
-    // Helper para estorno do cooldown em caso de desistência/falha antes de casar
-    const rollbackClaimCooldown = async () => {
-      await this.cooldownService.resetCooldown(userId, 'claim');
-    };
-
-    // 2. Localizar personagem de forma flexível (ID, slug ou nome)
+    // 1. Localizar personagem de forma flexível (ID, slug ou nome)
     const resolvedChar = await this.characterService.findCharacter(characterId);
     if (!resolvedChar) {
-      await rollbackClaimCooldown();
       return {
         success: false,
         error: {
@@ -58,7 +35,7 @@ export class MarryService {
     }
     const targetCharId = resolvedChar.id;
 
-    // 3. Verificar se já pertence a alguém
+    // 2. Verificar se já pertence a alguém
     const character = await this.prisma.character.findUnique({
       where: { id: targetCharId },
       include: {
@@ -69,7 +46,6 @@ export class MarryService {
     });
 
     if (!character) {
-      await rollbackClaimCooldown();
       return {
         success: false,
         error: {
@@ -80,7 +56,6 @@ export class MarryService {
     }
 
     if (character.haremEntries.length > 0) {
-      await rollbackClaimCooldown();
       const owner = character.haremEntries[0].user;
       return {
         success: false,
@@ -92,14 +67,13 @@ export class MarryService {
       };
     }
 
-    // 4. Verificar lock no Redis para o grupo (qualquer um do grupo pode casar durante a janela ativa)
+    // 3. Verificar lock no Redis para o grupo (qualquer um do grupo pode casar durante a janela ativa)
     let lock = await this.cooldownService.getClaimLock(groupId, targetCharId);
     if (!lock.locked && characterId !== targetCharId) {
       lock = await this.cooldownService.getClaimLock(groupId, characterId);
     }
 
     if (!lock.locked) {
-      await rollbackClaimCooldown();
       const windowStr = config.CLAIM_LOCK_SECONDS >= 60
         ? `${Math.floor(config.CLAIM_LOCK_SECONDS / 60)} minuto(s)`
         : `${config.CLAIM_LOCK_SECONDS} segundos`;
@@ -111,6 +85,32 @@ export class MarryService {
         },
       };
     }
+
+    // 4. Reserva atômica de cooldown de claim para a raridade deste personagem via SET ... NX
+    const rarity = character.baseRarity || Rarity.COMMON;
+    const cooldownSecs = this.cooldownService.getClaimCooldownSecondsForRarity(rarity);
+    const acquiredClaim = await this.cooldownService.acquireClaimLock(userId, rarity, cooldownSecs);
+    if (!acquiredClaim) {
+      const cooldown = await this.cooldownService.getClaimCooldown(userId, rarity);
+      const hours = Math.floor(cooldown.remainingSeconds / 3600);
+      const mins = Math.ceil((cooldown.remainingSeconds % 3600) / 60);
+      const waitStr = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+      return {
+        success: false,
+        error: {
+          code: 'CLAIM_COOLDOWN_ACTIVE',
+          message: `Você precisa aguardar ${waitStr} para realizar outro casamento com waifus de raridade ${rarity}.`,
+          remainingSeconds: cooldown.remainingSeconds,
+          retryAfter: cooldown.retryAfter,
+          rarity,
+        },
+      };
+    }
+
+    // Helper para estorno do cooldown em caso de desistência/falha antes de casar
+    const rollbackClaimCooldown = async () => {
+      await this.cooldownService.resetCooldown(userId, 'claim', rarity);
+    };
 
     // 5. Efetuar casamento atômico no banco
     let transactionResult: {
@@ -220,7 +220,7 @@ export class MarryService {
       await this.cooldownService.releaseClaimLock(groupId, characterId);
     }
 
-    const nextClaimAt = new Date(Date.now() + config.COOLDOWN_CLAIM_SECONDS * 1000);
+    const nextClaimAt = new Date(Date.now() + cooldownSecs * 1000);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -243,6 +243,11 @@ export class MarryService {
         isSoulmate: false,
         kakeraBalance: user?.kakera ?? 0,
         nextClaimAt,
+        rarityCooldown: {
+          rarity,
+          cooldownSeconds: cooldownSecs,
+          nextClaimAt,
+        },
       },
     };
   }

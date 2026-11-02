@@ -1,4 +1,5 @@
 import { Redis } from 'ioredis';
+import { Rarity } from '@prisma/client';
 import { config } from '../config.js';
 
 export interface UserRollsState {
@@ -15,6 +16,36 @@ export interface DailyCycleInfo {
   nextReset: Date;
   secondsUntilReset: number;
 }
+
+export interface ClaimCooldownByRarity {
+  active: boolean;
+  remainingSeconds: number;
+  retryAfter?: Date;
+  cooldownSeconds: number;
+}
+
+export interface UserClaimCooldownState {
+  active: boolean;
+  remainingSeconds: number;
+  retryAfter?: Date;
+  byRarity: Record<Rarity, ClaimCooldownByRarity>;
+}
+
+export const RARITY_CLAIM_COOLDOWNS: Record<Rarity, number> = {
+  COMMON: config.COOLDOWN_CLAIM_SECONDS_COMMON,
+  UNCOMMON: config.COOLDOWN_CLAIM_SECONDS_UNCOMMON,
+  RARE: config.COOLDOWN_CLAIM_SECONDS_RARE,
+  EPIC: config.COOLDOWN_CLAIM_SECONDS_EPIC,
+  LEGENDARY: config.COOLDOWN_CLAIM_SECONDS_LEGENDARY,
+};
+
+export const ALL_RARITIES: Rarity[] = [
+  Rarity.COMMON,
+  Rarity.UNCOMMON,
+  Rarity.RARE,
+  Rarity.EPIC,
+  Rarity.LEGENDARY,
+];
 
 // Mapeamento de bônus de rolls por ID ou número do usuário (ex: doadores / VIPs).
 const USER_ROLL_BUFFS: Record<string, number> = {};
@@ -105,7 +136,14 @@ export class CooldownService {
     return `rolls:${userId}`;
   }
 
-  private claimKey(userId: string): string {
+  private claimKey(userId: string, rarity?: Rarity | string): string {
+    if (!rarity) {
+      return `cooldown:claim:${userId}`;
+    }
+    return `cooldown:claim:${userId}:${String(rarity).toUpperCase()}`;
+  }
+
+  private legacyClaimKey(userId: string): string {
     return `cooldown:claim:${userId}`;
   }
 
@@ -243,25 +281,115 @@ export class CooldownService {
     };
   }
 
-  async getClaimCooldown(userId: string): Promise<{ active: boolean; remainingSeconds: number; retryAfter?: Date }> {
-    const ttl = await this.redis.ttl(this.claimKey(userId));
-    if (ttl > 0) {
-      return {
-        active: true,
-        remainingSeconds: ttl,
-        retryAfter: new Date(Date.now() + ttl * 1000),
-      };
-    }
-    return { active: false, remainingSeconds: 0 };
+  getClaimCooldownSecondsForRarity(rarity?: Rarity | string): number {
+    if (!rarity) return config.COOLDOWN_CLAIM_SECONDS;
+    const norm = String(rarity).toUpperCase() as Rarity;
+    return RARITY_CLAIM_COOLDOWNS[norm] ?? config.COOLDOWN_CLAIM_SECONDS;
   }
 
-  async acquireClaimLock(userId: string, seconds = config.COOLDOWN_CLAIM_SECONDS): Promise<boolean> {
-    const res = await this.redis.set(this.claimKey(userId), '1', 'EX', seconds, 'NX');
+  async getClaimCooldown(
+    userId: string,
+    rarity?: Rarity | string
+  ): Promise<{ active: boolean; remainingSeconds: number; retryAfter?: Date; rarity?: Rarity; cooldownSeconds: number }> {
+    const normRarity = rarity ? (String(rarity).toUpperCase() as Rarity) : undefined;
+    const key = this.claimKey(userId, normRarity);
+
+    const [ttl, legacyTtl] = await Promise.all([
+      this.redis.ttl(key),
+      this.redis.ttl(this.legacyClaimKey(userId)),
+    ]);
+
+    const effectiveTtl = Math.max(ttl > 0 ? ttl : 0, legacyTtl > 0 ? legacyTtl : 0);
+    const cooldownSeconds = this.getClaimCooldownSecondsForRarity(normRarity);
+
+    if (effectiveTtl > 0) {
+      return {
+        active: true,
+        remainingSeconds: effectiveTtl,
+        retryAfter: new Date(Date.now() + effectiveTtl * 1000),
+        rarity: normRarity,
+        cooldownSeconds,
+      };
+    }
+    return {
+      active: false,
+      remainingSeconds: 0,
+      rarity: normRarity,
+      cooldownSeconds,
+    };
+  }
+
+  async acquireClaimLock(userId: string, rarity?: Rarity | string, seconds?: number): Promise<boolean> {
+    const normRarity = rarity ? (String(rarity).toUpperCase() as Rarity) : undefined;
+    const cooldownSecs = seconds ?? this.getClaimCooldownSecondsForRarity(normRarity);
+
+    // Se houver cooldown legado ativo na chave antiga global, bloqueia
+    const legacyTtl = await this.redis.ttl(this.legacyClaimKey(userId));
+    if (legacyTtl > 0) {
+      return false;
+    }
+
+    const key = this.claimKey(userId, normRarity);
+    const res = await this.redis.set(key, '1', 'EX', cooldownSecs, 'NX');
     return res === 'OK';
   }
 
-  async setClaimCooldown(userId: string, seconds = config.COOLDOWN_CLAIM_SECONDS): Promise<void> {
-    await this.redis.set(this.claimKey(userId), '1', 'EX', seconds);
+  async setClaimCooldown(userId: string, rarity?: Rarity | string, seconds?: number): Promise<void> {
+    const normRarity = rarity ? (String(rarity).toUpperCase() as Rarity) : undefined;
+    const cooldownSecs = seconds ?? this.getClaimCooldownSecondsForRarity(normRarity);
+    const key = this.claimKey(userId, normRarity);
+    await this.redis.set(key, '1', 'EX', cooldownSecs);
+  }
+
+  async getAllClaimCooldowns(userId: string): Promise<UserClaimCooldownState> {
+    const legacyTtl = await this.redis.ttl(this.legacyClaimKey(userId));
+    const pipeline = this.redis.pipeline();
+    for (const r of ALL_RARITIES) {
+      pipeline.ttl(this.claimKey(userId, r));
+    }
+    const ttls = await pipeline.exec();
+
+    const byRarity: Record<Rarity, ClaimCooldownByRarity> = {} as any;
+    let allActive = true;
+    let minRemaining = Infinity;
+    let minRetryAfter: Date | undefined;
+
+    ALL_RARITIES.forEach((r, idx) => {
+      const err = ttls?.[idx]?.[0];
+      const val = (ttls?.[idx]?.[1] as number) || -2;
+      const rawTtl = err ? 0 : val;
+      const effectiveTtl = Math.max(rawTtl > 0 ? rawTtl : 0, legacyTtl > 0 ? legacyTtl : 0);
+      const active = effectiveTtl > 0;
+      const cooldownSeconds = this.getClaimCooldownSecondsForRarity(r);
+
+      if (active) {
+        const retryAfter = new Date(Date.now() + effectiveTtl * 1000);
+        byRarity[r] = {
+          active: true,
+          remainingSeconds: effectiveTtl,
+          retryAfter,
+          cooldownSeconds,
+        };
+        if (effectiveTtl < minRemaining) {
+          minRemaining = effectiveTtl;
+          minRetryAfter = retryAfter;
+        }
+      } else {
+        allActive = false;
+        byRarity[r] = {
+          active: false,
+          remainingSeconds: 0,
+          cooldownSeconds,
+        };
+      }
+    });
+
+    return {
+      active: allActive,
+      remainingSeconds: allActive && minRemaining !== Infinity ? minRemaining : 0,
+      retryAfter: allActive ? minRetryAfter : undefined,
+      byRarity,
+    };
   }
 
   getDailyCycleInfo(date: Date = new Date()): DailyCycleInfo {
@@ -350,7 +478,7 @@ export class CooldownService {
   async getAllUserCooldowns(userId: string, extraMaxRolls: number = 0) {
     const [roll, claim, daily] = await Promise.all([
       this.getRollCooldown(userId, extraMaxRolls),
-      this.getClaimCooldown(userId),
+      this.getAllClaimCooldowns(userId),
       this.getDailyCooldown(userId),
     ]);
 
@@ -361,12 +489,19 @@ export class CooldownService {
     };
   }
 
-  async resetCooldown(userId: string, type: 'roll' | 'claim' | 'daily' | 'all'): Promise<void> {
+  async resetCooldown(userId: string, type: 'roll' | 'claim' | 'daily' | 'all', rarity?: Rarity | string): Promise<void> {
     if (type === 'roll' || type === 'all') {
       await this.redis.del(this.userRollsKey(userId));
     }
     if (type === 'claim' || type === 'all') {
-      await this.redis.del(this.claimKey(userId));
+      if (rarity) {
+        const normRarity = String(rarity).toUpperCase() as Rarity;
+        await this.redis.del(this.claimKey(userId, normRarity));
+      } else {
+        const keysToDelete = ALL_RARITIES.map((r) => this.claimKey(userId, r));
+        keysToDelete.push(this.legacyClaimKey(userId));
+        await this.redis.del(...keysToDelete);
+      }
     }
     if (type === 'daily' || type === 'all') {
       await this.redis.del(this.dailyKey(userId));

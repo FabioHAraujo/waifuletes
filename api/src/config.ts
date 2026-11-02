@@ -23,7 +23,12 @@ const envSchema = z.object({
   DAILY_KAKERA_VARIANCE: z.coerce.number().default(150),
 
   COOLDOWN_ROLL_SECONDS: z.coerce.number().default(600), // 10 min
-  COOLDOWN_CLAIM_SECONDS: z.coerce.number().default(7200), // 2 horas
+  COOLDOWN_CLAIM_SECONDS: z.coerce.number().default(7200), // Fallback legado (2 horas)
+  COOLDOWN_CLAIM_SECONDS_COMMON: z.coerce.number().default(1800), // 30 min
+  COOLDOWN_CLAIM_SECONDS_UNCOMMON: z.coerce.number().default(2700), // 45 min
+  COOLDOWN_CLAIM_SECONDS_RARE: z.coerce.number().default(3600), // 60 min (1 hora)
+  COOLDOWN_CLAIM_SECONDS_EPIC: z.coerce.number().default(5400), // 90 min (1h30min)
+  COOLDOWN_CLAIM_SECONDS_LEGENDARY: z.coerce.number().default(7200), // 120 min (2 horas)
   COOLDOWN_DAILY_SECONDS: z.coerce.number().default(72000), // Fallback legado
   DAILY_RESET_HOUR_UTC: z.coerce.number().default(7), // 07:00 UTC = 04:00 BRT (Horário de Brasília)
   DAILY_RESET_MINUTE_UTC: z.coerce.number().default(0),

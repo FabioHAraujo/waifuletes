@@ -8,7 +8,7 @@ import { parseManifestString } from '../../utils/manifestLoader.js';
 import { calculateDivorceRefund } from '../../utils/rarityCalculator.js';
 import { config } from '../../config.js';
 import { verifyApiKey } from '../../plugins/auth.js';
-import { KakeraReason } from '@prisma/client';
+import { KakeraReason, Rarity } from '@prisma/client';
 
 export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const cooldownService = new CooldownService(fastify.redis);
@@ -328,7 +328,7 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // Reset de cooldown manual
   fastify.post('/admin/cooldown/reset', {
     schema: {
-      description: 'Reseta manualmente os cooldowns de um usuário (roll, claim, daily ou all)',
+      description: 'Reseta manualmente os cooldowns de um usuário (roll, claim [opcionalmente por raridade], daily ou all)',
       tags: ['Administração (Privado)'],
       body: {
         type: 'object',
@@ -336,18 +336,24 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
         properties: {
           userId: { type: 'string' },
           type: { type: 'string', enum: ['roll', 'claim', 'daily', 'all'] },
+          rarity: { type: 'string', enum: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'] },
         },
       },
     },
     handler: async (request, reply) => {
-      const { userId, type } = request.body as { userId: string; type: 'roll' | 'claim' | 'daily' | 'all' };
+      const { userId, type, rarity } = request.body as {
+        userId: string;
+        type: 'roll' | 'claim' | 'daily' | 'all';
+        rarity?: Rarity;
+      };
 
-      await cooldownService.resetCooldown(userId, type);
+      await cooldownService.resetCooldown(userId, type, rarity);
 
+      const rarityMsg = rarity ? ` (raridade ${rarity})` : '';
       return reply.send({
         success: true,
         data: {
-          message: `Cooldown do tipo '${type}' resetado com sucesso para o usuário ${userId}.`,
+          message: `Cooldown do tipo '${type}'${rarityMsg} resetado com sucesso para o usuário ${userId}.`,
         },
       });
     },

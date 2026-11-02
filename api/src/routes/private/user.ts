@@ -157,7 +157,7 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/user/:userId/cooldowns', {
     preHandler: verifyApiKey,
     schema: {
-      description: 'Consulta o status de todos os cooldowns ativos do usuário (roll, claim, daily)',
+      description: 'Consulta o status de todos os cooldowns ativos do usuário (roll, claim por raridade, daily)',
       tags: ['Usuários (Privado)'],
       params: {
         type: 'object',
