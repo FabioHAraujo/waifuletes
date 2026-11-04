@@ -986,6 +986,48 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * Consulta a estimativa de reembolso de divórcio (preview) para exibição no popup de confirmação
+   */
+  fastify.get('/api/web/user/:publicId/divorce/preview/:characterId', {
+    schema: {
+      description: 'Retorna o valor estimado de reembolso em Zinthos para divórcio antes da confirmação',
+      tags: ['Usuário (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'characterId'],
+        properties: {
+          publicId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+      querystring: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, characterId } = request.params as { publicId: string; characterId: string };
+      const { token } = request.query as { token: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const preview = await divorceService.previewDivorce(session.userId, characterId);
+      return reply.send({ success: true, data: preview });
+    },
+  });
+
+  /**
    * Divórcio via sessão web do usuário
    */
   fastify.post('/api/web/user/:publicId/divorce', {
@@ -2322,7 +2364,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const quote = await marketInvestmentService.getCharacterQuote(characterId);
+      const quote = await marketInvestmentService.getCharacterQuote(characterId, session.userId);
       const user = await fastify.prisma.user.findUnique({
         where: { id: session.userId },
         select: { id: true, kakera: true },

@@ -1002,12 +1002,19 @@ function createPrivateHaremCard(entry, options = {}) {
       </button>`
     : '';
 
+  const isSoulmate = Boolean(entry.isSoulmate || (entry.keys && entry.keys >= 10));
+  const rarityBadgeHtml = isSoulmate
+    ? `<div class="badge-rarity badge-soulmate" style="border-color: #ec4899; color: #ec4899; background: rgba(236, 72, 153, 0.15); font-weight: 800;">
+        💖 Soulmate
+      </div>`
+    : `<div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
+        ${rarity.emoji} ${rarity.label}
+      </div>`;
+
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
       <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-      <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
-        ${rarity.emoji} ${rarity.label}
-      </div>
+      ${rarityBadgeHtml}
       ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
       ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
       ${unseenCovets > 0 ? `<div class="badge-covets" onclick="event.stopPropagation(); openHaremCovetsModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')" title="${unseenCovets} jogador(es) interessados">👀 ${unseenCovets}</div>` : ''}
@@ -1053,6 +1060,7 @@ function openCardOptionsModal(charId) {
   const covetsLabel = covetsCount > 0 ? `Interessados (${covetsCount})` : 'Interessados';
   const covetsBtnClass = unseenCovets > 0 ? 'btn-gold' : '';
   const covetsBtnStyle = unseenCovets > 0 ? 'border-color: #f59e0b; font-weight: 800;' : '';
+  const isSoulmate = Boolean(entry.isSoulmate || (entry.keys && entry.keys >= 10));
 
   let html = `
     <!-- 1. Favoritar -->
@@ -1067,21 +1075,31 @@ function openCardOptionsModal(charId) {
     <button class="btn-retro btn-sm btn-purple" style="width: 100%; font-weight: 800;" onclick="closeModal('modal-card-options'); openChoosePhotoModal('${char.id}')">
       📷 Escolher Foto
     </button>
-    <!-- 4. Vender -->
+    <!-- 4. Investir Cotas -->
+    ${!isSoulmate ? `
+      <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800; border-color: #d97706; color: #92400e; background: #fef3c7;" onclick="closeModal('modal-card-options'); openInvestModal('${char.id}')">
+        <i class="fas fa-coins"></i> 📈 Investir Cotas (80% OFF)
+      </button>
+    ` : `
+      <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899; opacity: 0.7; cursor: default;" disabled>
+        💖 Soulmate (Vínculo Máximo)
+      </button>
+    `}
+    <!-- 5. Vender -->
     <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="closeModal('modal-card-options'); openSellModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')">
       <i class="fas fa-tag"></i> 💰 Vender
     </button>
-    <!-- 5. Divorciar -->
+    <!-- 6. Divorciar -->
     <button class="btn-retro btn-sm btn-danger" style="width: 100%;" onclick="closeModal('modal-card-options'); openDivorceModal('${char.id}', '${escapeAttr(char.name)}')">
       <i class="fas fa-heart-crack"></i> Divorciar
     </button>
-    <!-- 6. Sugerir Mudança -->
+    <!-- 7. Sugerir Mudança -->
     <button class="btn-retro btn-sm" style="width: 100%;" onclick="closeModal('modal-card-options'); openSuggestModal('${char.id}', '${escapeAttr(char.name)}', '${char.baseRarity}')">
       <i class="fas fa-lightbulb"></i> Sugerir Alterações
     </button>
   `;
 
-  // 7. Interessados: Mostrar só se >0
+  // 8. Interessados: Mostrar só se >0
   if (unseenCovets > 0 || totalCovets > 0) {
     html += `
       <button class="btn-retro btn-sm ${covetsBtnClass}" style="width: 100%; ${covetsBtnStyle}" onclick="closeModal('modal-card-options'); openHaremCovetsModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')">
@@ -1643,12 +1661,19 @@ function createPublicHaremCard(entry) {
     ? (isWish ? 'Na sua Wishlist! Clique para remover' : `Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para adicionar à sua Wishlist`)
     : `Desejado por ${char.wishlistCount || 0} pessoa(s). Faça login para adicionar!`;
 
+  const isSoulmate = Boolean(entry.isSoulmate || (entry.keys && entry.keys >= 10));
+  const rarityBadgeHtml = isSoulmate
+    ? `<div class="badge-rarity badge-soulmate" style="border-color: #ec4899; color: #ec4899; background: rgba(236, 72, 153, 0.15); font-weight: 800;">
+        💖 Soulmate
+      </div>`
+    : `<div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
+        ${rarity.emoji} ${rarity.label}
+      </div>`;
+
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
       <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-      <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
-        ${rarity.emoji} ${rarity.label}
-      </div>
+      ${rarityBadgeHtml}
       ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
       ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
       <div class="badge-wishes ${isWish ? 'is-in-wishlist' : ''}" data-char-id="${char.id}" title="${wishTitle}" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
@@ -2468,10 +2493,34 @@ async function submitReport() {
 // ========================================================
 // AÇÕES DO USUÁRIO (DIVÓRCIO, WISHLIST, SUGESTÕES)
 // ========================================================
-function openDivorceModal(charId, charName) {
+async function openDivorceModal(charId, charName) {
   pendingDivorceTarget = { id: charId, name: charName };
-  document.getElementById('divorce-modal-text').innerHTML = `Tem certeza que deseja divorciar de <strong>${charName}</strong>?`;
+  const textEl = document.getElementById('divorce-modal-text');
+  const amountEl = document.getElementById('divorce-modal-refund-amount');
+  if (textEl) {
+    textEl.innerHTML = `Tem certeza que deseja divorciar de <strong>${escapeHtml(charName)}</strong>?`;
+  }
+  if (amountEl) {
+    amountEl.textContent = 'Calculando...';
+  }
   openModal('modal-divorce');
+
+  try {
+    const res = await Api.get(
+      `/api/web/user/${encodeURIComponent(userPublicId)}/divorce/preview/${encodeURIComponent(charId)}?token=${encodeURIComponent(userSessionToken)}`
+    );
+    if (res?.success && res.data) {
+      const data = res.data;
+      const formatted = Number(data.refundedKakera || 0).toLocaleString('pt-BR');
+      if (amountEl) {
+        amountEl.innerHTML = `+${formatted} Zinthos ${data.isSoulmate ? '<span style="color: #ec4899; font-size: 11px; margin-left: 4px;">(💖 Dourado)</span>' : ''}`;
+      }
+    } else if (amountEl) {
+      amountEl.textContent = 'Indisponível no momento';
+    }
+  } catch (_) {
+    if (amountEl) amountEl.textContent = 'Indisponível no momento';
+  }
 }
 
 async function executeDivorce() {
@@ -2490,7 +2539,10 @@ async function executeDivorce() {
     }
 
     closeModal('modal-divorce');
-    Api.showToast(`Divórcio de ${name} realizado com sucesso!`, '💔');
+    const refundedMsg = res.data?.refundedKakera
+      ? ` Você recebeu +${Number(res.data.refundedKakera).toLocaleString('pt-BR')} Zinthos!`
+      : '';
+    Api.showToast(`Divórcio de ${name} realizado com sucesso!${refundedMsg}`, '💔');
 
     // Remove do DOM
     const card = document.getElementById(`harem-card-${id}`);
@@ -4815,7 +4867,7 @@ async function openInvestModal(charId) {
 
     const cotaPriceEl = document.getElementById('invest-modal-cota-price');
     if (cotaPriceEl) {
-      cotaPriceEl.textContent = `${Number(pricing.cotaPrice).toLocaleString('pt-BR')} Zinthos`;
+      cotaPriceEl.innerHTML = `${Number(pricing.cotaPrice).toLocaleString('pt-BR')} Zinthos ${pricing.discountPercent ? `<span style="color:#22c55e;font-size:12px;font-weight:800;margin-left:4px;">(${pricing.discountPercent}% OFF)</span>` : ''}`;
     }
 
     const totalPriceEl = document.getElementById('invest-modal-total-price');
@@ -4825,7 +4877,7 @@ async function openInvestModal(charId) {
 
     const userSharesEl = document.getElementById('invest-modal-user-shares');
     if (userSharesEl) {
-      userSharesEl.textContent = `${userShares} / 4 cotas (${userShares * 25}%)`;
+      userSharesEl.textContent = `${userShares} / 4 cotas (${userShares * 25}%)${char.isOwner ? ` • Chave ${char.currentKeys}/10` : ''}`;
     }
 
     const userBalanceEl = document.getElementById('invest-modal-user-balance');
@@ -4839,7 +4891,10 @@ async function openInvestModal(charId) {
 
     if (select) {
       select.innerHTML = '';
-      if (remainingShares === 0) {
+      if (char.isSoulmate) {
+        select.innerHTML = '<option value="0">💖 Soulmate (Vínculo Máximo Atingido)</option>';
+        select.disabled = true;
+      } else if (remainingShares === 0) {
         select.innerHTML = '<option value="0">Todas as 4 cotas já adquiridas</option>';
         select.disabled = true;
       } else {
@@ -4848,7 +4903,15 @@ async function openInvestModal(charId) {
           const opt = document.createElement('option');
           opt.value = String(i);
           const pct = (userShares + i) * 25;
-          opt.textContent = `${i} cota(s) (+${i * 25}% ➔ Total: ${pct}%)${userShares + i === 4 ? ' — 💍 Casamento Imediato' : ''}`;
+          let extraLabel = '';
+          if (userShares + i === 4) {
+            if (char.isOwner) {
+              extraLabel = char.currentKeys >= 9 ? ' — 💖 Tornar-se Soulmate!' : ' — 🔑 +1 Chave';
+            } else {
+              extraLabel = ' — 💍 Casamento Imediato';
+            }
+          }
+          opt.textContent = `${i} cota(s) (+${i * 25}% ➔ Total: ${pct}%)${extraLabel}`;
           select.appendChild(opt);
         }
       }
@@ -4926,8 +4989,15 @@ function updateInvestModalTotal() {
       confirmBtn.style.boxShadow = '';
       confirmBtn.style.opacity = '1';
 
+      const char = currentInvestQuoteData.character || {};
       if (userShares + shares >= 4) {
-        confirmBtn.innerHTML = '<i class="fas fa-ring"></i> Confirmar Casamento (4 Cotas)';
+        if (char.isOwner) {
+          confirmBtn.innerHTML = char.currentKeys >= 9
+            ? '<i class="fas fa-heart"></i> Tornar-se Soulmate! (4 Cotas)'
+            : '<i class="fas fa-key"></i> Confirmar +1 Chave (4 Cotas)';
+        } else {
+          confirmBtn.innerHTML = '<i class="fas fa-ring"></i> Confirmar Casamento (4 Cotas)';
+        }
       } else {
         confirmBtn.innerHTML = `<i class="fas fa-coins"></i> Comprar ${shares} Cota(s)`;
       }
@@ -4981,11 +5051,18 @@ async function confirmInvest() {
 
     closeModal('modal-invest');
 
-    if (res.data.acquired) {
+    if (res.data.becameSoulmate) {
+      Api.showToast(`💖✨ Parabéns! ${charName} agora é sua Alma Gêmea (Soulmate)!`, '💖');
+      setTimeout(() => loadUserData(), 600);
+    } else if (res.data.keyEarned) {
+      Api.showToast(`🔑 Parabéns! Você completou 4 cotas e ganhou +1 Chave com ${charName}! (Chaves: ${res.data.currentKeys}/10)`, '🔑');
+      setTimeout(() => loadUserData(), 600);
+    } else if (res.data.acquired) {
       Api.showToast(`💍 Parabéns! Você adquiriu as 4 cotas (100%) e se casou com ${charName}! 🎉`, '✨');
       setTimeout(() => loadUserData(), 600);
     } else {
-      Api.showToast(`📈 Sucesso! Você adquiriu ${shares} cota(s) de ${charName}. Total: ${res.data.totalShares} cotas.`, '✅');
+      const isOwner = Boolean(res.data.isMarried);
+      Api.showToast(`📈 Sucesso! Você adquiriu ${shares} cota(s) de ${charName}.${isOwner ? ` (${res.data.totalShares}/4 cotas para a próxima chave)` : ''}`, '✅');
       setTimeout(() => loadUserData(), 600);
     }
   } catch (err) {

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { DomainError } from '../errors/DomainError.js';
 import { calculateDivorceRefund } from '../utils/rarityCalculator.js';
 import { config } from '../config.js';
 import { MarketInvestmentService, BASE_MONEY_SUPPLY, INFLATION_ALPHA } from './MarketInvestmentService.js';
@@ -30,6 +31,63 @@ export class DivorceService {
     } catch {
       return 1.0;
     }
+  }
+
+  /**
+   * Consulta a estimativa de reembolso de divórcio antes da confirmação
+   */
+  async previewDivorce(userId: string, characterId: string) {
+    const haremEntry = await this.prisma.haremEntry.findFirst({
+      where: {
+        userId,
+        OR: [
+          { characterId },
+          { character: { id: characterId.toLowerCase().trim() } },
+          { character: { name: { equals: characterId.trim(), mode: 'insensitive' } } },
+        ],
+      },
+      include: {
+        character: true,
+      },
+    });
+
+    if (!haremEntry) {
+      throw new DomainError('CHARACTER_NOT_IN_HAREM', 'Você não possui este personagem no seu harém.');
+    }
+
+    const { character, keys } = haremEntry;
+    const soulmateRecord = await this.prisma.soulmate.findUnique({
+      where: {
+        userId_characterId: {
+          userId,
+          characterId: character.id,
+        },
+      },
+    });
+
+    const isSoulmate = keys >= (config.SOULMATE_KEYS_REQUIRED ?? 10) || Boolean(soulmateRecord);
+    const inflationMultiplier = await this.getInflationMultiplier();
+
+    const refund = calculateDivorceRefund(character.baseRarity, keys, {
+      isSoulmate,
+      inflationMultiplier,
+    });
+
+    return {
+      refundedKakera: refund.netKakera,
+      rawValue: refund.rawValue,
+      keysBonus: refund.keysBonus,
+      baseValue: refund.baseValue,
+      keysLost: keys - refund.remainingKeys,
+      currentKeys: keys,
+      isSoulmate,
+      inflationMultiplier,
+      character: {
+        id: character.id,
+        name: character.name,
+        rarity: character.baseRarity,
+      },
+    };
   }
 
   async divorce(userId: string, characterId: string) {
