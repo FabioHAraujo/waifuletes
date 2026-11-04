@@ -168,10 +168,17 @@ export const privateMarketRoutes: FastifyPluginAsync = async (fastify) => {
           characterId: { type: 'string' },
         },
       },
+      querystring: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string' },
+        },
+      },
     },
     handler: async (request, reply) => {
       const { characterId } = request.params as { characterId: string };
-      const quote = await marketInvestmentService.getCharacterQuote(characterId);
+      const { userId } = (request.query as { userId?: string }) || {};
+      const quote = await marketInvestmentService.getCharacterQuote(characterId, userId);
       return reply.send({ success: true, data: quote });
     },
   });

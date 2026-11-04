@@ -202,7 +202,7 @@ export const publicLeaderboardRoutes: FastifyPluginAsync = async (fastify) => {
               count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC') * 60 +
               count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY') * 200 +
               coalesce(sum(h.keys), 0) * 1 +
-              (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) * 25
+              (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) * 3000
             )::int as "collectionPoints"
           FROM users u
           JOIN harem_entries h ON h."userId" = u.id

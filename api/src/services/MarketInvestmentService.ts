@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import { DomainError } from '../errors/DomainError.js';
 import { CharacterService } from './CharacterService.js';
 
-export const BASE_DAILY_ZINTHOS = 30000;
+export const BASE_DAILY_ZINTHOS = 21000;
 
 export const RARITY_DAYS: Record<Rarity, number> = {
   COMMON: 15,
@@ -212,7 +212,7 @@ export class MarketInvestmentService {
   /**
    * Consulta a cotação dinâmica de compra e cotas de um personagem
    */
-  async getCharacterQuote(characterIdOrSlug: string) {
+  async getCharacterQuote(characterIdOrSlug: string, userId?: string) {
     const character = await this.characterService.findCharacter(characterIdOrSlug);
     if (!character) {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.');
@@ -226,6 +226,36 @@ export class MarketInvestmentService {
       where: { characterId: character.id },
       include: { user: { select: { id: true, name: true } } },
     });
+
+    // Identificação de vínculo e regras para cônjuge/soulmate
+    let isSoulmate = false;
+    let isOwner = false;
+    let canInvest = true;
+    let discountPercent = 0;
+    let quoteCotaPrice = rarityInfo.cotaPrice;
+
+    if (haremEntry) {
+      if (userId && haremEntry.userId === userId) {
+        isOwner = true;
+        const soulmateRecord = await this.prisma.soulmate.findUnique({
+          where: {
+            userId_characterId: {
+              userId,
+              characterId: character.id,
+            },
+          },
+        });
+        isSoulmate = (haremEntry.keys ?? 1) >= 10 || Boolean(soulmateRecord);
+        if (isSoulmate) {
+          canInvest = false;
+        } else {
+          discountPercent = 80;
+          quoteCotaPrice = Math.round(rarityInfo.cotaPrice * 0.20);
+        }
+      } else {
+        canInvest = false;
+      }
+    }
 
     // Investimentos ativos no personagem
     const activeInvestments = await this.prisma.characterInvestment.findMany({
@@ -248,12 +278,18 @@ export class MarketInvestmentService {
         likeCount: character.likeCount,
         isClaimed: Boolean(haremEntry),
         owner: haremEntry ? { id: haremEntry.user.id, name: haremEntry.user.name } : null,
+        isOwner,
+        isSoulmate,
+        currentKeys: haremEntry ? haremEntry.keys : 0,
       },
       pricing: {
         days: rarityInfo.days,
         basePrice: rarityInfo.basePrice,
         dynamicPrice: rarityInfo.dynamicPrice,
-        cotaPrice: rarityInfo.cotaPrice,
+        cotaPrice: quoteCotaPrice,
+        baseCotaPrice: rarityInfo.cotaPrice,
+        discountPercent,
+        canInvest,
         inflationMultiplier: macro.inflationMultiplier,
         inflationPercent: macro.inflationPercent,
         scarcityMultiplier: rarityInfo.scarcityMultiplier,
@@ -275,7 +311,7 @@ export class MarketInvestmentService {
   }
 
   /**
-   * Realiza a compra de cotas (1 a 4) em um personagem livre
+   * Realiza a compra de cotas (1 a 4) em um personagem livre ou casado (pelo cônjuge com 80% OFF)
    */
   async invest(params: {
     userId: string;
@@ -296,11 +332,33 @@ export class MarketInvestmentService {
       where: { characterId: character.id },
       include: { user: { select: { id: true, name: true } } },
     });
+
+    const isOwner = Boolean(existingClaim && existingClaim.userId === params.userId);
+
     if (existingClaim) {
-      throw new DomainError(
-        'CHARACTER_ALREADY_CLAIMED',
-        `Este personagem já pertence a ${existingClaim.user.name}. Apenas personagens livres podem receber investimentos.`
-      );
+      if (!isOwner) {
+        throw new DomainError(
+          'CHARACTER_ALREADY_CLAIMED',
+          `Este personagem já pertence a ${existingClaim.user.name}. Apenas o cônjuge pode investir em personagens casados.`
+        );
+      }
+
+      // Se for o dono, verifica se já é Soulmate
+      const soulmateRecord = await this.prisma.soulmate.findUnique({
+        where: {
+          userId_characterId: {
+            userId: params.userId,
+            characterId: character.id,
+          },
+        },
+      });
+
+      if ((existingClaim.keys ?? 1) >= 10 || soulmateRecord) {
+        throw new DomainError(
+          'ALREADY_SOULMATE',
+          'Este personagem já é sua Alma Gêmea (Soulmate). Não é possível adquirir mais cotas.'
+        );
+      }
     }
 
     // 2. Consulta o usuário
@@ -311,8 +369,8 @@ export class MarketInvestmentService {
       throw new DomainError('USER_NOT_FOUND', 'Usuário não cadastrado.');
     }
 
-    // 3. Cotação atual
-    const quote = await this.getCharacterQuote(character.id);
+    // 3. Cotação atual (passando userId para aplicar regras de cônjuge)
+    const quote = await this.getCharacterQuote(character.id, params.userId);
     const cotaPrice = quote.pricing.cotaPrice;
 
     // 4. Quantidade de cotas que o usuário já possui
@@ -343,15 +401,17 @@ export class MarketInvestmentService {
 
     // 5. Transação Atômica no PostgreSQL
     return await this.prisma.$transaction(async (tx) => {
-      // Re-verificação anti race-condition de casamento simultâneo
-      const claimCheck = await tx.haremEntry.findFirst({
-        where: { characterId: character.id },
-      });
-      if (claimCheck) {
-        throw new DomainError(
-          'CHARACTER_ALREADY_CLAIMED',
-          'O personagem foi adquirido por outro jogador durante a transação.'
-        );
+      if (!isOwner) {
+        // Re-verificação anti race-condition de casamento simultâneo para personagens livres
+        const claimCheck = await tx.haremEntry.findFirst({
+          where: { characterId: character.id },
+        });
+        if (claimCheck) {
+          throw new DomainError(
+            'CHARACTER_ALREADY_CLAIMED',
+            'O personagem foi adquirido por outro jogador durante a transação.'
+          );
+        }
       }
 
       // Débito do Zinthos do usuário
@@ -367,18 +427,107 @@ export class MarketInvestmentService {
           amount: -totalCost,
           reason: KakeraReason.MARKET_BUY,
           metadata: {
-            type: 'INVESTMENT_SHARE_PURCHASE',
+            type: isOwner ? 'MARRIED_SHARE_PURCHASE' : 'INVESTMENT_SHARE_PURCHASE',
             characterId: character.id,
             characterName: character.name,
             sharesBought: actualSharesToBuy,
             cotaPrice,
             totalPrice: quote.pricing.dynamicPrice,
+            isOwner,
+            discountPercent: isOwner ? 80 : 0,
           },
         },
       });
 
       const newShares = currentShares + actualSharesToBuy;
 
+      if (isOwner) {
+        // CENÁRIO A: USUÁRIO JÁ É CASADO COM A WAIFU (EVOLUÇÃO DE CHAVES)
+        if (newShares >= 4) {
+          // 4 cotas completadas = +1 chave!
+          const updatedHarem = await tx.haremEntry.update({
+            where: { id: existingClaim!.id },
+            data: { keys: { increment: 1 } },
+          });
+
+          // Zera cotas acumuladas deste ciclo
+          if (existingInvestment) {
+            await tx.characterInvestment.delete({
+              where: { id: existingInvestment.id },
+            });
+          }
+
+          let becameSoulmate = false;
+          if (updatedHarem.keys >= 10) {
+            await tx.soulmate.upsert({
+              where: {
+                userId_characterId: {
+                  userId: params.userId,
+                  characterId: character.id,
+                },
+              },
+              create: {
+                userId: params.userId,
+                characterId: character.id,
+              },
+              update: {},
+            });
+            becameSoulmate = true;
+          }
+
+          return {
+            acquired: false,
+            isMarried: true,
+            keyEarned: true,
+            currentKeys: updatedHarem.keys,
+            becameSoulmate,
+            character: quote.character,
+            sharesBought: actualSharesToBuy,
+            totalShares: 0,
+            cost: totalCost,
+            remainingShares: 4,
+            discountPercent: 80,
+            newBalance: user.kakera - totalCost,
+          };
+        } else {
+          // Cotas parciais em waifu casada (1 a 3 cotas)
+          await tx.characterInvestment.upsert({
+            where: {
+              characterId_userId: {
+                characterId: character.id,
+                userId: params.userId,
+              },
+            },
+            create: {
+              characterId: character.id,
+              userId: params.userId,
+              shares: newShares,
+              totalZinthos: totalCost,
+            },
+            update: {
+              shares: newShares,
+              totalZinthos: { increment: totalCost },
+            },
+          });
+
+          return {
+            acquired: false,
+            isMarried: true,
+            keyEarned: false,
+            currentKeys: existingClaim!.keys,
+            becameSoulmate: false,
+            character: quote.character,
+            sharesBought: actualSharesToBuy,
+            totalShares: newShares,
+            cost: totalCost,
+            remainingShares: 4 - newShares,
+            discountPercent: 80,
+            newBalance: user.kakera - totalCost,
+          };
+        }
+      }
+
+      // CENÁRIO B: WAIFU LIVRE (COMPRA INICIAL OU CASAMENTO POR 4 COTAS)
       if (newShares >= 4) {
         // COMPRA DEFINITIVA / 4 COTAS ATINGIDAS!
         await tx.haremEntry.create({
@@ -457,6 +606,8 @@ export class MarketInvestmentService {
 
         return {
           acquired: true,
+          isMarried: false,
+          keyEarned: false,
           character: quote.character,
           sharesBought: actualSharesToBuy,
           totalShares: 4,
@@ -466,7 +617,7 @@ export class MarketInvestmentService {
           newBalance: user.kakera - totalCost,
         };
       } else {
-        // Aquisição de cotas parciais (1 a 3 cotas)
+        // Aquisição de cotas parciais em personagem livre (1 a 3 cotas)
         await tx.characterInvestment.upsert({
           where: {
             characterId_userId: {
@@ -490,6 +641,8 @@ export class MarketInvestmentService {
 
         return {
           acquired: false,
+          isMarried: false,
+          keyEarned: false,
           character: quote.character,
           sharesBought: actualSharesToBuy,
           totalShares: newShares,
@@ -506,19 +659,29 @@ export class MarketInvestmentService {
    * Lista todos os investimentos ativos de um usuário
    */
   async getUserInvestments(userId: string) {
-    const investments = await this.prisma.characterInvestment.findMany({
-      where: { userId },
-      include: {
-        character: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const [investments, userHaremEntries] = await Promise.all([
+      this.prisma.characterInvestment.findMany({
+        where: { userId },
+        include: {
+          character: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.haremEntry.findMany({
+        where: { userId },
+        select: { characterId: true, keys: true },
+      }),
+    ]);
 
+    const userHaremMap = new Map(userHaremEntries.map((h) => [h.characterId, h.keys]));
     const macro = await this.getMacroStats();
 
     return investments.map((inv) => {
       const formattedChar = this.formatCharacter(inv.character);
       const rarityInfo = macro.rarityStats[inv.character.baseRarity];
+      const isMarried = userHaremMap.has(inv.character.id);
+      const currentKeys = userHaremMap.get(inv.character.id) ?? 0;
+      const cotaPriceCurrent = isMarried ? Math.round(rarityInfo.cotaPrice * 0.20) : rarityInfo.cotaPrice;
       const boostPercent = inv.shares === 1 ? 300 : inv.shares === 2 ? 900 : 2400;
 
       return {
@@ -533,10 +696,14 @@ export class MarketInvestmentService {
         shares: inv.shares,
         percent: inv.shares * 25,
         totalZinthosInvested: inv.totalZinthos,
-        cotaPriceCurrent: rarityInfo.cotaPrice,
+        cotaPriceCurrent,
+        baseCotaPrice: rarityInfo.cotaPrice,
         totalPriceCurrent: rarityInfo.dynamicPrice,
         boostPercent,
         remainingShares: 4 - inv.shares,
+        isMarried,
+        currentKeys,
+        discountPercent: isMarried ? 80 : 0,
         createdAt: inv.createdAt,
         updatedAt: inv.updatedAt,
       };

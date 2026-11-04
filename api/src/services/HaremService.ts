@@ -34,7 +34,7 @@ export class HaremService {
       where.collectionId = null;
     }
 
-    const [total, entries] = await Promise.all([
+    const [total, entries, soulmateRecords] = await Promise.all([
       this.prisma.haremEntry.count({ where }),
       this.prisma.haremEntry.findMany({
         where,
@@ -46,7 +46,13 @@ export class HaremService {
           collection: true,
         },
       }),
+      this.prisma.soulmate.findMany({
+        where: { userId },
+        select: { characterId: true },
+      }),
     ]);
+
+    const soulmateSet = new Set(soulmateRecords.map((s) => s.characterId));
 
     return {
       total,
@@ -65,6 +71,7 @@ export class HaremService {
           ? { id: e.collection.id, name: e.collection.name, isPrivate: e.collection.isPrivate }
           : null,
         pinnedPhoto: e.pinnedPhoto || null,
+        isSoulmate: (e.keys ?? 1) >= 10 || soulmateSet.has(e.characterId),
         character: {
           ...e.character,
           imageUrl: this.resolveCardImageUrl(e.character.id, e.character.imageUrls, e.pinnedPhoto),

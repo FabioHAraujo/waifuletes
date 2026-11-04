@@ -35,16 +35,16 @@ export const RARITY_KEY_DIVORCE_BONUS: Record<Rarity, number> = {
   LEGENDARY: 75000,
 };
 
-// Valores de divórcio equivalentes a 4 COTAS exclusivo para SOULMATES (100% do preço base de mercado da waifu: RARITY_DAYS * 30.000 Zinthos)
+// Valores de divórcio equivalentes a 4 COTAS exclusivo para SOULMATES (100% do preço base de mercado da waifu: RARITY_DAYS * 21.000 Zinthos)
 export const SOULMATE_DIVORCE_VALUES: Record<Rarity, number> = {
-  COMMON: 450000,      // 15 dias x 30.000 Zinthos (4 cotas)
-  UNCOMMON: 900000,    // 30 dias x 30.000 Zinthos (4 cotas)
-  RARE: 1800000,       // 60 dias x 30.000 Zinthos (4 cotas)
-  EPIC: 3000000,       // 100 dias x 30.000 Zinthos (4 cotas)
-  LEGENDARY: 6300000,  // 210 dias x 30.000 Zinthos (4 cotas)
+  COMMON: 315000,      // 15 dias x 21.000 Zinthos (4 cotas)
+  UNCOMMON: 630000,    // 30 dias x 21.000 Zinthos (4 cotas)
+  RARE: 1260000,       // 60 dias x 21.000 Zinthos (4 cotas)
+  EPIC: 2100000,       // 100 dias x 21.000 Zinthos (4 cotas)
+  LEGENDARY: 4410000,  // 210 dias x 21.000 Zinthos (4 cotas)
 };
 
-export const SOULMATE_KEY_KAKERA_BONUS = 30000; // 30.000 Zinthos de bônus por chave para soulmates
+export const SOULMATE_KEY_KAKERA_BONUS = 21000; // 21.000 Zinthos de bônus por chave para soulmates
 export const KEY_KAKERA_BONUS = 15; // Legado mantido para compatibilidade
 export const DIVORCE_PENALTY_RATE = 0.05; // 5% de taxa de divórcio
 
