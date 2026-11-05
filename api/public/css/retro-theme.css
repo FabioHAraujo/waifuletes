@@ -1528,3 +1528,205 @@ body.dark-mode .btn-card-report:hover {
   font-weight: 700;
   color: var(--text-muted);
 }
+
+/* ========================================================
+   SOULMATE CARD (ALMA GÊMEA) - PREMIUM RETRO GACHA FX
+   ======================================================== */
+.waifu-card.soulmate-card {
+  position: relative;
+  border-radius: var(--radius-retro, 6px);
+  overflow: hidden;
+  border: none !important;
+  padding: 2px;
+  background: transparent !important;
+  box-shadow:
+    0 0 10px rgba(236, 72, 153, 0.4),
+    0 0 20px rgba(139, 92, 246, 0.3),
+    3px 3px 0px rgba(0, 0, 0, 0.35) !important;
+  animation: soulmate-neon-pulse 3s ease-in-out infinite alternate !important;
+  isolation: isolate;
+}
+
+/* Borda animada: gradiente dourado, roxo e rosa correndo pelo perímetro */
+.waifu-card.soulmate-card::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 550px;
+  height: 550px;
+  background: conic-gradient(
+    from 0deg,
+    #fbbf24 0deg,
+    #f472b6 60deg,
+    #ec4899 120deg,
+    #a855f7 180deg,
+    #8b5cf6 240deg,
+    #f472b6 300deg,
+    #fbbf24 360deg
+  );
+  animation: soulmate-border-spin 4s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.waifu-card.soulmate-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.waifu-card.soulmate-card .card-img-wrapper {
+  border-radius: calc(var(--radius-retro, 6px) - 2px) calc(var(--radius-retro, 6px) - 2px) 0 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.waifu-card.soulmate-card .card-info {
+  background: var(--bg-card);
+  border-radius: 0 0 calc(var(--radius-retro, 6px) - 2px) calc(var(--radius-retro, 6px) - 2px);
+  text-align: center;
+}
+
+.waifu-card.soulmate-card .card-info .card-name {
+  text-align: center;
+  font-weight: 800;
+}
+
+.waifu-card.soulmate-card .card-info .card-series {
+  text-align: center;
+}
+
+/* Animação na imagem: pulso leve de zoom (<= 1%) de 3 segundos */
+.waifu-card.soulmate-card .card-img-wrapper img {
+  animation: soulmate-img-pulse 3s ease-in-out infinite alternate !important;
+  will-change: transform, filter;
+}
+
+.waifu-card.soulmate-card:hover .card-img-wrapper img {
+  transform: none;
+}
+
+/* Efeito 'vivo': Brilho holográfico suave atravessando a arte */
+.waifu-card.soulmate-card .card-img-wrapper::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 220%;
+  height: 220%;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.05) 36%,
+    rgba(244, 114, 182, 0.18) 44%,
+    rgba(251, 191, 36, 0.15) 50%,
+    rgba(168, 85, 247, 0.18) 56%,
+    rgba(255, 255, 255, 0.05) 64%,
+    transparent 80%
+  );
+  transform: rotate(-25deg) translateY(-140%);
+  animation: soulmate-holo-sweep 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Badge de Soulmate centralizada na parte inferior junto ao nome */
+.soulmate-bottom-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 5px auto 4px auto;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 50%, #f59e0b 100%);
+  background-size: 200% 200%;
+  animation: soulmate-badge-shimmer 3s ease infinite;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.soulmate-bottom-badge:hover {
+  transform: scale(1.05);
+}
+
+/* Keyframes */
+@keyframes soulmate-border-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes soulmate-neon-pulse {
+  0% {
+    box-shadow:
+      0 0 8px rgba(236, 72, 153, 0.35),
+      0 0 16px rgba(139, 92, 246, 0.25),
+      3px 3px 0px rgba(0, 0, 0, 0.35);
+  }
+  100% {
+    box-shadow:
+      0 0 18px rgba(236, 72, 153, 0.7),
+      0 0 32px rgba(139, 92, 246, 0.5),
+      0 0 46px rgba(245, 158, 11, 0.25),
+      3px 3px 0px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes soulmate-img-pulse {
+  0% {
+    transform: scale(1);
+    filter: brightness(1) contrast(1);
+  }
+  50% {
+    filter: brightness(1.015) contrast(1.01);
+  }
+  100% {
+    transform: scale(1.01);
+    filter: brightness(1.03) contrast(1.015);
+  }
+}
+
+@keyframes soulmate-holo-sweep {
+  0%, 25% {
+    transform: rotate(-25deg) translateY(-140%);
+  }
+  65%, 100% {
+    transform: rotate(-25deg) translateY(140%);
+  }
+}
+
+@keyframes soulmate-badge-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waifu-card.soulmate-card,
+  .waifu-card.soulmate-card::before,
+  .waifu-card.soulmate-card .card-img-wrapper img,
+  .waifu-card.soulmate-card .card-img-wrapper::after,
+  .soulmate-bottom-badge {
+    animation: none !important;
+  }
+}
+

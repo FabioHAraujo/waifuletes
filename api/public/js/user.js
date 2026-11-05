@@ -1207,10 +1207,13 @@ function initCardSlideshow(card, imgEl, imageUrls, isPinned) {
 function createPrivateHaremCard(entry, options = {}) {
   const char = entry.character;
   const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
+  const isSoulmate = Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
   const card = document.createElement('div');
-  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
+  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}${isSoulmate ? ' soulmate-card' : ''}`;
   card.id = `harem-card-${char.id}`;
-  card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+  if (!isSoulmate) {
+    card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+  }
 
   const unseenCovets = Number(entry.unseenCovetsCount || 0);
 
@@ -1231,35 +1234,49 @@ function createPrivateHaremCard(entry, options = {}) {
       </button>`
     : '';
 
-  const isSoulmate = Boolean(entry.isSoulmate || (entry.keys && entry.keys >= 10));
-  const rarityBadgeHtml = isSoulmate
-    ? `<div class="badge-rarity badge-soulmate" style="border-color: #ec4899; color: #ec4899; background: rgba(236, 72, 153, 0.15); font-weight: 800;">
-        💖 Soulmate
-      </div>`
-    : `<div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
-        ${rarity.emoji} ${rarity.label}
-      </div>`;
+  const rarityBadgeHtml = `<div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
+      ${rarity.emoji} ${rarity.label}
+    </div>`;
 
-  card.innerHTML = `
-    <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-      <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-      ${rarityBadgeHtml}
-      ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
-      ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
-      ${unseenCovets > 0 ? `<div class="badge-covets" onclick="event.stopPropagation(); openHaremCovetsModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')" title="${unseenCovets} jogador(es) interessados">👀 ${unseenCovets}</div>` : ''}
-      ${colBadgeHtml}
-    </div>
-    <div class="card-info">
-      <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
-      <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
-      <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-        ${colBtnHtml}
-        <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openCardOptionsModal('${char.id}')">
-          ⚙️ Opções
-        </button>
+  if (isSoulmate) {
+    card.innerHTML = `
+      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
       </div>
-    </div>
-  `;
+      <div class="card-info">
+        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
+        <div class="soulmate-bottom-badge" onclick="openWaifuPreview('${char.id}')" title="💖 Alma Gêmea (Vínculo Máximo)">💖 Soulmate</div>
+        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+        <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          ${colBtnHtml}
+          <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openCardOptionsModal('${char.id}')">
+            ⚙️ Opções
+          </button>
+        </div>
+      </div>
+    `;
+  } else {
+    card.innerHTML = `
+      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        ${rarityBadgeHtml}
+        ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
+        ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
+        ${unseenCovets > 0 ? `<div class="badge-covets" onclick="event.stopPropagation(); openHaremCovetsModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${escapeAttr(char.series || '')}')" title="${unseenCovets} jogador(es) interessados">👀 ${unseenCovets}</div>` : ''}
+        ${colBadgeHtml}
+      </div>
+      <div class="card-info">
+        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
+        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+        <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          ${colBtnHtml}
+          <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openCardOptionsModal('${char.id}')">
+            ⚙️ Opções
+          </button>
+        </div>
+      </div>
+    `;
+  }
 
   const imgEl = card.querySelector('.card-img-wrapper img');
   if (imgEl) {
@@ -1289,7 +1306,7 @@ function openCardOptionsModal(charId) {
   const covetsLabel = covetsCount > 0 ? `Interessados (${covetsCount})` : 'Interessados';
   const covetsBtnClass = unseenCovets > 0 ? 'btn-gold' : '';
   const covetsBtnStyle = unseenCovets > 0 ? 'border-color: #f59e0b; font-weight: 800;' : '';
-  const isSoulmate = Boolean(entry.isSoulmate || (entry.keys && entry.keys >= 10));
+  const isSoulmate = Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
 
   let html = `
     <!-- 1. Favoritar -->
@@ -1880,9 +1897,14 @@ function renderPrivateWishlist(wishlist) {
 function createPublicHaremCard(entry) {
   const char = entry.character;
   const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
+  const isSoulmate = Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
+
   const card = document.createElement('div');
-  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
-  card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}${isSoulmate ? ' soulmate-card' : ''}`;
+  card.id = `public-harem-card-${char.id}`;
+  if (!isSoulmate) {
+    card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+  }
 
   const auth = getActiveAuthUser();
   const isWish = auth.wishlistSet.has(char.id);
@@ -1890,33 +1912,41 @@ function createPublicHaremCard(entry) {
     ? (isWish ? 'Na sua Wishlist! Clique para remover' : `Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para adicionar à sua Wishlist`)
     : `Desejado por ${char.wishlistCount || 0} pessoa(s). Faça login para adicionar!`;
 
-  const isSoulmate = Boolean(entry.isSoulmate || (entry.keys && entry.keys >= 10));
-  const rarityBadgeHtml = isSoulmate
-    ? `<div class="badge-rarity badge-soulmate" style="border-color: #ec4899; color: #ec4899; background: rgba(236, 72, 153, 0.15); font-weight: 800;">
-        💖 Soulmate
-      </div>`
-    : `<div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
-        ${rarity.emoji} ${rarity.label}
-      </div>`;
+  const rarityBadgeHtml = `<div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
+      ${rarity.emoji} ${rarity.label}
+    </div>`;
 
-  card.innerHTML = `
-    <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-      <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-      ${rarityBadgeHtml}
-      ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
-      ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
-      <div class="badge-wishes ${isWish ? 'is-in-wishlist' : ''}" data-char-id="${char.id}" title="${wishTitle}" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
-        <span>${isWish ? '⭐' : '✨'}</span> <span class="wishes-count">${char.wishlistCount || 0}</span>
+  if (isSoulmate) {
+    card.innerHTML = `
+      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
       </div>
-      <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
-        <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
+      <div class="card-info">
+        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
+        <div class="soulmate-bottom-badge" onclick="openWaifuPreview('${char.id}')" title="💖 Alma Gêmea (Vínculo Máximo)">💖 Soulmate</div>
+        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
       </div>
-    </div>
-    <div class="card-info">
-      <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
-      <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
-    </div>
-  `;
+    `;
+  } else {
+    card.innerHTML = `
+      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        ${rarityBadgeHtml}
+        ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
+        ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
+        <div class="badge-wishes ${isWish ? 'is-in-wishlist' : ''}" data-char-id="${char.id}" title="${wishTitle}" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
+          <span>${isWish ? '⭐' : '✨'}</span> <span class="wishes-count">${char.wishlistCount || 0}</span>
+        </div>
+        <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
+          <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
+        </div>
+      </div>
+      <div class="card-info">
+        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
+        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+      </div>
+    `;
+  }
 
   const imgEl = card.querySelector('.card-img-wrapper img');
   if (imgEl) {
