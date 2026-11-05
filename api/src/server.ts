@@ -144,33 +144,40 @@ async function buildServer() {
     decorateReply: true,
   });
 
-  // Rotas diretas para páginas HTML
+  // Rotas diretas para páginas HTML (sempre no-cache para forçar atualização imediata de scripts e estilos)
+  const sendHtmlNoCache = (reply: any, file: string) => {
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    reply.header('Pragma', 'no-cache');
+    reply.header('Expires', '0');
+    return reply.sendFile(file);
+  };
+
   fastify.get('/', async (req, reply) => {
-    return reply.sendFile('index.html');
+    return sendHtmlNoCache(reply, 'index.html');
   });
 
   fastify.get('/admin', async (req, reply) => {
-    return reply.sendFile('admin.html');
+    return sendHtmlNoCache(reply, 'admin.html');
   });
 
   fastify.get('/catalogo', async (req, reply) => {
-    return reply.sendFile('catalogo.html');
+    return sendHtmlNoCache(reply, 'catalogo.html');
   });
 
   fastify.get('/waifinder', async (req, reply) => {
-    return reply.sendFile('catalogo.html');
+    return sendHtmlNoCache(reply, 'catalogo.html');
   });
 
   fastify.get('/character/:id', async (req, reply) => {
-    return reply.sendFile('character.html');
+    return sendHtmlNoCache(reply, 'character.html');
   });
 
   fastify.get('/char/:id', async (req, reply) => {
-    return reply.sendFile('character.html');
+    return sendHtmlNoCache(reply, 'character.html');
   });
 
   fastify.get('/user', async (req, reply) => {
-    return reply.sendFile('user.html');
+    return sendHtmlNoCache(reply, 'user.html');
   });
 
   // Plugins de infraestrutura

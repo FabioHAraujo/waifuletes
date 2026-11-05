@@ -864,9 +864,12 @@ function createSuggestionItem(s) {
             </div>
           ` : ''}
           <div style="flex: 1; min-width: 200px;">
-            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
               <span class="badge-rarity" style="position: static; border-color: ${suggestedRarity.color}; color: ${suggestedRarity.color};">
                 ${suggestedRarity.emoji} ${suggestedRarity.label}
+              </span>
+              <span class="badge-rarity" style="position: static; border-color: #64748b; color: #475569;">
+                ${s.suggestedGender === 'MALE' ? '♂ Masculino' : (s.suggestedGender === 'OTHER' ? '⚧ Outro' : '♀ Feminino')}
               </span>
               <span style="font-weight: 800; font-size: 15px;">${escapeHtml(s.characterName || 'Sem nome')}</span>
               <span style="font-size: 12px; color: #64748b;">(${escapeHtml(s.series || 'Sem série')})</span>
@@ -1020,16 +1023,52 @@ ${s.aiAdvisor.searchedQueries?.length ? `\n<strong>--- BUSCAS WEB REALIZADAS ---
         </div>
       `;
     } else {
-      actionButtonsHtml = `
-        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
-          <button class="btn-retro btn-sm btn-danger" onclick="rejectSuggestion('${s.id}')">
-            <i class="fas fa-times"></i> Recusar
-          </button>
-          <button class="btn-retro btn-sm btn-gold" onclick="approveSuggestion('${s.id}')">
-            <i class="fas fa-check"></i> Aceitar e Aplicar
-          </button>
-        </div>
-      `;
+      const isRarityChange = s.type === 'RARITY' || (s.type === 'EDIT' && Boolean(s.suggestedRarity)) || s.type === 'NEW_CHARACTER';
+      const isMarriedChar = Boolean(s.isMarriedToSuggester || s.marriage || char.wasEverMarried || char.isClaimed);
+
+      if (isRarityChange) {
+        actionButtonsHtml = `
+          <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center;">
+            <button class="btn-retro btn-sm btn-danger" onclick="rejectSuggestion('${s.id}')">
+              <i class="fas fa-times"></i> Recusar
+            </button>
+            <button class="btn-retro btn-sm btn-gold" onclick="approveSuggestion('${s.id}')" title="Aceita conforme a solicitação original">
+              <i class="fas fa-check"></i> Aceitar (${s.suggestedRarity || 'Proposto'})
+            </button>
+            <div style="display: inline-flex; gap: 4px; border-left: 2px solid #cbd5e1; padding-left: 8px; margin-left: 4px; flex-wrap: wrap; align-items: center;">
+              <span style="font-size: 11px; font-weight: 800; color: #64748b; margin-right: 2px;">Aceitar como:</span>
+              <button class="btn-retro btn-sm" style="background: #f1f5f9; border-color: #94a3b8; color: #334155; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'COMMON' })" title="Aceitar com raridade Comum">
+                ⚪ Comum
+              </button>
+              <button class="btn-retro btn-sm" style="background: #f0fdf4; border-color: #22c55e; color: #15803d; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'UNCOMMON' })" title="Aceitar com raridade Incomum">
+                🟢 Incomum
+              </button>
+              <button class="btn-retro btn-sm" style="background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'RARE' })" title="Aceitar com raridade Raro">
+                🔵 Raro
+              </button>
+              <button class="btn-retro btn-sm" style="background: #faf5ff; border-color: #a855f7; color: #7e22ce; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'EPIC' })" title="Aceitar com raridade Épico">
+                🟣 Épico
+              </button>
+              ${(!isMarriedChar || s.type === 'NEW_CHARACTER') ? `
+                <button class="btn-retro btn-sm" style="background: #fefce8; border-color: #eab308; color: #a16207; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'LEGENDARY' })" title="Aceitar com raridade Lendário">
+                  ⭐ Lendário
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      } else {
+        actionButtonsHtml = `
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+            <button class="btn-retro btn-sm btn-danger" onclick="rejectSuggestion('${s.id}')">
+              <i class="fas fa-times"></i> Recusar
+            </button>
+            <button class="btn-retro btn-sm btn-gold" onclick="approveSuggestion('${s.id}')">
+              <i class="fas fa-check"></i> Aceitar e Aplicar
+            </button>
+          </div>
+        `;
+      }
     }
   } else {
     actionButtonsHtml = `
@@ -1093,6 +1132,7 @@ async function confirmBlockSuggestions() {
 
   const btn = document.getElementById('btn-confirm-block-suggestions');
   if (btn) btn.disabled = true;
+  Api.showLoading('Aguarde... Bloqueando usuário...', 'Registrando bloqueio de sugestões no Redis...');
 
   try {
     const res = await Api.post(`/api/admin/users/${encodeURIComponent(userId)}/block-suggestions`, {
@@ -1106,12 +1146,14 @@ async function confirmBlockSuggestions() {
       Api.showToast(res.data?.message || 'Usuário bloqueado de enviar sugestões!', '🚫');
       closeModal('modal-block-suggestions');
       loadSuggestions();
+      loadAdminUsers();
     } else {
       Api.showToast(res.error?.message || 'Falha ao bloquear usuário.', '❌');
     }
   } catch (err) {
     Api.showToast('Erro de comunicação ao bloquear usuário.', '❌');
   } finally {
+    Api.hideLoading();
     if (btn) btn.disabled = false;
   }
 }
@@ -1119,6 +1161,7 @@ async function confirmBlockSuggestions() {
 async function unblockUserSuggestions(userId) {
   if (!confirm('Deseja realmente desbloquear este usuário para que ele volte a enviar sugestões?')) return;
 
+  Api.showLoading('Aguarde... Desbloqueando usuário...', 'Removendo bloqueio no Redis...');
   try {
     const res = await Api.post(`/api/admin/users/${encodeURIComponent(userId)}/unblock-suggestions`, {}, {
       'Authorization': `Bearer ${adminToken}`,
@@ -1127,17 +1170,21 @@ async function unblockUserSuggestions(userId) {
     if (res.success) {
       Api.showToast('Usuário desbloqueado com sucesso!', '✨');
       loadSuggestions();
+      loadAdminUsers();
     } else {
       Api.showToast(res.error?.message || 'Falha ao desbloquear usuário.', '❌');
     }
   } catch (err) {
     Api.showToast('Erro de comunicação ao desbloquear usuário.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 
 async function approveAllSuggestions() {
   if (!confirm('Deseja aceitar e aplicar TODAS as sugestões pendentes agora?')) return;
 
+  Api.showLoading('Aguarde... Aprovando todas as sugestões...', 'Processando fila e aplicando modificações no banco de dados...');
   try {
     const res = await Api.post('/api/admin/suggestions/approve-all', {}, {
       'Authorization': `Bearer ${adminToken}`
@@ -1153,18 +1200,30 @@ async function approveAllSuggestions() {
   } catch (err) {
     console.error('Erro ao aprovar todas as sugestões:', err);
     Api.showToast('Erro de comunicação com o servidor.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 
 async function approveSuggestion(suggestionId, options = {}) {
   let confirmMsg = 'Deseja aceitar esta sugestão e aplicar as alterações ao personagem imediatamente?';
-  if (options.overridePhotoAction === 'ADD') {
+  if (options.overrideRarity) {
+    const rMap = {
+      COMMON: 'Comum (⚪)',
+      UNCOMMON: 'Incomum (🟢)',
+      RARE: 'Raro (🔵)',
+      EPIC: 'Épico (🟣)',
+      LEGENDARY: 'Lendário (⭐)',
+    };
+    confirmMsg = `Confirmar aprovação com a raridade alterada para ${rMap[options.overrideRarity] || options.overrideRarity}?`;
+  } else if (options.overridePhotoAction === 'ADD') {
     confirmMsg = 'Confirmar aprovação ADICIONANDO como nova foto na galeria?';
   } else if (options.overridePhotoAction === 'REPLACE') {
     confirmMsg = 'Confirmar aprovação SUBSTITUINDO a foto atual pela nova foto enviada?';
   }
   if (!confirm(confirmMsg)) return;
 
+  Api.showLoading('Aguarde... Aprovando sugestão...', 'Aplicando alterações e atualizando catálogo...');
   try {
     const res = await Api.post(`/api/admin/suggestions/${suggestionId}/approve`, options, {
       'Authorization': `Bearer ${adminToken}`
@@ -1179,6 +1238,8 @@ async function approveSuggestion(suggestionId, options = {}) {
     loadSuggestions();
   } catch (err) {
     Api.showToast('Erro de comunicação ao aprovar.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 
@@ -1276,6 +1337,7 @@ async function rejectSuggestion(suggestionId) {
   const reason = prompt('Motivo da recusa (opcional):');
   if (reason === null) return; // cancelou o prompt
 
+  Api.showLoading('Aguarde... Recusando sugestão...', 'Atualizando status e registrando motivo da recusa...');
   try {
     const res = await Api.post(`/api/admin/suggestions/${suggestionId}/reject`, {
       rejectionReason: reason
@@ -1292,6 +1354,8 @@ async function rejectSuggestion(suggestionId) {
     loadSuggestions();
   } catch (err) {
     Api.showToast('Erro de comunicação ao recusar.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 
@@ -1342,6 +1406,7 @@ async function loadAdminUsers() {
     users.forEach((u) => {
       const tr = document.createElement('tr');
       const cleanNumber = (u.id || '').replace('@s.whatsapp.net', '').replace('@c.us', '');
+      const domKey = (u.publicId || u.id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
       const platformBadge = u.platform === 'WHATSAPP'
         ? '<span style="color: #16a34a; font-weight: 700;"><i class="fab fa-whatsapp"></i> WhatsApp</span>'
         : `<span style="font-weight: 700;">${u.platform}</span>`;
@@ -1349,6 +1414,7 @@ async function loadAdminUsers() {
       tr.innerHTML = `
         <td style="font-weight: 800;">
           ${escapeHtml(u.name)}
+          ${u.isBlockedFromSuggestions ? `<span class="badge-rarity" style="position: static; border-color: #dc2626; color: #dc2626; font-size: 10px; padding: 1px 5px; margin-left: 6px; display: inline-block;" title="Usuário bloqueado de enviar sugestões">🚫 Bloqueado</span>` : ''}
         </td>
         <td>
           <div style="font-family: monospace; font-size: 13px; font-weight: 700;">${escapeHtml(cleanNumber)}</div>
@@ -1364,19 +1430,26 @@ async function loadAdminUsers() {
             ⭐ ${u.totalWishlist}
           </span>
         </td>
-        <td style="text-align: center; font-weight: 800;">
-          <span class="badge-rarity" style="position: static; border-color: #9333ea; color: #9333ea; display: inline-block;" title="Total Harém + Total Wishlist">
-            ✨ ${u.totalScore !== undefined ? u.totalScore : (u.totalHarem + u.totalWishlist)}
-          </span>
+        <td style="text-align: center;" id="zinthos-cell-${domKey}">
+          ${renderZinthosCell(u.id, domKey, u.kakera || 0)}
         </td>
         <td style="text-align: center;">
-          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+          <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
             <button class="btn-retro btn-sm" onclick="impersonateUser('${escapeHtml(u.id)}')" title="Acessar painel web deste usuário">
-              <i class="fas fa-external-link-alt"></i> Acessar Painel
+              <i class="fas fa-external-link-alt"></i> Painel
             </button>
             <button class="btn-retro btn-sm btn-gold" onclick="openAdminMarryModal('${escapeHtml(u.id)}', '${escapeHtml(u.name)}')" title="Casar personagem com este usuário">
               <i class="fas fa-ring"></i> Casar
             </button>
+            ${u.isBlockedFromSuggestions ? `
+              <button class="btn-retro btn-sm" style="background: #16a34a; color: #fff; font-weight: 700;" onclick="unblockUserSuggestions('${escapeHtml(u.id)}')" title="Usuário bloqueado de enviar sugestões. Clique para desbloquear.">
+                <i class="fas fa-unlock"></i> Desbloquear
+              </button>
+            ` : `
+              <button class="btn-retro btn-sm" style="background: #fee2e2; border-color: #ef4444; color: #dc2626; font-weight: 700;" onclick="openBlockSuggestionsModal('${escapeHtml(u.id)}', '${escapeHtml(u.name)}')" title="Bloquear envio de sugestões">
+                <i class="fas fa-ban"></i> Bloquear
+              </button>
+            `}
           </div>
         </td>
       `;
@@ -1385,6 +1458,120 @@ async function loadAdminUsers() {
   } catch (err) {
     console.error('Erro ao listar usuários:', err);
     tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 24px; color: red;">Erro de comunicação ao carregar lista de usuários.</td></tr>';
+  }
+}
+
+function renderZinthosCell(userId, domKey, amount) {
+  const safeId = escapeHtml(String(userId));
+  const safeDomKey = escapeHtml(String(domKey));
+  const numAmount = Number(amount || 0);
+  const formatted = numAmount.toLocaleString('pt-BR');
+  return `
+    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+      <span class="badge-rarity" style="position: static; border-color: #f59e0b; color: #b45309; background: #fef3c7; font-weight: 800; display: inline-block; cursor: pointer;" onclick="editUserZinthos('${safeId}', '${safeDomKey}', ${numAmount})" title="Clique para editar Zinthos">
+        🪙 ${formatted}
+      </span>
+      <button class="btn-retro btn-sm" onclick="editUserZinthos('${safeId}', '${safeDomKey}', ${numAmount})" title="Editar Zinthos" style="padding: 2px 6px; font-size: 11px;">
+        <i class="fas fa-edit"></i>
+      </button>
+    </div>
+  `;
+}
+
+function editUserZinthos(userId, domKey, currentAmount) {
+  const cell = document.getElementById(`zinthos-cell-${domKey}`);
+  if (!cell) return;
+
+  const safeId = escapeHtml(String(userId));
+  const safeDomKey = escapeHtml(String(domKey));
+  const numAmount = Number(currentAmount || 0);
+
+  cell.innerHTML = `
+    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+      <input type="number" id="zinthos-input-${safeDomKey}" class="retro-input" value="${numAmount}" min="0" step="1" style="width: 105px; padding: 2px 6px; font-size: 12px; height: 28px; text-align: right;" onkeydown="handleZinthosKey(event, '${safeId}', '${safeDomKey}', ${numAmount})">
+      <button class="btn-retro btn-sm btn-gold" id="btn-save-zinthos-${safeDomKey}" onclick="saveUserZinthos('${safeId}', '${safeDomKey}')" title="Salvar Zinthos" style="padding: 2px 7px; font-size: 11px; height: 28px;">
+        <i class="fas fa-check"></i>
+      </button>
+      <button class="btn-retro btn-sm" onclick="cancelEditUserZinthos('${safeId}', '${safeDomKey}', ${numAmount})" title="Cancelar" style="padding: 2px 7px; font-size: 11px; height: 28px;">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `;
+
+  const input = document.getElementById(`zinthos-input-${domKey}`);
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+function handleZinthosKey(event, userId, domKey, currentAmount) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    saveUserZinthos(userId, domKey);
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    cancelEditUserZinthos(userId, domKey, currentAmount);
+  }
+}
+
+function cancelEditUserZinthos(userId, domKey, currentAmount) {
+  const cell = document.getElementById(`zinthos-cell-${domKey}`);
+  if (!cell) return;
+  cell.innerHTML = renderZinthosCell(userId, domKey, currentAmount);
+}
+
+async function saveUserZinthos(userId, domKey) {
+  const input = document.getElementById(`zinthos-input-${domKey}`);
+  const saveBtn = document.getElementById(`btn-save-zinthos-${domKey}`);
+  if (!input) return;
+
+  const rawVal = input.value.trim();
+  const newAmount = parseInt(rawVal, 10);
+
+  if (isNaN(newAmount) || newAmount < 0) {
+    Api.showToast('Informe um valor de Zinthos válido (número inteiro ≥ 0).', '⚠️');
+    input.focus();
+    return;
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  }
+  input.disabled = true;
+
+  try {
+    const res = await Api.patch(`/api/admin/users/${encodeURIComponent(userId)}/zinthos`, {
+      zinthos: newAmount,
+    }, {
+      Authorization: `Bearer ${adminToken}`,
+    });
+
+    if (!res.success) {
+      Api.showToast(res.error?.message || 'Falha ao atualizar Zinthos.', '❌');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+      }
+      input.disabled = false;
+      return;
+    }
+
+    const updatedZinthos = res.data?.zinthos ?? newAmount;
+    const cell = document.getElementById(`zinthos-cell-${domKey}`);
+    if (cell) {
+      cell.innerHTML = renderZinthosCell(userId, domKey, updatedZinthos);
+    }
+    Api.showToast(`Saldo de Zinthos atualizado: ${Number(updatedZinthos).toLocaleString('pt-BR')} 🪙`, '✅');
+  } catch (err) {
+    console.error('Erro ao salvar Zinthos:', err);
+    Api.showToast('Erro de comunicação ao atualizar Zinthos.', '❌');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+    }
+    input.disabled = false;
   }
 }
 
@@ -1427,6 +1614,7 @@ async function handleAdminMarrySubmit(e) {
   const btnConfirm = document.getElementById('btn-confirm-admin-marry');
   btnConfirm.disabled = true;
   btnConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Casando...';
+  Api.showLoading('Aguarde... Realizando casamento...', 'Criando vínculo matrimonial e processando dados...');
 
   try {
     const res = await Api.post(
@@ -1440,13 +1628,16 @@ async function handleAdminMarrySubmit(e) {
       return;
     }
 
+    const isKey = res.action === 'KEY_GRANTED';
     const charName = res.data?.character?.name || charInput;
-    Api.showToast(`Casamento de ${charName} com ${selectedMarryTargetUser.name} realizado com sucesso!`, '💍');
+    const msg = res.data?.message || (isKey ? `Chave concedida para ${charName}!` : `Casamento de ${charName} com ${selectedMarryTargetUser.name} realizado com sucesso!`);
+    Api.showToast(msg, isKey ? '🔑' : '💍');
     closeModal('modal-admin-marry');
     loadAdminUsers();
   } catch (err) {
     Api.showToast('Erro de comunicação ao realizar casamento.', '❌');
   } finally {
+    Api.hideLoading();
     btnConfirm.disabled = false;
     btnConfirm.innerHTML = '<i class="fas fa-ring"></i> Confirmar Casamento';
   }

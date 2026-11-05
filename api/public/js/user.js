@@ -36,6 +36,208 @@ let pendingDivorceTarget = null;
 let activeReportCharacter = null;
 let activeSellCharacter = null;
 let activeOfferListing = null;
+
+// Controle de verificação e countdown para versão lendária de personagem casado
+let legendaryCountdownTimer = null;
+let legendaryCountdownRemaining = 30;
+let legendaryPhraseValidated = false;
+let legendaryCountdownFinished = false;
+
+function normalizeLegendaryPhrase(str) {
+  return (str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isLegendaryPhraseValid(str) {
+  return normalizeLegendaryPhrase(str) === 'personagem casado criar versao lendaria';
+}
+
+function updateEditInfoSubmitButtonState() {
+  const btn = document.getElementById('btn-submit-edit-info');
+  if (!btn) return;
+  if (!activeSuggestCharacter) {
+    btn.disabled = true;
+    return;
+  }
+
+  const suggestedName = (document.getElementById('suggest-edit-name')?.value || '').trim();
+  const suggestedSeries = (document.getElementById('suggest-edit-series')?.value || '').trim();
+  const suggestedGender = document.getElementById('suggest-edit-gender')?.value;
+  const suggestedRarity = document.getElementById('suggest-edit-rarity')?.value;
+  const suggestedTags = Array.isArray(suggestTagsState) ? suggestTagsState : [];
+  const suggestedDescription = (document.getElementById('suggest-edit-description')?.value || '').trim();
+  const reason = (document.getElementById('suggest-edit-reason')?.value || '').trim();
+
+  const isReasonValid = reason.length >= 5;
+  const wasEverMarried = Boolean(activeSuggestCharacter.wasEverMarried);
+
+  if (wasEverMarried && suggestedRarity === 'LEGENDARY') {
+    const phraseInput = document.getElementById('suggest-legendary-phrase-input')?.value || '';
+    const isPhraseValid = isLegendaryPhraseValid(phraseInput);
+    const photoFile = document.getElementById('suggest-legendary-photo-input')?.files?.[0];
+    const canSubmit = isReasonValid && isPhraseValid && legendaryCountdownFinished && Boolean(photoFile);
+
+    btn.disabled = !canSubmit;
+    if (!canSubmit) {
+      if (!isPhraseValid) {
+        btn.title = 'Digite a frase de confirmação obrigatória para liberar o envio.';
+      } else if (!legendaryCountdownFinished) {
+        btn.title = 'Aguarde o término do contador de 30 segundos.';
+      } else if (!photoFile) {
+        btn.title = 'Selecione uma nova foto para a versão lendária.';
+      } else if (!isReasonValid) {
+        btn.title = 'Informe uma justificativa com pelo menos 5 caracteres.';
+      }
+    } else {
+      btn.title = 'Enviar sugestão de novo personagem lendário';
+    }
+    return;
+  }
+
+  // Sugestão de alteração de dados normais:
+  if (wasEverMarried && suggestedRarity !== 'LEGENDARY') {
+    const normReason = reason.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const asksLegendary = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(normReason);
+    if (asksLegendary) {
+      btn.disabled = true;
+      btn.title = 'Personagens casados não podem pedir upgrade para Lendário na justificativa. A raridade máxima permitida é ÉPICO.';
+      return;
+    }
+  }
+
+  const nameChanged = suggestedName !== (activeSuggestCharacter.name || '').trim();
+  const seriesChanged = suggestedSeries !== (activeSuggestCharacter.series || '').trim();
+  const genderChanged = suggestedGender !== (activeSuggestCharacter.gender || 'FEMALE');
+  const rarityChanged = suggestedRarity !== (activeSuggestCharacter.baseRarity || 'COMMON');
+  const curTagsNorm = [...(activeSuggestCharacter.tags || [])].sort().join(',');
+  const sugTagsNorm = [...suggestedTags].sort().join(',');
+  const tagsChanged = sugTagsNorm !== curTagsNorm;
+  const curDesc = (activeSuggestCharacter.description || '').trim();
+  const descChanged = suggestedDescription !== curDesc;
+
+  const hasAnyChange = nameChanged || seriesChanged || genderChanged || rarityChanged || tagsChanged || descChanged;
+  const canSubmit = hasAnyChange && isReasonValid;
+
+  btn.disabled = !canSubmit;
+  if (!canSubmit) {
+    if (!hasAnyChange) {
+      btn.title = 'Altere pelo menos um dado do personagem (nome, série, gênero, raridade, tags ou descrição).';
+    } else if (!isReasonValid) {
+      btn.title = 'Informe uma justificativa com pelo menos 5 caracteres.';
+    }
+  } else {
+    btn.title = 'Enviar sugestão de dados';
+  }
+}
+
+function resetLegendaryVerification() {
+  if (legendaryCountdownTimer) {
+    clearInterval(legendaryCountdownTimer);
+    legendaryCountdownTimer = null;
+  }
+  legendaryCountdownRemaining = 30;
+  legendaryPhraseValidated = false;
+  legendaryCountdownFinished = false;
+
+  const phraseInput = document.getElementById('suggest-legendary-phrase-input');
+  if (phraseInput) phraseInput.value = '';
+
+  const countdownBox = document.getElementById('suggest-legendary-countdown');
+  if (countdownBox) {
+    countdownBox.classList.add('hidden');
+    countdownBox.innerHTML = '⏳ AGUARDE! Aproveite este tempo para ler o texto acima. (<span id="suggest-legendary-countdown-seconds">30</span>s)';
+    countdownBox.style.background = '#fef08a';
+    countdownBox.style.borderColor = '#eab308';
+    countdownBox.style.color = '#854d0e';
+  }
+
+  const statusEl = document.getElementById('suggest-legendary-phrase-status');
+  if (statusEl) {
+    statusEl.textContent = 'Digite a frase acima para iniciar a contagem de 30 segundos e liberar o envio.';
+    statusEl.style.color = '#b91c1c';
+  }
+
+  updateEditInfoSubmitButtonState();
+}
+
+function handleLegendaryPhraseInput() {
+  const phraseInput = document.getElementById('suggest-legendary-phrase-input');
+  const countdownBox = document.getElementById('suggest-legendary-countdown');
+  const secondsSpan = document.getElementById('suggest-legendary-countdown-seconds');
+  const statusEl = document.getElementById('suggest-legendary-phrase-status');
+
+  if (!phraseInput) return;
+  const val = phraseInput.value;
+  const matches = isLegendaryPhraseValid(val);
+
+  if (matches) {
+    if (!legendaryPhraseValidated) {
+      legendaryPhraseValidated = true;
+      legendaryCountdownRemaining = 30;
+      legendaryCountdownFinished = false;
+      updateEditInfoSubmitButtonState();
+
+      if (countdownBox) countdownBox.classList.remove('hidden');
+      if (secondsSpan) secondsSpan.textContent = '30';
+      if (statusEl) {
+        statusEl.textContent = 'Frase confirmada! Aguarde o término do contador de 30 segundos.';
+        statusEl.style.color = '#854d0e';
+      }
+
+      if (legendaryCountdownTimer) clearInterval(legendaryCountdownTimer);
+      legendaryCountdownTimer = setInterval(() => {
+        legendaryCountdownRemaining--;
+        const curSecondsEl = document.getElementById('suggest-legendary-countdown-seconds');
+        if (curSecondsEl) curSecondsEl.textContent = String(Math.max(0, legendaryCountdownRemaining));
+
+        if (legendaryCountdownRemaining <= 0) {
+          clearInterval(legendaryCountdownTimer);
+          legendaryCountdownTimer = null;
+          legendaryCountdownFinished = true;
+          if (countdownBox) {
+            countdownBox.innerHTML = '✅ Tempo concluído! Agora você pode enviar a sugestão.';
+            countdownBox.style.background = '#dcfce7';
+            countdownBox.style.borderColor = '#22c55e';
+            countdownBox.style.color = '#15803d';
+          }
+          if (statusEl) {
+            statusEl.textContent = 'Verificação e tempo concluídos com sucesso! Selecione a foto se ainda não anexou.';
+            statusEl.style.color = '#15803d';
+          }
+          updateEditInfoSubmitButtonState();
+        }
+      }, 1000);
+    }
+  } else {
+    if (legendaryPhraseValidated || !legendaryCountdownFinished) {
+      if (legendaryCountdownTimer) {
+        clearInterval(legendaryCountdownTimer);
+        legendaryCountdownTimer = null;
+      }
+      legendaryPhraseValidated = false;
+      legendaryCountdownFinished = false;
+      legendaryCountdownRemaining = 30;
+
+      if (countdownBox) {
+        countdownBox.classList.add('hidden');
+        countdownBox.innerHTML = '⏳ AGUARDE! Aproveite este tempo para ler o texto acima. (<span id="suggest-legendary-countdown-seconds">30</span>s)';
+        countdownBox.style.background = '#fef08a';
+        countdownBox.style.borderColor = '#eab308';
+        countdownBox.style.color = '#854d0e';
+      }
+      if (statusEl) {
+        statusEl.textContent = 'Digite a frase acima para iniciar a contagem de 30 segundos e liberar o envio.';
+        statusEl.style.color = '#b91c1c';
+      }
+      updateEditInfoSubmitButtonState();
+    }
+  }
+}
 let activeCovetsChar = null;
 let userCovetedSet = new Set();
 let visitorSessionData = null;
@@ -411,10 +613,24 @@ function setupEventListeners() {
     });
   }
 
+  // Monitora alterações nos campos de sugestão para habilitar/desabilitar o botão (cinza quando inválido)
+  ['suggest-edit-name', 'suggest-edit-series', 'suggest-edit-description', 'suggest-edit-reason'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateEditInfoSubmitButtonState);
+  });
+
+  const suggestEditGender = document.getElementById('suggest-edit-gender');
+  if (suggestEditGender) {
+    suggestEditGender.addEventListener('change', updateEditInfoSubmitButtonState);
+  }
+
   // Monitora seleção de raridade para regra de personagens já casados
   const suggestEditRarity = document.getElementById('suggest-edit-rarity');
   if (suggestEditRarity) {
-    suggestEditRarity.addEventListener('change', updateSuggestLegendaryMarriedBox);
+    suggestEditRarity.addEventListener('change', () => {
+      updateSuggestLegendaryMarriedBox();
+      updateEditInfoSubmitButtonState();
+    });
   }
 
   // Pré-visualização da foto lendária para personagem casado
@@ -434,6 +650,16 @@ function setupEventListeners() {
       } else if (prevBox) {
         prevBox.classList.add('hidden');
       }
+      updateEditInfoSubmitButtonState();
+    });
+  }
+
+  // Input da frase de verificação para versão lendária de personagem casado
+  const suggestLegPhraseInput = document.getElementById('suggest-legendary-phrase-input');
+  if (suggestLegPhraseInput) {
+    suggestLegPhraseInput.addEventListener('input', () => {
+      handleLegendaryPhraseInput();
+      updateEditInfoSubmitButtonState();
     });
   }
 
@@ -469,7 +695,8 @@ function setupEventListeners() {
     formNewChar.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btn-submit-new-char');
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
+      Api.showLoading('Aguarde... Enviando novo personagem...', 'Enviando imagem e cadastrando proposta...');
 
       const name = document.getElementById('new-char-name').value.trim();
       const series = document.getElementById('new-char-series').value.trim();
@@ -486,6 +713,7 @@ function setupEventListeners() {
       formData.append('name', name);
       formData.append('series', series);
       formData.append('gender', gender);
+      formData.append('suggestedGender', gender);
       formData.append('rarity', rarity);
       formData.append('tags', tags);
       formData.append('description', description);
@@ -506,7 +734,8 @@ function setupEventListeners() {
       } catch (err) {
         Api.showToast('Erro de comunicação ao enviar sugestão.', '❌');
       } finally {
-        btn.disabled = false;
+        Api.hideLoading();
+        if (btn) btn.disabled = false;
       }
     });
   }
@@ -2470,6 +2699,7 @@ async function submitReport() {
   const btn = document.getElementById('btn-confirm-report');
   if (btn) btn.disabled = true;
 
+  Api.showLoading('Aguarde... Enviando denúncia...', 'Registrando ocorrência para a moderação...');
   try {
     const res = await Api.post(`/characters/${encodeURIComponent(activeReportCharacter.id)}/report`, {
       characterId: activeReportCharacter.id,
@@ -2486,6 +2716,7 @@ async function submitReport() {
     console.error('Erro ao enviar denúncia:', err);
     Api.showToast('Erro de conexão ao enviar denúncia.', '❌');
   } finally {
+    Api.hideLoading();
     if (btn) btn.disabled = false;
   }
 }
@@ -2527,6 +2758,7 @@ async function executeDivorce() {
   if (!pendingDivorceTarget) return;
   const { id, name } = pendingDivorceTarget;
 
+  Api.showLoading('Aguarde... Processando divórcio...', 'Calculando reembolso e atualizando harém...');
   try {
     const res = await Api.post(`/api/web/user/${userPublicId}/divorce`, {
       token: userSessionToken,
@@ -2558,6 +2790,8 @@ async function executeDivorce() {
     document.getElementById('user-subtitle').textContent = `${newCount} personagens colecionados no harém`;
   } catch (err) {
     Api.showToast('Erro de comunicação ao divorciar.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 
@@ -2843,7 +3077,19 @@ async function openSuggestModal(charId, charName, currentRarity, preloadedChar =
   if (editGender) editGender.value = activeSuggestCharacter.gender || 'FEMALE';
 
   const editRarity = document.getElementById('suggest-edit-rarity');
-  if (editRarity) editRarity.value = activeSuggestCharacter.baseRarity || currentRarity || 'COMMON';
+  if (editRarity) {
+    const legOption = editRarity.querySelector('option[value="LEGENDARY"]');
+    if (activeSuggestCharacter.wasEverMarried) {
+      if (legOption) {
+        legOption.textContent = '⭐ Lendário (Criar Novo Personagem)';
+      }
+    } else {
+      if (legOption) {
+        legOption.textContent = '⭐ Lendário';
+      }
+    }
+    editRarity.value = activeSuggestCharacter.baseRarity || currentRarity || 'COMMON';
+  }
 
   const editTags = document.getElementById('suggest-edit-tags');
   if (editTags) {
@@ -2860,13 +3106,14 @@ async function openSuggestModal(charId, charName, currentRarity, preloadedChar =
   const editReason = document.getElementById('suggest-edit-reason');
   if (editReason) editReason.value = '';
 
-  // Reseta input de foto lendária para personagem casado
+  // Reseta input de foto lendária e verificação para personagem casado
   const legInput = document.getElementById('suggest-legendary-photo-input');
   if (legInput) legInput.value = '';
   const legPrevBox = document.getElementById('suggest-legendary-preview-container');
   if (legPrevBox) legPrevBox.classList.add('hidden');
   const legPrevImg = document.getElementById('suggest-legendary-preview-img');
   if (legPrevImg) legPrevImg.src = '';
+  resetLegendaryVerification();
 
   updateSuggestLegendaryMarriedBox();
 
@@ -2889,6 +3136,7 @@ async function openSuggestModal(charId, charName, currentRarity, preloadedChar =
     else c.classList.add('hidden');
   });
 
+  updateEditInfoSubmitButtonState();
   openModal('modal-suggest');
 }
 
@@ -2935,11 +3183,13 @@ function addSuggestTag(tag) {
   suggestTagsState.push(rawTag);
   renderSuggestTagsChips();
   if (input) input.value = '';
+  updateEditInfoSubmitButtonState();
 }
 
 function removeSuggestTag(tagToRemove) {
   suggestTagsState = suggestTagsState.filter(t => t !== tagToRemove);
   renderSuggestTagsChips();
+  updateEditInfoSubmitButtonState();
 }
 
 function renderUserPhotosGrid() {
@@ -3068,6 +3318,7 @@ async function submitUserDeletePhotoSuggestion() {
   }
 
   isSubmittingSuggestion = true;
+  Api.showLoading('Aguarde... Enviando sugestão de exclusão...', 'Registrando solicitação para a moderação...');
   try {
     const res = await Api.post(`/api/web/user/${userPublicId}/suggestions`, {
       token: userSessionToken,
@@ -3089,6 +3340,7 @@ async function submitUserDeletePhotoSuggestion() {
   } catch (err) {
     Api.showToast('Erro de comunicação ao enviar sugestão.', '❌');
   } finally {
+    Api.hideLoading();
     isSubmittingSuggestion = false;
   }
 }
@@ -3124,6 +3376,7 @@ async function submitUserPhotoCropSuggestion() {
     formData.append('reason', reason);
     formData.append('image', blob, 'user_photo.png');
 
+    Api.showLoading('Aguarde... Enviando foto...', 'Enviando imagem recortada para a moderação...');
     try {
       const res = await Api.post(`/api/web/user/${userPublicId}/suggestions`, formData);
       if (!res.success) {
@@ -3140,6 +3393,7 @@ async function submitUserPhotoCropSuggestion() {
     } catch (err) {
       Api.showToast('Erro de comunicação ao enviar imagem.', '❌');
     } finally {
+      Api.hideLoading();
       if (btnCrop) btnCrop.disabled = false;
       isSubmittingSuggestion = false;
     }
@@ -3157,11 +3411,18 @@ function updateSuggestLegendaryMarriedBox() {
 
   if (wasEverMarried && isLegendary) {
     box.classList.remove('hidden');
-    if (btn) btn.innerHTML = '<i class="fas fa-star"></i> Enviar Sugestão de Novo Personagem Lendário';
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-star"></i> Enviar Sugestão de Novo Personagem Lendário';
+    }
   } else {
     box.classList.add('hidden');
-    if (btn) btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Sugestão de Dados';
+    resetLegendaryVerification();
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Sugestão de Dados';
+    }
   }
+
+  updateEditInfoSubmitButtonState();
 }
 
 async function submitEditInfoSuggestion() {
@@ -3181,9 +3442,27 @@ async function submitEditInfoSuggestion() {
     return;
   }
 
-  // Regra especial: Personagem já casado sugerido como LENDÁRIO cria NOVO personagem e exige foto
   const wasEverMarried = Boolean(activeSuggestCharacter.wasEverMarried);
+  if (wasEverMarried && suggestedRarity !== 'LEGENDARY') {
+    const normReason = reason.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const asksLegendary = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(normReason);
+    if (asksLegendary) {
+      Api.showToast('Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Pedidos de alteração para Lendário não podem ser feitos via justificativa ou edição de dados.', '⚠️');
+      return;
+    }
+  }
+
+  // Regra especial: Personagem já casado sugerido como LENDÁRIO cria NOVO personagem e exige foto + frase + 30s
   if (wasEverMarried && suggestedRarity === 'LEGENDARY') {
+    const phraseInput = document.getElementById('suggest-legendary-phrase-input')?.value;
+    if (!isLegendaryPhraseValid(phraseInput)) {
+      Api.showToast('É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.', '⚠️');
+      return;
+    }
+    if (!legendaryCountdownFinished) {
+      Api.showToast('Aguarde o contador de 30 segundos finalizar para poder enviar a sugestão.', '⏳');
+      return;
+    }
     const photoFile = document.getElementById('suggest-legendary-photo-input')?.files?.[0];
     if (!photoFile) {
       Api.showToast('É obrigatório fornecer uma nova foto para criar a versão lendária de um personagem já casado.', '⚠️');
@@ -3193,14 +3472,19 @@ async function submitEditInfoSuggestion() {
     const btnEdit = document.getElementById('btn-submit-edit-info');
     if (btnEdit) btnEdit.disabled = true;
     isSubmittingSuggestion = true;
+    Api.showLoading('Aguarde... Enviando sugestão de versão lendária...', 'Fazendo upload da foto e cadastrando proposta...');
 
+    const chosenGender = suggestedGender || activeSuggestCharacter.gender || 'FEMALE';
     const formData = new FormData();
     formData.append('token', userSessionToken);
     formData.append('type', 'NEW_CHARACTER');
     formData.append('characterId', activeSuggestCharacter.id);
     formData.append('name', suggestedName || activeSuggestCharacter.name);
     formData.append('series', suggestedSeries || activeSuggestCharacter.series);
+    formData.append('gender', chosenGender);
+    formData.append('suggestedGender', chosenGender);
     formData.append('rarity', 'LEGENDARY');
+    formData.append('confirmationPhrase', phraseInput);
     if (suggestedDescription) formData.append('description', suggestedDescription);
     formData.append('reason', reason ? `[Versão Lendária] ${reason}` : '[Versão Lendária]');
     formData.append('photo', photoFile);
@@ -3218,8 +3502,9 @@ async function submitEditInfoSuggestion() {
     } catch (err) {
       Api.showToast('Erro de comunicação ao enviar sugestão.', '❌');
     } finally {
-      if (btnEdit) btnEdit.disabled = false;
+      Api.hideLoading();
       isSubmittingSuggestion = false;
+      updateEditInfoSubmitButtonState();
     }
     return;
   }
@@ -3244,6 +3529,7 @@ async function submitEditInfoSuggestion() {
   const btnEdit = document.getElementById('btn-submit-edit-info');
   if (btnEdit) btnEdit.disabled = true;
   isSubmittingSuggestion = true;
+  Api.showLoading('Aguarde... Enviando sugestão...', 'Enviando alterações para avaliação da moderação...');
 
   try {
     const res = await Api.post(`/api/web/user/${userPublicId}/suggestions`, {
@@ -3270,8 +3556,9 @@ async function submitEditInfoSuggestion() {
   } catch (err) {
     Api.showToast('Erro de comunicação ao enviar sugestão.', '❌');
   } finally {
-    if (btnEdit) btnEdit.disabled = false;
+    Api.hideLoading();
     isSubmittingSuggestion = false;
+    updateEditInfoSubmitButtonState();
   }
 }
 

@@ -1,6 +1,104 @@
 // js/api.js - Utilitários de API, Tema e Notificações Toast para o Waifuletes
 
 const Api = {
+  _loadingCount: 0,
+  _lastToastMsg: null,
+  _lastToastTime: 0,
+  _toastTimer: null,
+  _errorCatchingInitialized: false,
+
+  showLoading(title = 'Aguarde... Enviando...', subtext = 'Processando sua solicitação...') {
+    let overlay = document.getElementById('retro-loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'retro-loading-overlay';
+      overlay.className = 'retro-loading-overlay hidden';
+      overlay.innerHTML = `
+        <div class="retro-loading-box">
+          <div class="retro-spinner"></div>
+          <div class="retro-loading-title" id="retro-loading-title">Aguarde... Enviando...</div>
+          <div class="retro-loading-subtext" id="retro-loading-subtext">Processando sua solicitação...</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    const titleEl = document.getElementById('retro-loading-title');
+    const subEl = document.getElementById('retro-loading-subtext');
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = subtext;
+
+    overlay.classList.remove('hidden');
+    this._loadingCount = (this._loadingCount || 0) + 1;
+  },
+
+  hideLoading(force = false) {
+    this._loadingCount = Math.max(0, (this._loadingCount || 1) - 1);
+    if (force || this._loadingCount === 0) {
+      this._loadingCount = 0;
+      const overlay = document.getElementById('retro-loading-overlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+      }
+    }
+  },
+
+  async request(url, method, data = null, headers = {}, options = {}) {
+    const isFormData = data instanceof FormData;
+    const isModalOpen = Boolean(document.querySelector('.modal-overlay:not(.hidden):not(#retro-loading-overlay)'));
+    const isMutedUrl = typeof url === 'string' && (url.includes('/persist-session') || url.includes('/notifications/read'));
+    const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
+    const shouldShowLoading = options.loading === true || (options.loading !== false && isMutation && isModalOpen && !isMutedUrl);
+
+    if (shouldShowLoading) {
+      this.showLoading(options.loadingTitle || 'Aguarde... Enviando...', options.loadingSubtext || 'Processando sua solicitação...');
+    }
+
+    try {
+      const fetchHeaders = isFormData ? { ...headers } : { 'Content-Type': 'application/json', ...headers };
+      if (!isFormData && !fetchHeaders['Accept']) {
+        fetchHeaders['Accept'] = 'application/json';
+      }
+
+      const fetchConfig = {
+        method,
+        headers: fetchHeaders,
+        ...options.fetchOptions
+      };
+
+      if (data !== null && data !== undefined) {
+        fetchConfig.body = isFormData ? data : JSON.stringify(data);
+      }
+
+      const res = await fetch(url, fetchConfig);
+      const contentType = res.headers.get('content-type') || '';
+      let json;
+      if (contentType.includes('application/json')) {
+        json = await res.json();
+      } else {
+        const text = await res.text();
+        try {
+          json = JSON.parse(text);
+        } catch {
+          json = { success: res.ok, rawText: text };
+        }
+      }
+
+      if (!res.ok && json && !json.error && !json.message) {
+        json.error = { message: `Erro HTTP ${res.status}: ${res.statusText || 'Falha na resposta do servidor'}` };
+      }
+      return json;
+    } catch (err) {
+      const errMsg = err?.message || 'Falha de comunicação com o servidor.';
+      this.showToast(errMsg, '❌');
+      this.hideLoading(true);
+      throw err;
+    } finally {
+      if (shouldShowLoading) {
+        this.hideLoading();
+      }
+    }
+  },
+
   async get(url, headers = {}, options = {}) {
     const isAuthOrNoCache = Boolean(headers['Authorization'] || headers['authorization'] || headers['Cache-Control']);
     const res = await fetch(url, {
@@ -15,48 +113,31 @@ const Api = {
     return res.json();
   },
 
-  async post(url, data, headers = {}) {
-    const isFormData = data instanceof FormData;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: isFormData ? headers : { 'Content-Type': 'application/json', ...headers },
-      body: isFormData ? data : JSON.stringify(data)
-    });
-    return res.json();
+  async post(url, data, headers = {}, options = {}) {
+    return this.request(url, 'POST', data, headers, options);
   },
 
-  async put(url, data, headers = {}) {
-    const isFormData = data instanceof FormData;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: isFormData ? headers : { 'Content-Type': 'application/json', ...headers },
-      body: isFormData ? data : JSON.stringify(data)
-    });
-    return res.json();
+  async put(url, data, headers = {}, options = {}) {
+    return this.request(url, 'PUT', data, headers, options);
   },
 
-  async patch(url, data, headers = {}) {
-    const isFormData = data instanceof FormData;
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: isFormData ? headers : { 'Content-Type': 'application/json', ...headers },
-      body: isFormData ? data : JSON.stringify(data)
-    });
-    return res.json();
+  async patch(url, data, headers = {}, options = {}) {
+    return this.request(url, 'PATCH', data, headers, options);
   },
 
-  async delete(url, headers = {}) {
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        ...headers
-      }
-    });
-    return res.json();
+  async delete(url, headers = {}, options = {}) {
+    return this.request(url, 'DELETE', null, headers, options);
   },
 
   showToast(message, icon = '✨') {
+    if (!message) return;
+    const now = Date.now();
+    if (this._lastToastMsg === message && (now - (this._lastToastTime || 0)) < 2500) {
+      return;
+    }
+    this._lastToastMsg = message;
+    this._lastToastTime = now;
+
     let toast = document.getElementById('retro-toast');
     if (!toast) {
       toast = document.createElement('div');
@@ -72,6 +153,43 @@ const Api = {
     this._toastTimer = setTimeout(() => {
       toast.classList.add('hidden');
     }, 3500);
+  },
+
+  initGlobalErrorCatching() {
+    if (this._errorCatchingInitialized) return;
+    this._errorCatchingInitialized = true;
+
+    window.addEventListener('error', (event) => {
+      if (!event || !event.message) return;
+      const msg = String(event.message || '');
+      if (
+        msg.includes('ResizeObserver') ||
+        msg.includes('Script error.') ||
+        event.filename?.includes('extension://') ||
+        event.filename?.includes('chrome-extension://')
+      ) {
+        return;
+      }
+      this.hideLoading(true);
+      this.showToast(`Erro na página: ${msg}`, '⚠️');
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      this.hideLoading(true);
+      const reason = event?.reason;
+      let msg = reason?.message || (typeof reason === 'string' ? reason : null);
+      if (!msg && reason && typeof reason === 'object') {
+        msg = reason.error?.message || reason.statusText || null;
+      }
+      if (!msg) {
+        msg = 'Erro inesperado na operação.';
+      }
+      const strMsg = String(msg);
+      if (strMsg.includes('ResizeObserver') || strMsg.includes('Script error.')) {
+        return;
+      }
+      this.showToast(`Erro na requisição: ${strMsg}`, '⚠️');
+    });
   },
 
   copyToClipboard(text, successMsg = 'Copiado para a área de transferência!') {
@@ -142,4 +260,5 @@ const Api = {
 
 document.addEventListener('DOMContentLoaded', () => {
   Api.initTheme();
+  Api.initGlobalErrorCatching();
 });

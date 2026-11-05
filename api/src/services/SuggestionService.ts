@@ -65,33 +65,51 @@ export class SuggestionService {
   async wasCharacterEverMarried(characterId: string): Promise<boolean> {
     const cleanId = String(characterId).trim();
     const [haremEntry, character, soulmate, divorceTx] = await Promise.all([
-      this.prisma.haremEntry.findFirst({
-        where: { characterId: cleanId },
-        select: { id: true },
-      }),
-      this.prisma.character.findFirst({
-        where: {
-          OR: [
-            { id: cleanId },
-            { id: cleanId.toLowerCase() },
-          ],
-        },
-        select: { id: true, claimCount: true },
-      }),
-      this.prisma.soulmate.findFirst({
-        where: { characterId: cleanId },
-        select: { id: true },
-      }),
-      this.prisma.kakeraTransaction.findFirst({
-        where: {
-          reason: 'DIVORCE',
-          metadata: {
-            path: ['characterId'],
-            equals: cleanId,
-          },
-        },
-        select: { id: true },
-      }),
+      this.prisma.haremEntry?.findFirst
+        ? this.prisma.haremEntry.findFirst({
+            where: { characterId: cleanId },
+            select: { id: true },
+          })
+        : (this.prisma.haremEntry?.findUnique
+            ? this.prisma.haremEntry.findUnique({
+                where: { characterId: cleanId },
+                select: { id: true },
+              })
+            : null),
+      this.prisma.character?.findFirst
+        ? this.prisma.character.findFirst({
+            where: {
+              OR: [
+                { id: cleanId },
+                { id: cleanId.toLowerCase() },
+              ],
+            },
+            select: { id: true, claimCount: true },
+          })
+        : (this.prisma.character?.findUnique
+            ? this.prisma.character.findUnique({
+                where: { id: cleanId },
+                select: { id: true, claimCount: true },
+              })
+            : null),
+      this.prisma.soulmate?.findFirst
+        ? this.prisma.soulmate.findFirst({
+            where: { characterId: cleanId },
+            select: { id: true },
+          })
+        : null,
+      this.prisma.kakeraTransaction?.findFirst
+        ? this.prisma.kakeraTransaction.findFirst({
+            where: {
+              reason: 'DIVORCE',
+              metadata: {
+                path: ['characterId'],
+                equals: cleanId,
+              },
+            },
+            select: { id: true },
+          })
+        : null,
     ]);
 
     return Boolean(
@@ -216,12 +234,27 @@ export class SuggestionService {
       throw new DomainError('SAME_RARITY', 'A raridade sugerida é exatamente igual à raridade atual do personagem.', 400);
     }
 
-    if (suggestedRarity === 'LEGENDARY') {
-      const wasMarried = await this.wasCharacterEverMarried(character.id);
-      if (wasMarried) {
+    const wasMarried = await this.wasCharacterEverMarried(character.id);
+    if (wasMarried) {
+      if (suggestedRarity === 'LEGENDARY') {
         throw new DomainError(
           'MARRIED_CHARACTER_MAX_EPIC',
-          'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Para sugerir a versão Lendária, é necessário criar um novo personagem fornecendo uma nova foto.',
+          'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, é necessário criar um novo personagem fornecendo uma nova foto.',
+          400
+        );
+      }
+
+      const normalizedReason = reason
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      const attemptsLegendaryInReason = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(
+        normalizedReason
+      );
+      if (attemptsLegendaryInReason) {
+        throw new DomainError(
+          'MARRIED_CHARACTER_MAX_EPIC',
+          'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Não é permitido solicitar upgrade para Lendário no campo de justificativa.',
           400
         );
       }
@@ -448,12 +481,27 @@ export class SuggestionService {
       throw new DomainError('NO_CHANGES', 'Nenhuma alteração foi sugerida em relação aos dados atuais do personagem. Altere ao menos um campo (nome, série, gênero, raridade, tags ou descrição) antes de enviar.', 400);
     }
 
-    if (data.suggestedRarity === 'LEGENDARY') {
-      const wasMarried = await this.wasCharacterEverMarried(character.id);
-      if (wasMarried) {
+    const wasMarried = await this.wasCharacterEverMarried(character.id);
+    if (wasMarried) {
+      if (data.suggestedRarity === 'LEGENDARY') {
         throw new DomainError(
           'MARRIED_CHARACTER_MAX_EPIC',
-          'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Para sugerir a versão Lendária, é necessário criar um novo personagem fornecendo uma nova foto.',
+          'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, é necessário criar um novo personagem fornecendo uma nova foto.',
+          400
+        );
+      }
+
+      const normalizedReason = (data.reason || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      const attemptsLegendaryInReason = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(
+        normalizedReason
+      );
+      if (attemptsLegendaryInReason) {
+        throw new DomainError(
+          'MARRIED_CHARACTER_MAX_EPIC',
+          'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Não é permitido solicitar upgrade para Lendário no campo de justificativa em edições de dados. Para sugerir a versão Lendária, é obrigatório criar um novo personagem fornecendo uma nova foto.',
           400
         );
       }
@@ -630,6 +678,7 @@ export class SuggestionService {
         series: data.series.trim(),
         description: data.description ? data.description.trim() : null,
         suggestedRarity: data.rarity || 'COMMON',
+        suggestedGender: data.gender || 'FEMALE',
         imageUrl: relPath,
         reason: data.reason ? data.reason.trim() : null,
         userName: user.name || userId,
@@ -1162,7 +1211,7 @@ export class SuggestionService {
           gender: suggestion.suggestedGender || 'FEMALE',
           tags: suggestion.suggestedTags || [],
           description: suggestion.description || null,
-          baseRarity: suggestion.suggestedRarity || 'COMMON',
+          baseRarity: chosenRarity || suggestion.suggestedRarity || 'COMMON',
           imageUrls: officialImages,
           isActive: true,
         },

@@ -130,6 +130,10 @@ export class TelegramNotificationService {
         text += `👤 <b>Personagem:</b> ${this.escapeHtml(data.characterName || 'Sem nome')}\n`;
         text += `📺 <b>Origem / Série:</b> ${this.escapeHtml(data.series || 'Sem série')}\n`;
         text += `⭐ <b>Raridade Sugerida:</b> ${data.suggestedRarity || 'COMMON'}\n`;
+        if (data.suggestedGender) {
+          const gLabel = data.suggestedGender === 'MALE' ? '♂ Masculino' : (data.suggestedGender === 'OTHER' ? '⚧ Outro' : '♀ Feminino');
+          text += `⚧ <b>Gênero:</b> ${gLabel}\n`;
+        }
         if (data.characterId) {
           text += `✨ <i>(Versão Lendária derivada do personagem existente <code>${data.characterId}</code>)</i>\n`;
         }

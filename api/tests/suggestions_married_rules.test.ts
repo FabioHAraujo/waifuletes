@@ -170,7 +170,30 @@ describe('💍 Regras de Sugestão de Raridade para Personagens Casados', () => 
     createdMarriedEpicSuggestionId = json.data.suggestion.id;
   });
 
-  it('POST suggestions para LENDÁRIO com foto em personagem casado DEVE CRIAR NOVO PERSONAGEM', async () => {
+  it('POST suggestions para LENDÁRIO com foto sem frase de confirmação deve retornar 400', async () => {
+    const samplePngBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+    const res = await fetch(`${BASE_URL}/api/web/user/${testPublicId}/suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: testUserToken,
+        type: 'EDIT',
+        characterId: marriedCharId,
+        suggestedRarity: 'LEGENDARY',
+        suggestedName: 'Versão Lendária Oficial',
+        reason: 'Criação da versão lendária com foto nova obrigatória sem frase.',
+        imageBase64: samplePngBase64,
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('CONFIRMATION_PHRASE_REQUIRED');
+  });
+
+  it('POST suggestions para LENDÁRIO com foto E frase de confirmação DEVE CRIAR NOVO PERSONAGEM', async () => {
     // 1x1 pixel PNG em base64
     const samplePngBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -185,6 +208,7 @@ describe('💍 Regras de Sugestão de Raridade para Personagens Casados', () => 
         suggestedName: 'Versão Lendária Oficial',
         reason: 'Criação da versão lendária com foto nova obrigatória.',
         imageBase64: samplePngBase64,
+        confirmationPhrase: 'Personagem casado, criar versão lendária',
       }),
     });
 

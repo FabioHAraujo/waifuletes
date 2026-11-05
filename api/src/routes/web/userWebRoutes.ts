@@ -15,7 +15,7 @@ import { UserService } from '../../services/UserService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
 import { config } from '../../config.js';
-import { Rarity } from '@prisma/client';
+import { Rarity, Gender } from '@prisma/client';
 
 interface RavenaBotHealth {
   id: string;
@@ -1531,6 +1531,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         let action: 'ADD' | 'DELETE' | 'REPLACE' = 'ADD';
         let targetPhoto = '';
         let reason = '';
+        let confirmationPhrase = '';
         let imageBuffer: Buffer | null = null;
 
         for await (const part of parts) {
@@ -1543,8 +1544,8 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             if (part.fieldname === 'type') type = String(part.value);
             if (part.fieldname === 'suggestedName') suggestedName = String(part.value);
             if (part.fieldname === 'suggestedSeries') suggestedSeries = String(part.value);
-            if (part.fieldname === 'suggestedGender' && ['FEMALE', 'MALE', 'OTHER'].includes(String(part.value))) {
-              suggestedGender = String(part.value) as any;
+            if ((part.fieldname === 'suggestedGender' || part.fieldname === 'gender') && ['FEMALE', 'MALE', 'OTHER'].includes(String(part.value).toUpperCase())) {
+              suggestedGender = String(part.value).toUpperCase() as any;
             }
             if (part.fieldname === 'suggestedDescription') suggestedDescription = String(part.value);
             if (part.fieldname === 'suggestedTags') {
@@ -1559,6 +1560,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             }
             if (part.fieldname === 'targetPhoto') targetPhoto = String(part.value);
             if (part.fieldname === 'reason') reason = String(part.value);
+            if (part.fieldname === 'confirmationPhrase') confirmationPhrase = String(part.value);
           } else if (part.type === 'file' && (part.fieldname === 'image' || part.fieldname === 'photo')) {
             imageBuffer = await part.toBuffer();
           }
@@ -1576,11 +1578,45 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
         await suggestionService.assertUserNotBlocked(session.userId);
 
+        const checkConfirmationPhrase = (phrase: string) => {
+          const norm = (phrase || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return norm === 'personagem casado criar versao lendaria';
+        };
+
         if (type === 'NEW_CHARACTER') {
+          const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+          if (wasMarried && suggestedRarity === 'LEGENDARY') {
+            if (!imageBuffer || imageBuffer.length === 0) {
+              return reply.status(400).send({
+                success: false,
+                error: {
+                  code: 'PHOTO_REQUIRED_FOR_LEGENDARY',
+                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                },
+              });
+            }
+            if (!checkConfirmationPhrase(confirmationPhrase)) {
+              return reply.status(400).send({
+                success: false,
+                error: {
+                  code: 'CONFIRMATION_PHRASE_REQUIRED',
+                  message: 'É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.',
+                },
+              });
+            }
+          }
+
           const suggestion = await suggestionService.submitNewCharacterSuggestion(session.userId, {
             name: characterName,
             series,
             rarity: (suggestedRarity || 'COMMON') as Rarity,
+            gender: suggestedGender || undefined,
             description,
             reason,
             imageBuffer: imageBuffer || undefined,
@@ -1595,13 +1631,41 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           });
         } else if (type === 'EDIT') {
           const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+          if (wasMarried) {
+            const normalizedReason = (reason || '')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase();
+            const attemptsLegendaryInReason = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(
+              normalizedReason
+            );
+            if (attemptsLegendaryInReason && suggestedRarity !== 'LEGENDARY') {
+              return reply.status(400).send({
+                success: false,
+                error: {
+                  code: 'MARRIED_CHARACTER_MAX_EPIC',
+                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Pedidos de alteração para Lendário não podem ser feitos via justificativa ou edição de dados.',
+                },
+              });
+            }
+          }
+
           if (wasMarried && suggestedRarity === 'LEGENDARY') {
             if (!imageBuffer || imageBuffer.length === 0) {
               return reply.status(400).send({
                 success: false,
                 error: {
                   code: 'PHOTO_REQUIRED_FOR_LEGENDARY',
-                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                },
+              });
+            }
+            if (!checkConfirmationPhrase(confirmationPhrase)) {
+              return reply.status(400).send({
+                success: false,
+                error: {
+                  code: 'CONFIRMATION_PHRASE_REQUIRED',
+                  message: 'É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.',
                 },
               });
             }
@@ -1610,6 +1674,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
               name: (suggestedName || characterName || char?.name || '').trim(),
               series: (suggestedSeries || series || char?.series || '').trim(),
               rarity: 'LEGENDARY',
+              gender: suggestedGender || char?.gender || undefined,
               description: suggestedDescription || description || char?.description || undefined,
               reason: reason ? `[Versão Lendária] ${reason.trim()}` : '[Versão Lendária]',
               imageBuffer,
@@ -1660,13 +1725,41 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           });
         } else if (type === 'RARITY') {
           const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+          if (wasMarried) {
+            const normalizedReason = (reason || '')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase();
+            const attemptsLegendaryInReason = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(
+              normalizedReason
+            );
+            if (attemptsLegendaryInReason && suggestedRarity !== 'LEGENDARY') {
+              return reply.status(400).send({
+                success: false,
+                error: {
+                  code: 'MARRIED_CHARACTER_MAX_EPIC',
+                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Pedidos de alteração para Lendário não podem ser feitos via justificativa.',
+                },
+              });
+            }
+          }
+
           if (wasMarried && suggestedRarity === 'LEGENDARY') {
             if (!imageBuffer || imageBuffer.length === 0) {
               return reply.status(400).send({
                 success: false,
                 error: {
                   code: 'PHOTO_REQUIRED_FOR_LEGENDARY',
-                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                  message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                },
+              });
+            }
+            if (!checkConfirmationPhrase(confirmationPhrase)) {
+              return reply.status(400).send({
+                success: false,
+                error: {
+                  code: 'CONFIRMATION_PHRASE_REQUIRED',
+                  message: 'É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.',
                 },
               });
             }
@@ -1675,6 +1768,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
               name: (characterName || char?.name || characterId).trim(),
               series: (series || char?.series || 'Indefinida').trim(),
               rarity: 'LEGENDARY',
+              gender: char?.gender || undefined,
               description: char?.description || undefined,
               reason: reason ? `[Versão Lendária] ${reason.trim()}` : '[Versão Lendária]',
               imageBuffer,
@@ -1718,6 +1812,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         characterName,
         series,
         description,
+        gender,
         suggestedName,
         suggestedSeries,
         suggestedGender,
@@ -1728,6 +1823,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         photoAction,
         targetPhoto,
         reason,
+        confirmationPhrase,
         imageBase64,
       } = (request.body as any) || {};
 
@@ -1743,15 +1839,50 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       await suggestionService.assertUserNotBlocked(session.userId);
 
+      const checkConfirmationPhrase = (phrase: string) => {
+        const norm = (phrase || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return norm === 'personagem casado criar versao lendaria';
+      };
+
       if (type === 'NEW_CHARACTER') {
+        const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
         let buffer: Buffer | undefined;
         if (imageBase64) {
           buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
         }
+
+        if (wasMarried && suggestedRarity === 'LEGENDARY') {
+          if (!buffer || buffer.length === 0) {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'PHOTO_REQUIRED_FOR_LEGENDARY',
+                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+              },
+            });
+          }
+          if (!checkConfirmationPhrase(confirmationPhrase)) {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'CONFIRMATION_PHRASE_REQUIRED',
+                message: 'É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.',
+              },
+            });
+          }
+        }
+
         const suggestion = await suggestionService.submitNewCharacterSuggestion(session.userId, {
           name: characterName,
           series,
           rarity: (suggestedRarity || 'COMMON') as Rarity,
+          gender: ((suggestedGender || gender) as Gender) || undefined,
           description,
           reason,
           imageBuffer: buffer,
@@ -1766,6 +1897,25 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } else if (type === 'EDIT') {
         const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+        if (wasMarried) {
+          const normalizedReason = (reason || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+          const attemptsLegendaryInReason = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(
+            normalizedReason
+          );
+          if (attemptsLegendaryInReason && suggestedRarity !== 'LEGENDARY') {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'MARRIED_CHARACTER_MAX_EPIC',
+                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Pedidos de alteração para Lendário não podem ser feitos via justificativa ou edição de dados.',
+              },
+            });
+          }
+        }
+
         if (wasMarried && suggestedRarity === 'LEGENDARY') {
           let buffer: Buffer | undefined;
           if (imageBase64) {
@@ -1776,7 +1926,16 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
               success: false,
               error: {
                 code: 'PHOTO_REQUIRED_FOR_LEGENDARY',
-                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+              },
+            });
+          }
+          if (!checkConfirmationPhrase(confirmationPhrase)) {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'CONFIRMATION_PHRASE_REQUIRED',
+                message: 'É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.',
               },
             });
           }
@@ -1785,6 +1944,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             name: (suggestedName || characterName || char?.name || '').trim(),
             series: (suggestedSeries || series || char?.series || '').trim(),
             rarity: 'LEGENDARY',
+            gender: ((suggestedGender || gender || char?.gender) as Gender) || undefined,
             description: suggestedDescription || description || char?.description || undefined,
             reason: reason ? `[Versão Lendária] ${reason.trim()}` : '[Versão Lendária]',
             imageBuffer: buffer,
@@ -1802,7 +1962,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         const suggestion = await suggestionService.submitEditSuggestion(session.userId, characterId, {
           suggestedName: suggestedName || characterName,
           suggestedSeries: suggestedSeries || series,
-          suggestedGender,
+          suggestedGender: ((suggestedGender || gender) as Gender) || undefined,
           suggestedDescription: suggestedDescription || description,
           suggestedRarity: suggestedRarity as Rarity,
           suggestedTags: Array.isArray(suggestedTags)
@@ -1819,6 +1979,25 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } else if (type === 'RARITY') {
         const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+        if (wasMarried) {
+          const normalizedReason = (reason || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+          const attemptsLegendaryInReason = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(
+            normalizedReason
+          );
+          if (attemptsLegendaryInReason && suggestedRarity !== 'LEGENDARY') {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'MARRIED_CHARACTER_MAX_EPIC',
+                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Pedidos de alteração para Lendário não podem ser feitos via justificativa.',
+              },
+            });
+          }
+        }
+
         if (wasMarried && suggestedRarity === 'LEGENDARY') {
           let buffer: Buffer | undefined;
           if (imageBase64) {
@@ -1829,7 +2008,16 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
               success: false,
               error: {
                 code: 'PHOTO_REQUIRED_FOR_LEGENDARY',
-                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+                message: 'Este personagem já foi casado. A raridade máxima permitida para o mesmo é ÉPICO. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens. Para sugerir a versão Lendária, será criado um NOVO personagem e o envio de uma nova foto é obrigatório.',
+              },
+            });
+          }
+          if (!checkConfirmationPhrase(confirmationPhrase)) {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'CONFIRMATION_PHRASE_REQUIRED',
+                message: 'É obrigatório escrever a frase "Personagem casado, criar versão lendária" para prosseguir.',
               },
             });
           }
@@ -1838,6 +2026,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             name: (characterName || char?.name || characterId).trim(),
             series: (series || char?.series || 'Indefinida').trim(),
             rarity: 'LEGENDARY',
+            gender: char?.gender || undefined,
             description: char?.description || undefined,
             reason: reason ? `[Versão Lendária] ${reason.trim()}` : '[Versão Lendária]',
             imageBuffer: buffer,

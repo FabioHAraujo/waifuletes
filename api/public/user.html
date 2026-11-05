@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Harém do Usuário • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261102-colname">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261105-antilegendary">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -637,16 +637,31 @@
               <span>⚠️</span> <span>Regra Especial: Personagem Já Casado</span>
             </div>
             <p style="margin: 0 0 10px 0; line-height: 1.4;">
-              Este personagem <b>já foi casado</b>. A raridade máxima permitida para o personagem existente é <b>ÉPICO</b>.<br>
+              Este personagem <b>já foi casado</b>. A raridade máxima permitida para o personagem existente é <b>ÉPICO</b>. Você deveria ter feito a sugestão antes de se casar com o personagem, esta ação é mal vista pela administração, pois parece abuso do sistema para tentar fazer upgrade nos seus personagens.<br>
               Para sugerir a mudança para <b>LENDÁRIO</b>, será criado um <b>NOVO personagem</b> no catálogo na versão lendária.<br>
               📸 <b>É obrigatório fornecer uma nova foto neste caso!</b>
             </p>
-            <div class="form-group" style="margin-bottom: 0;">
+            <div class="form-group" style="margin-bottom: 8px;">
               <label class="retro-label" style="color: inherit; font-weight: 800;">Nova Foto para a Versão Lendária: *</label>
               <input type="file" id="suggest-legendary-photo-input" class="retro-input" accept="image/*">
               <div id="suggest-legendary-preview-container" class="hidden" style="margin-top: 8px; text-align: center;">
                 <img id="suggest-legendary-preview-img" src="" style="max-height: 160px; border: var(--border-retro); border-radius: 6px;" alt="Prévia da Foto">
               </div>
+            </div>
+
+            <!-- Countdown de 30s posicionado logo abaixo do picker de foto -->
+            <div id="suggest-legendary-countdown" class="hidden" style="margin-bottom: 10px; padding: 10px 14px; background: #fef08a; border: 2px solid #eab308; border-radius: 6px; font-weight: 800; font-size: 13px; color: #854d0e; text-align: center;">
+              ⏳ AGUARDE! Aproveite este tempo para ler o texto acima. (<span id="suggest-legendary-countdown-seconds">30</span>s)
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="retro-label" style="color: inherit; font-weight: 800;">
+                Confirmação obrigatória: Digite a frase <span style="color: #b91c1c;">"Personagem casado, criar versão lendária"</span>: *
+              </label>
+              <input type="text" id="suggest-legendary-phrase-input" class="retro-input" placeholder="Personagem casado, criar versão lendária" autocomplete="off">
+              <small id="suggest-legendary-phrase-status" style="display: block; margin-top: 4px; font-size: 11px; font-weight: 700; color: #b91c1c;">
+                Digite a frase acima para iniciar a contagem de 30 segundos e liberar o envio.
+              </small>
             </div>
           </div>
 
@@ -672,7 +687,7 @@
             <textarea id="suggest-edit-reason" class="retro-textarea" rows="2" placeholder="Por que essas alterações devem ser aplicadas?"></textarea>
           </div>
 
-          <button class="btn-retro btn-sm btn-gold" id="btn-submit-edit-info" onclick="submitEditInfoSuggestion()" style="width: 100%;">
+          <button class="btn-retro btn-sm btn-gold" id="btn-submit-edit-info" onclick="submitEditInfoSuggestion()" style="width: 100%;" disabled title="Preencha os dados necessários para liberar o envio">
             <i class="fas fa-paper-plane"></i> Enviar Sugestão de Dados
           </button>
         </div>
@@ -1423,11 +1438,20 @@
     </div>
   </div>
 
+  <!-- Overlay de Loading Retrô -->
+  <div id="retro-loading-overlay" class="retro-loading-overlay hidden">
+    <div class="retro-loading-box">
+      <div class="retro-spinner"></div>
+      <div class="retro-loading-title" id="retro-loading-title">Aguarde... Enviando...</div>
+      <div class="retro-loading-subtext" id="retro-loading-subtext">Processando sua solicitação...</div>
+    </div>
+  </div>
+
   <!-- Toast de Notificação -->
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261102-colname"></script>
-  <script src="/js/user.js?v=20261102-colname"></script>
+  <script src="/js/api.js?v=20261105-antilegendary"></script>
+  <script src="/js/user.js?v=20261105-antilegendary"></script>
 </body>
 </html>

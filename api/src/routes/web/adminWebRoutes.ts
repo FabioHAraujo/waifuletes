@@ -774,20 +774,39 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
         `;
       }
 
+      const userIds = users.map((u) => u.id);
+      const blockKeys = userIds.map((id) => `suggestion:block:${id}`);
+      let blockResults: (string | null)[] = [];
+      if (blockKeys.length > 0) {
+        blockResults = await fastify.redis.mget(...blockKeys);
+      }
+
       return reply.send({
         success: true,
         data: {
-          users: users.map((u) => ({
-            id: u.id,
-            publicId: u.publicId,
-            name: u.name,
-            platform: u.platform,
-            kakera: u.kakera,
-            totalHarem: Number(u.totalHarem) || 0,
-            totalWishlist: Number(u.totalWishlist) || 0,
-            totalScore: Number(u.totalScore) || 0,
-            createdAt: u.createdAt,
-          })),
+          users: users.map((u, i) => {
+            const rawBlock = blockResults[i];
+            let isBlockedFromSuggestions = Boolean(rawBlock);
+            let blockInfo: any = null;
+            if (rawBlock) {
+              try {
+                blockInfo = JSON.parse(rawBlock);
+              } catch (_) {}
+            }
+            return {
+              id: u.id,
+              publicId: u.publicId,
+              name: u.name,
+              platform: u.platform,
+              kakera: u.kakera,
+              totalHarem: Number(u.totalHarem) || 0,
+              totalWishlist: Number(u.totalWishlist) || 0,
+              totalScore: Number(u.totalScore) || 0,
+              createdAt: u.createdAt,
+              isBlockedFromSuggestions,
+              blockInfo,
+            };
+          }),
           pagination: {
             page,
             limit,
@@ -888,5 +907,99 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send(result);
     },
+  });
+
+  /**
+   * Atualizar quantidade de Zinthos de um usuário diretamente
+   */
+  const updateZinthosHandler = async (request: any, reply: any) => {
+    const { userId } = request.params as { userId: string };
+    const body = (request.body || {}) as { zinthos?: number; kakera?: number };
+    const newZinthos = typeof body.zinthos === 'number' ? body.zinthos : (typeof body.kakera === 'number' ? body.kakera : null);
+
+    if (newZinthos === null || !Number.isInteger(newZinthos) || newZinthos < 0) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_AMOUNT', message: 'Quantidade de Zinthos inválida. Deve ser um número inteiro maior ou igual a zero.' },
+      });
+    }
+
+    const user = await fastify.prisma.user.findFirst({
+      where: { OR: [{ id: userId }, { publicId: userId }] },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+      });
+    }
+
+    const prevZinthos = user.kakera;
+    const diff = newZinthos - prevZinthos;
+
+    if (diff !== 0) {
+      await fastify.prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { kakera: newZinthos },
+        });
+
+        await tx.kakeraTransaction.create({
+          data: {
+            userId: user.id,
+            amount: diff,
+            reason: 'ADMIN_GRANT',
+            metadata: {
+              previousBalance: prevZinthos,
+              newBalance: newZinthos,
+              source: 'admin_panel_edit',
+            },
+          },
+        });
+      });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        userId: user.id,
+        zinthos: newZinthos,
+        kakera: newZinthos,
+        previousZinthos: prevZinthos,
+        difference: diff,
+      },
+    });
+  };
+
+  const updateZinthosSchema = {
+    description: 'Atualiza diretamente o saldo de Zinthos (kakera) de um usuário',
+    tags: ['Admin (Web)'],
+    params: {
+      type: 'object',
+      required: ['userId'],
+      additionalProperties: false,
+      properties: { userId: { type: 'string' } },
+    },
+    body: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        zinthos: { type: 'integer', minimum: 0 },
+        kakera: { type: 'integer', minimum: 0 },
+      },
+    },
+  };
+
+  fastify.patch('/api/admin/users/:userId/zinthos', {
+    preHandler: requireAdminAuth,
+    schema: updateZinthosSchema,
+    handler: updateZinthosHandler,
+  });
+
+  fastify.put('/api/admin/users/:userId/zinthos', {
+    preHandler: requireAdminAuth,
+    schema: updateZinthosSchema,
+    handler: updateZinthosHandler,
   });
 };

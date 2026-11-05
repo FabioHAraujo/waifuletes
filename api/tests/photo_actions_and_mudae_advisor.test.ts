@@ -668,4 +668,47 @@ describe('🔧 Aplicação de Ações de Foto no SuggestionService (ADD vs REPLA
     expect(createdData.characterId).toBe('black-gold-saw');
     expect(createdData.suggestedDescription).toContain('papel de protetora');
   });
+
+  it('deve rejeitar tentativa de burlar raridade máxima com menção a lendário no motivo para personagem casado', async () => {
+    const { SuggestionService } = await import('../src/services/SuggestionService.js');
+
+    const mockPrisma: any = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'user_1', name: 'Cabelinho' }),
+      },
+      haremEntry: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'harem_1', characterId: 'kuruk' }),
+      },
+    };
+
+    const mockRedis: any = {
+      get: vi.fn().mockResolvedValue(null),
+    };
+
+    const mockCharacterService: any = {
+      findCharacter: vi.fn().mockResolvedValue({
+        id: 'kuruk',
+        name: 'Kuruk',
+        series: 'Avatar',
+        gender: 'MALE',
+        baseRarity: 'EPIC',
+        description: 'Avatar da Tribo da Água do Norte',
+        tags: ['anime'],
+      }),
+    };
+
+    const suggestionService = new SuggestionService(mockPrisma, mockRedis, mockCharacterService);
+
+    await expect(
+      suggestionService.submitEditSuggestion('user_1', 'kuruk', {
+        suggestedName: 'Kuruk',
+        suggestedSeries: 'Avatar',
+        suggestedGender: 'MALE',
+        suggestedRarity: 'EPIC',
+        suggestedDescription: 'Avatar da Tribo da Água do Norte.',
+        suggestedTags: ['anime'],
+        reason: 'Ele é o Avatar, todos os outros são Lendários vey, coloca ele também!',
+      })
+    ).rejects.toThrow('A raridade máxima permitida para o mesmo é ÉPICO');
+  });
 });

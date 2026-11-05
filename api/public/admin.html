@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel de Administração • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261102-colname">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261105-antilegendary">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -178,7 +178,7 @@
                 <th>Número / ID</th>
                 <th style="text-align: center;">Total Harém</th>
                 <th style="text-align: center;">Total Wishlist</th>
-                <th style="text-align: center;" title="Total Harém + Total Wishlist">Harém + Wish</th>
+                <th style="text-align: center;" title="Quantidade de Zinthos do usuário (clique para editar)">🪙 Zinthos</th>
                 <th style="text-align: center;">Ações</th>
               </tr>
             </thead>
@@ -387,11 +387,20 @@
     </div>
   </div>
 
+  <!-- Overlay de Loading Retrô -->
+  <div id="retro-loading-overlay" class="retro-loading-overlay hidden">
+    <div class="retro-loading-box">
+      <div class="retro-spinner"></div>
+      <div class="retro-loading-title" id="retro-loading-title">Aguarde... Enviando...</div>
+      <div class="retro-loading-subtext" id="retro-loading-subtext">Processando sua solicitação...</div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261102-colname"></script>
-  <script src="/js/admin.js?v=20261102-colname"></script>
+  <script src="/js/api.js?v=20261105-adminzinthos"></script>
+  <script src="/js/admin.js?v=20261105-adminzinthos"></script>
 </body>
 </html>

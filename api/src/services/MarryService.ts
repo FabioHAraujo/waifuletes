@@ -301,12 +301,26 @@ export class MarryService {
     if (character.haremEntries.length > 0) {
       const owner = character.haremEntries[0].user;
       if (owner.id === userId) {
+        const updatedEntry = await this.prisma.haremEntry.update({
+          where: { characterId: targetCharId },
+          data: {
+            keys: { increment: 1 },
+          },
+        });
+
         return {
-          success: false,
-          error: {
-            code: 'CHARACTER_ALREADY_OWNED',
-            message: `Este personagem já pertence a este usuário (${owner.name || owner.id})!`,
-            owner,
+          success: true,
+          action: 'KEY_GRANTED',
+          data: {
+            message: `O usuário já era casado com ${resolvedChar.name}. Foi concedida +1 chave do personagem (total: ${updatedEntry.keys} chaves)!`,
+            character: {
+              id: resolvedChar.id,
+              name: resolvedChar.name,
+              series: resolvedChar.series,
+              rarity: resolvedChar.baseRarity,
+              imageUrl: this.characterService.getRandomImageUrl(resolvedChar.id, resolvedChar.imageUrls),
+            },
+            entry: updatedEntry,
           },
         };
       }

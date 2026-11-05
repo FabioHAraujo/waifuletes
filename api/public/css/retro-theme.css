@@ -299,6 +299,41 @@ body.dark-mode .legendary-married-alert input[type="file"] {
   box-shadow: 1px 1px 0px #2d241e;
 }
 
+/* ========================================================
+   ESTADOS DE BOTÃO DESABILITADO (Cinza Retrô)
+   ======================================================== */
+.btn-retro:disabled,
+.btn-retro[disabled],
+.btn-retro.disabled,
+button:disabled,
+button[disabled] {
+  background: #cbd5e1 !important;
+  color: #64748b !important;
+  border-color: #94a3b8 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  opacity: 0.65 !important;
+  filter: grayscale(100%) !important;
+  pointer-events: auto !important;
+}
+
+body.dark-mode .btn-retro:disabled,
+body.dark-mode .btn-retro[disabled],
+body.dark-mode .btn-retro.disabled,
+body.dark-mode button:disabled,
+body.dark-mode button[disabled] {
+  background: #272236 !important;
+  color: #6b7280 !important;
+  border-color: #3b3552 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  opacity: 0.6 !important;
+  filter: grayscale(100%) !important;
+  pointer-events: auto !important;
+}
+
 .btn-primary {
   background: var(--primary-retro);
   color: #ffffff;
@@ -1256,6 +1291,96 @@ body.dark-mode .waifu-card.rarity-common {
   opacity: 0;
   transform: translate(-50%, -40px);
   pointer-events: none;
+}
+
+/* ========================================================
+   OVERLAY DE LOADING RETRÔ (Opacidade ~80% + Spinner Pixel Retrô)
+   ======================================================== */
+.retro-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000000;
+  opacity: 1;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  user-select: none;
+}
+
+.retro-loading-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.retro-loading-box {
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #1e293b);
+  border: var(--border-retro, 2px solid #2d241e);
+  box-shadow: var(--shadow-retro, 4px 4px 0px #2d241e);
+  border-radius: var(--radius-retro, 8px);
+  padding: 24px 32px;
+  min-width: 280px;
+  max-width: min(90vw, 380px);
+  text-align: center;
+  animation: retro-pop-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes retro-pop-in {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.retro-spinner {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 16px auto;
+  border: 4px solid rgba(0, 0, 0, 0.12);
+  border-top-color: #f59e0b;
+  border-right-color: #8b5cf6;
+  border-bottom-color: #ec4899;
+  border-radius: 8px; /* Spinner retrô estilo pixel-square */
+  animation: retro-spinner-step 0.75s steps(8) infinite;
+}
+
+body.dark-mode .retro-spinner {
+  border-color: rgba(255, 255, 255, 0.12);
+  border-top-color: #facc15;
+  border-right-color: #a855f7;
+  border-bottom-color: #f43f5e;
+}
+
+@keyframes retro-spinner-step {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.retro-loading-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main, #1e293b);
+  margin-bottom: 6px;
+  letter-spacing: -0.3px;
+}
+
+.retro-loading-subtext {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  letter-spacing: -0.2px;
 }
 
 /* ========================================================

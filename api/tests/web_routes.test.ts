@@ -575,6 +575,55 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
     expect(foundUser.name).toBe('Jogador Web Teste');
     expect(foundUser).toHaveProperty('totalHarem');
     expect(foundUser).toHaveProperty('totalWishlist');
+    expect(foundUser).toHaveProperty('kakera');
+  });
+
+  it('PATCH /api/admin/users/:userId/zinthos deve atualizar o saldo de Zinthos do usuário e registrar histórico', async () => {
+    // 1. Atualiza zinthos para um valor definido
+    const patchRes = await fetch(`${BASE_URL}/api/admin/users/${encodeURIComponent(testUserId)}/zinthos`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ zinthos: 88500 }),
+    });
+    expect(patchRes.status).toBe(200);
+    const patchJson = await patchRes.json();
+    expect(patchJson.success).toBe(true);
+    expect(patchJson.data.zinthos).toBe(88500);
+    expect(patchJson.data.userId).toBe(testUserId);
+
+    // 2. Consulta a listagem de usuários e verifica o saldo atualizado
+    const listRes = await fetch(`${BASE_URL}/api/admin/users?search=Jogador+Web+Teste`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const listJson = await listRes.json();
+    const updatedUser = listJson.data.users.find((u: any) => u.id === testUserId);
+    expect(updatedUser).toBeDefined();
+    expect(updatedUser.kakera).toBe(88500);
+
+    // 3. Validação: rejeição de valor negativo (400)
+    const negativeRes = await fetch(`${BASE_URL}/api/admin/users/${encodeURIComponent(testUserId)}/zinthos`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ zinthos: -50 }),
+    });
+    expect(negativeRes.status).toBe(400);
+
+    // 4. Validação: usuário inexistente (404)
+    const notFoundRes = await fetch(`${BASE_URL}/api/admin/users/non_existent_user_99999/zinthos`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ zinthos: 100 }),
+    });
+    expect(notFoundRes.status).toBe(404);
   });
 
   it('POST /api/admin/users/:userId/session deve gerar impersonation URL do usuário', async () => {
