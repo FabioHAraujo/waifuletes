@@ -4,7 +4,7 @@ import { CharacterService } from '../../services/CharacterService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 
 export const privateDivorceRoutes: FastifyPluginAsync = async (fastify) => {
-  const divorceService = new DivorceService(fastify.prisma);
+  const divorceService = new DivorceService(fastify.prisma, undefined, fastify.redis);
   const characterService = new CharacterService(fastify.prisma);
 
   fastify.addHook('preHandler', verifyApiKey);

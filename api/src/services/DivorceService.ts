@@ -1,14 +1,118 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Rarity } from '@prisma/client';
+import { Redis } from 'ioredis';
 import { DomainError } from '../errors/DomainError.js';
-import { calculateDivorceRefund } from '../utils/rarityCalculator.js';
+import { calculateDivorceRefund, getDailyDivorceRate } from '../utils/rarityCalculator.js';
 import { config } from '../config.js';
 import { MarketInvestmentService, BASE_MONEY_SUPPLY, INFLATION_ALPHA } from './MarketInvestmentService.js';
 
 export class DivorceService {
   constructor(
     private prisma: PrismaClient,
-    private marketInvestmentService?: MarketInvestmentService
+    private marketInvestmentService?: MarketInvestmentService,
+    private redis?: Redis
   ) {}
+
+  /**
+   * Retorna informações sobre o ciclo de reset diário (04:00 BRT / 07:00 UTC)
+   */
+  getDailyCycleInfo(date: Date = new Date()): { currentCycleStart: Date; nextReset: Date; secondsUntilReset: number } {
+    const resetHourUtc = config.DAILY_RESET_HOUR_UTC ?? 7;
+    const resetMinuteUtc = config.DAILY_RESET_MINUTE_UTC ?? 0;
+    const todayReset = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), resetHourUtc, resetMinuteUtc, 0, 0)
+    );
+
+    let currentCycleStart: Date;
+    let nextReset: Date;
+
+    if (date.getTime() < todayReset.getTime()) {
+      nextReset = todayReset;
+      currentCycleStart = new Date(todayReset.getTime() - 24 * 60 * 60 * 1000);
+    } else {
+      currentCycleStart = todayReset;
+      nextReset = new Date(todayReset.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    const secondsUntilReset = Math.max(1, Math.ceil((nextReset.getTime() - date.getTime()) / 1000));
+    return { currentCycleStart, nextReset, secondsUntilReset };
+  }
+
+  private dailyDivorceKey(userId: string, rarity: string): string {
+    return `divorce:daily:${userId}:${rarity.toUpperCase()}`;
+  }
+
+  /**
+   * Consulta a contagem diária de divórcios do usuário para uma determinada raridade.
+   * Utiliza Redis prioritariamente; se indisponível ou em cache miss, recorre ao histórico em PostgreSQL.
+   */
+  async getDailyDivorceCount(userId: string, rarity: Rarity | string): Promise<number> {
+    const normRarity = String(rarity).toUpperCase();
+    const cycle = this.getDailyCycleInfo();
+
+    if (this.redis) {
+      try {
+        const key = this.dailyDivorceKey(userId, normRarity);
+        const val = await this.redis.get(key);
+        if (val !== null) {
+          return Math.max(0, parseInt(val, 10) || 0);
+        }
+      } catch {
+        // Fallback para PostgreSQL caso o Redis falhe momentaneamente
+      }
+    }
+
+    // Fallback: consulta auditoria de transações do PostgreSQL no ciclo diário atual
+    try {
+      const countResult = await this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count
+        FROM kakera_transactions
+        WHERE "userId" = ${userId}
+          AND "reason" = 'DIVORCE'::"KakeraReason"
+          AND "createdAt" >= ${cycle.currentCycleStart}
+          AND UPPER(COALESCE(metadata->>'rarity', '')) = ${normRarity}
+      `;
+      const countFromDb = Number(countResult[0]?.count || 0);
+
+      // Reabastece o Redis com o TTL até o reset
+      if (this.redis) {
+        try {
+          const key = this.dailyDivorceKey(userId, normRarity);
+          await this.redis.set(key, String(countFromDb), 'EX', cycle.secondsUntilReset);
+        } catch {
+          // Ignora falhas de escrita de cache
+        }
+      }
+
+      return countFromDb;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Incrementa atomicamente a contagem diária de divórcio para a raridade no Redis
+   */
+  async incrementDailyDivorceCount(userId: string, rarity: Rarity | string): Promise<number> {
+    const normRarity = String(rarity).toUpperCase();
+    const cycle = this.getDailyCycleInfo();
+
+    if (this.redis) {
+      try {
+        const key = this.dailyDivorceKey(userId, normRarity);
+        const exists = await this.redis.exists(key);
+        if (!exists) {
+          const prior = await this.getDailyDivorceCount(userId, normRarity);
+          const next = prior + 1;
+          await this.redis.set(key, String(next), 'EX', cycle.secondsUntilReset);
+          return next;
+        }
+        return await this.redis.incr(key);
+      } catch {
+        // Ignora erros de cache
+      }
+    }
+    return 1;
+  }
 
   private async getInflationMultiplier(): Promise<number> {
     if (this.marketInvestmentService) {
@@ -68,13 +172,23 @@ export class DivorceService {
     const isSoulmate = keys >= (config.SOULMATE_KEYS_REQUIRED ?? 10) || Boolean(soulmateRecord);
     const inflationMultiplier = await this.getInflationMultiplier();
 
+    // Soft Limite diário por raridade
+    const previousDailyDivorces = await this.getDailyDivorceCount(userId, character.baseRarity);
+    const projectedDivorceNumber = previousDailyDivorces + 1;
+    const refundRate = getDailyDivorceRate(projectedDivorceNumber);
+    const nextTierRefundRate = getDailyDivorceRate(projectedDivorceNumber + 1);
+
     const refund = calculateDivorceRefund(character.baseRarity, keys, {
       isSoulmate,
       inflationMultiplier,
+      dailyDivorceRate: refundRate,
     });
+
+    const cycle = this.getDailyCycleInfo();
 
     return {
       refundedKakera: refund.netKakera,
+      fullRefundKakera: refund.fullNetKakera,
       rawValue: refund.rawValue,
       keysBonus: refund.keysBonus,
       baseValue: refund.baseValue,
@@ -82,6 +196,12 @@ export class DivorceService {
       currentKeys: keys,
       isSoulmate,
       inflationMultiplier,
+      dailyDivorceCount: previousDailyDivorces,
+      divorceTier: projectedDivorceNumber,
+      refundRate,
+      refundRatePercent: `${Math.round(refundRate * 100)}%`,
+      nextTierRefundRate,
+      secondsUntilReset: cycle.secondsUntilReset,
       character: {
         id: character.id,
         name: character.name,
@@ -131,13 +251,20 @@ export class DivorceService {
     const isSoulmate = keys >= (config.SOULMATE_KEYS_REQUIRED ?? 10) || Boolean(soulmateRecord);
     const inflationMultiplier = await this.getInflationMultiplier();
 
-    // 3. Calcular reembolso de Kakera com penalidade de 5% e multiplicador de inflação
+    // 3. Consultar Soft Limite diário por raridade
+    const previousDailyDivorces = await this.getDailyDivorceCount(userId, character.baseRarity);
+    const currentDivorceNumber = previousDailyDivorces + 1;
+    const refundRate = getDailyDivorceRate(currentDivorceNumber);
+    const nextTierRefundRate = getDailyDivorceRate(currentDivorceNumber + 1);
+
+    // 4. Calcular reembolso de Kakera com penalidade base e taxa de soft limite
     const refund = calculateDivorceRefund(character.baseRarity, keys, {
       isSoulmate,
       inflationMultiplier,
+      dailyDivorceRate: refundRate,
     });
 
-    // 4. Executar transação atômica
+    // 5. Executar transação atômica
     const result = await this.prisma.$transaction(async (tx) => {
       // Remove do harém
       await tx.haremEntry.delete({
@@ -166,7 +293,7 @@ export class DivorceService {
         },
       });
 
-      // Registra no extrato
+      // Registra no extrato com metadados completos de soft limit
       await tx.kakeraTransaction.create({
         data: {
           userId,
@@ -182,12 +309,21 @@ export class DivorceService {
             inflationMultiplier,
             penaltyRate: '5%',
             isSoulmate,
+            dailyDivorceNumber: currentDivorceNumber,
+            refundRate,
+            fullRefundKakera: refund.fullNetKakera,
+            softLimitApplied: refundRate < 1.0,
           },
         },
       });
 
       return updatedUser;
     });
+
+    // 6. Incrementa contador no Redis
+    await this.incrementDailyDivorceCount(userId, character.baseRarity).catch(() => {});
+
+    const cycle = this.getDailyCycleInfo();
 
     return {
       success: true,
@@ -196,10 +332,16 @@ export class DivorceService {
           ? `💖 Divórcio Dourado! Você se separou de ${character.name} (Soulmate). Recebeu ${refund.netKakera} ${config.CURRENCY_NAME} ${config.CURRENCY_EMOJI}! 💔`
           : `Você se divorciou de ${character.name}. Recebeu ${refund.netKakera} ${config.CURRENCY_NAME} ${config.CURRENCY_EMOJI}! 💔`,
         refundedKakera: refund.netKakera,
+        fullRefundKakera: refund.fullNetKakera,
         keysLost: keys - refund.remainingKeys,
         newKakeraBalance: result.kakera,
         isSoulmate,
         inflationMultiplier,
+        dailyDivorceCount: currentDivorceNumber,
+        refundRate,
+        refundRatePercent: `${Math.round(refundRate * 100)}%`,
+        nextTierRefundRate,
+        secondsUntilReset: cycle.secondsUntilReset,
         character: {
           id: character.id,
           name: character.name,

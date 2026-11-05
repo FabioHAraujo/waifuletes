@@ -81,7 +81,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   const haremService = new HaremService(fastify.prisma, characterService);
   const wishlistService = new WishlistService(fastify.prisma, characterService);
   const marketInvestmentService = new MarketInvestmentService(fastify.prisma, characterService, fastify.redis);
-  const divorceService = new DivorceService(fastify.prisma, marketInvestmentService);
+  const divorceService = new DivorceService(fastify.prisma, marketInvestmentService, fastify.redis);
   const webSessionService = new WebSessionService(fastify.redis, fastify.prisma);
   const suggestionService = new SuggestionService(fastify.prisma, fastify.redis, characterService);
   const marketService = new MarketService(fastify.prisma, characterService);

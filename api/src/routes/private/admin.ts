@@ -14,7 +14,7 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const cooldownService = new CooldownService(fastify.redis);
   const kakeraService = new KakeraService(fastify.prisma, cooldownService);
   const characterService = new CharacterService(fastify.prisma);
-  const divorceService = new DivorceService(fastify.prisma);
+  const divorceService = new DivorceService(fastify.prisma, undefined, fastify.redis);
   const marryService = new MarryService(fastify.prisma, cooldownService, characterService);
 
   fastify.addHook('preHandler', verifyApiKey);

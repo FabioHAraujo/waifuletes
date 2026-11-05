@@ -673,6 +673,19 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
 
       // 4. Tentativa de outro usuário casar com a mesma agora que já está casada -> 400
       const anotherUserId = `another_user_${Date.now()}`;
+      await fetch(`${BASE_URL}/user/ensure`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: anotherUserId,
+          groupId: 'test_group',
+          name: 'Outro Jogador Teste',
+        }),
+      });
+
       const alreadyClaimedRes = await fetch(`${BASE_URL}/api/admin/users/${encodeURIComponent(anotherUserId)}/marry`, {
         method: 'POST',
         headers: {
