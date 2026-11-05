@@ -86,3 +86,16 @@ waifuletes/
 - **NUNCA** commitar arquivos `.env`, dumps de banco de dados (`.dump`, `.sql`), senhas reais ou tokens privados.
 - **NUNCA** reintroduzir scripts ou filtros de categorização infantil no repositório público rastreado.
 - **NUNCA** expor portas de banco de dados (`5432`) ou Redis (`6379`) diretamente na interface pública de rede (`0.0.0.0`); sempre vincule a `127.0.0.1`.
+
+---
+
+## 🐳 6. Docker & Rebuild de Containers (REGRA ESTRITA)
+- **NUNCA execute restart ou rebuild automaticamente:** A IA jamais deve executar `docker restart`, `docker compose restart`, `docker compose down`, `docker compose up --build` ou reinício de containers por conta própria.
+- **SEMPRE SOLICITAR AO USUÁRIO:** Qualquer necessidade de aplicar alterações em containers deve ser solicitada ao usuário, fornecendo o comando adequado para execução manual.
+- **SEMPRE SUGERIR REBUILD (`--build`) PARA ALTERAÇÕES DE CÓDIGO (OBRIGATÓRIO):**
+  - **`docker restart` NÃO APLICA MUDANÇAS DE CÓDIGO** no `waifuletes-api`, pois o projeto é em TypeScript e compilado no build multi-stage do Dockerfile (`RUN npm run build` -> `dist/`), e o `docker-compose.yml` mapeia apenas `prisma` e `public` (não mapeia `src/` nem `dist/`).
+  - Portanto, após qualquer alteração em arquivos `.ts`, rotas, serviços ou dependências, **SEMPRE FORNEÇA O COMANDO DE REBUILD**:
+    ```bash
+    docker compose up -d --build api
+    ```
+  - **NUNCA sugira apenas `docker restart api`** quando o código do backend for alterado. Forneça sempre o comando completo com `--build` para que o usuário não precise perguntar se precisa de rebuild.
