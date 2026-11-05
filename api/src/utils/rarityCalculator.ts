@@ -48,9 +48,32 @@ export const SOULMATE_KEY_KAKERA_BONUS = 21000; // 21.000 Zinthos de bônus por 
 export const KEY_KAKERA_BONUS = 15; // Legado mantido para compatibilidade
 export const DIVORCE_PENALTY_RATE = 0.05; // 5% de taxa de divórcio
 
+// Escalonamento do Soft Limite diário de divórcio por raridade
+export const DAILY_DIVORCE_TIER_RATES = [
+  1.0, // 1º divórcio do dia: 100%
+  0.8, // 2º divórcio do dia: 80%
+  0.5, // 3º divórcio do dia: 50%
+  0.2, // 4º divórcio do dia: 20%
+];
+export const DAILY_DIVORCE_MIN_RATE = 0.05; // 5º em diante: 5% (Mínimo: 5%)
+
+/**
+ * Retorna o multiplicador de reembolso baseado no número do divórcio daquela raridade no dia.
+ * @param divorceNumber 1 para 1º divórcio, 2 para 2º, etc.
+ */
+export function getDailyDivorceRate(divorceNumber: number): number {
+  if (divorceNumber <= 1) return 1.0;
+  const idx = divorceNumber - 1;
+  if (idx < DAILY_DIVORCE_TIER_RATES.length) {
+    return DAILY_DIVORCE_TIER_RATES[idx];
+  }
+  return DAILY_DIVORCE_MIN_RATE;
+}
+
 export interface DivorceRefundOptions {
   isSoulmate?: boolean;
   inflationMultiplier?: number;
+  dailyDivorceRate?: number;
 }
 
 export interface RollBonuses {
@@ -120,6 +143,7 @@ export function calculateDivorceRefund(
 ) {
   let isSoulmate = false;
   let inflationMultiplier = 1.0;
+  let dailyDivorceRate = 1.0;
 
   if (typeof optionsOrIsSoulmate === 'boolean') {
     isSoulmate = optionsOrIsSoulmate;
@@ -130,6 +154,9 @@ export function calculateDivorceRefund(
     isSoulmate = Boolean(optionsOrIsSoulmate.isSoulmate);
     if (typeof optionsOrIsSoulmate.inflationMultiplier === 'number' && optionsOrIsSoulmate.inflationMultiplier > 0) {
       inflationMultiplier = optionsOrIsSoulmate.inflationMultiplier;
+    }
+    if (typeof optionsOrIsSoulmate.dailyDivorceRate === 'number' && optionsOrIsSoulmate.dailyDivorceRate > 0) {
+      dailyDivorceRate = optionsOrIsSoulmate.dailyDivorceRate;
     }
   }
 
@@ -146,7 +173,10 @@ export function calculateDivorceRefund(
   const rawValue = Math.round(rawBeforeInflation * inflationMultiplier);
 
   // 5% penalty on refund
-  const netKakera = Math.floor(rawValue * (1 - DIVORCE_PENALTY_RATE));
+  const fullNetKakera = Math.floor(rawValue * (1 - DIVORCE_PENALTY_RATE));
+  // Aplicação do Soft Limite diário por raridade
+  const netKakera = Math.max(1, Math.floor(fullNetKakera * dailyDivorceRate));
+
   // 5% loss of keys (minimum 0)
   const remainingKeys = Math.max(0, Math.floor(keys * (1 - DIVORCE_PENALTY_RATE)));
 
@@ -155,7 +185,9 @@ export function calculateDivorceRefund(
     keysBonus,
     rawBeforeInflation,
     rawValue,
+    fullNetKakera,
     netKakera,
+    dailyDivorceRate,
     remainingKeys,
     isSoulmate,
     inflationMultiplier,

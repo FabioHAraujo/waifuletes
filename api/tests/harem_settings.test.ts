@@ -69,12 +69,13 @@ describe('🏰 Harem Settings, Privacy & Pinned Photo — Waifuletes', () => {
     }
 
     // 3. Cria token de sessão web
-    const sessionRes = await fetch(`${BASE_URL}/user/${testUserId}/web-session`, {
+    const sessionRes = await fetch(`${BASE_URL}/user/session`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ userId: testUserId }),
     });
     const sessionJson = await sessionRes.json();
     testPublicId = sessionJson.data.publicId;
