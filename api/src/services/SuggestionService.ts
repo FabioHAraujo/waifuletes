@@ -234,7 +234,10 @@ export class SuggestionService {
       throw new DomainError('SAME_RARITY', 'A raridade sugerida é exatamente igual à raridade atual do personagem.', 400);
     }
 
-    const wasMarried = await this.wasCharacterEverMarried(character.id);
+    // Se o personagem JÁ é Lendário não existe upgrade de raridade (apenas correção de dados),
+    // então as travas de "personagem casado não pode virar Lendário" não se aplicam.
+    const alreadyLegendary = character.baseRarity === 'LEGENDARY';
+    const wasMarried = alreadyLegendary ? false : await this.wasCharacterEverMarried(character.id);
     if (wasMarried) {
       if (suggestedRarity === 'LEGENDARY') {
         throw new DomainError(
@@ -481,7 +484,9 @@ export class SuggestionService {
       throw new DomainError('NO_CHANGES', 'Nenhuma alteração foi sugerida em relação aos dados atuais do personagem. Altere ao menos um campo (nome, série, gênero, raridade, tags ou descrição) antes de enviar.', 400);
     }
 
-    const wasMarried = await this.wasCharacterEverMarried(character.id);
+    // Personagem que já é Lendário não está passando por upgrade: não há o que verificar.
+    const alreadyLegendary = character.baseRarity === 'LEGENDARY';
+    const wasMarried = alreadyLegendary ? false : await this.wasCharacterEverMarried(character.id);
     if (wasMarried) {
       if (data.suggestedRarity === 'LEGENDARY') {
         throw new DomainError(
@@ -1022,7 +1027,8 @@ export class SuggestionService {
 
     if (suggestion.type === 'RARITY' && suggestion.character) {
       const finalRarity = chosenRarity || suggestion.suggestedRarity || 'COMMON';
-      if (finalRarity === 'LEGENDARY') {
+      // Sem upgrade real de raridade (o personagem já é Lendário), a trava de casamento não se aplica.
+      if (finalRarity === 'LEGENDARY' && suggestion.character.baseRarity !== 'LEGENDARY') {
         const wasMarried = await this.wasCharacterEverMarried(suggestion.character.id);
         if (wasMarried) {
           throw new DomainError(
@@ -1062,14 +1068,13 @@ export class SuggestionService {
         dataToUpdate.description = suggestion.suggestedDescription;
         changesSummary.push('Biografia/Descrição atualizada');
       }
-      if (chosenRarity) {
-        dataToUpdate.baseRarity = chosenRarity;
-        changesSummary.push(`Raridade alterada para ${chosenRarity}`);
-      } else if (suggestion.suggestedRarity) {
-        dataToUpdate.baseRarity = suggestion.suggestedRarity;
-        changesSummary.push(`Raridade alterada para ${suggestion.suggestedRarity}`);
+      const targetRarity = chosenRarity || suggestion.suggestedRarity || null;
+      if (targetRarity && targetRarity !== suggestion.character.baseRarity) {
+        dataToUpdate.baseRarity = targetRarity;
+        changesSummary.push(`Raridade alterada para ${targetRarity}`);
       }
-      if (dataToUpdate.baseRarity === 'LEGENDARY') {
+      // Se o personagem JÁ é Lendário, manter Lendário não é upgrade de raridade: nenhuma verificação é feita.
+      if (targetRarity === 'LEGENDARY' && suggestion.character.baseRarity !== 'LEGENDARY') {
         const wasMarried = await this.wasCharacterEverMarried(suggestion.character.id);
         if (wasMarried) {
           throw new DomainError(

@@ -1025,6 +1025,8 @@ ${s.aiAdvisor.searchedQueries?.length ? `\n<strong>--- BUSCAS WEB REALIZADAS ---
     } else {
       const isRarityChange = s.type === 'RARITY' || (s.type === 'EDIT' && Boolean(s.suggestedRarity)) || s.type === 'NEW_CHARACTER';
       const isMarriedChar = Boolean(s.isMarriedToSuggester || s.marriage || char.wasEverMarried || char.isClaimed);
+      // O personagem JÁ é Lendário: não há upgrade de raridade a validar, o Lendário continua liberado.
+      const isAlreadyLegendary = char.baseRarity === 'LEGENDARY';
 
       if (isRarityChange) {
         actionButtonsHtml = `
@@ -1049,7 +1051,7 @@ ${s.aiAdvisor.searchedQueries?.length ? `\n<strong>--- BUSCAS WEB REALIZADAS ---
               <button class="btn-retro btn-sm" style="background: #faf5ff; border-color: #a855f7; color: #7e22ce; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'EPIC' })" title="Aceitar com raridade Épico">
                 🟣 Épico
               </button>
-              ${(!isMarriedChar || s.type === 'NEW_CHARACTER') ? `
+              ${(!isMarriedChar || isAlreadyLegendary || s.type === 'NEW_CHARACTER') ? `
                 <button class="btn-retro btn-sm" style="background: #fefce8; border-color: #eab308; color: #a16207; font-weight: 700; padding: 3px 8px; font-size: 11px;" onclick="approveSuggestion('${s.id}', { overrideRarity: 'LEGENDARY' })" title="Aceitar com raridade Lendário">
                   ⭐ Lendário
                 </button>

@@ -1590,7 +1590,11 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         };
 
         if (type === 'NEW_CHARACTER') {
-          const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+          // Personagem de origem já Lendário => não existe upgrade, as travas de casado não se aplicam
+          const originCharacter = characterId ? await characterService.findCharacter(characterId) : null;
+          const wasMarried = (characterId && originCharacter?.baseRarity !== 'LEGENDARY')
+            ? await suggestionService.wasCharacterEverMarried(characterId)
+            : false;
           if (wasMarried && suggestedRarity === 'LEGENDARY') {
             if (!imageBuffer || imageBuffer.length === 0) {
               return reply.status(400).send({
@@ -1630,7 +1634,10 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         } else if (type === 'EDIT') {
-          const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+          const originCharacter = characterId ? await characterService.findCharacter(characterId) : null;
+          const wasMarried = (characterId && originCharacter?.baseRarity !== 'LEGENDARY')
+            ? await suggestionService.wasCharacterEverMarried(characterId)
+            : false;
           if (wasMarried) {
             const normalizedReason = (reason || '')
               .normalize('NFD')
@@ -1669,7 +1676,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
                 },
               });
             }
-            const char = await characterService.findCharacter(characterId);
+            const char = originCharacter;
             const suggestion = await suggestionService.submitNewCharacterSuggestion(session.userId, {
               name: (suggestedName || characterName || char?.name || '').trim(),
               series: (suggestedSeries || series || char?.series || '').trim(),
@@ -1724,7 +1731,10 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         } else if (type === 'RARITY') {
-          const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+          const originCharacter = characterId ? await characterService.findCharacter(characterId) : null;
+          const wasMarried = (characterId && originCharacter?.baseRarity !== 'LEGENDARY')
+            ? await suggestionService.wasCharacterEverMarried(characterId)
+            : false;
           if (wasMarried) {
             const normalizedReason = (reason || '')
               .normalize('NFD')
@@ -1763,7 +1773,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
                 },
               });
             }
-            const char = await characterService.findCharacter(characterId);
+            const char = originCharacter;
             const suggestion = await suggestionService.submitNewCharacterSuggestion(session.userId, {
               name: (characterName || char?.name || characterId).trim(),
               series: (series || char?.series || 'Indefinida').trim(),
@@ -1851,7 +1861,11 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
       };
 
       if (type === 'NEW_CHARACTER') {
-        const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+        // Personagem de origem já Lendário => não existe upgrade, as travas de casado não se aplicam
+        const originCharacter = characterId ? await characterService.findCharacter(characterId) : null;
+        const wasMarried = (characterId && originCharacter?.baseRarity !== 'LEGENDARY')
+          ? await suggestionService.wasCharacterEverMarried(characterId)
+          : false;
         let buffer: Buffer | undefined;
         if (imageBase64) {
           buffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
@@ -1896,7 +1910,10 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
       } else if (type === 'EDIT') {
-        const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+        const originCharacter = characterId ? await characterService.findCharacter(characterId) : null;
+        const wasMarried = (characterId && originCharacter?.baseRarity !== 'LEGENDARY')
+          ? await suggestionService.wasCharacterEverMarried(characterId)
+          : false;
         if (wasMarried) {
           const normalizedReason = (reason || '')
             .normalize('NFD')
@@ -1939,7 +1956,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
               },
             });
           }
-          const char = await characterService.findCharacter(characterId);
+          const char = originCharacter;
           const suggestion = await suggestionService.submitNewCharacterSuggestion(session.userId, {
             name: (suggestedName || characterName || char?.name || '').trim(),
             series: (suggestedSeries || series || char?.series || '').trim(),
@@ -1978,7 +1995,10 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
       } else if (type === 'RARITY') {
-        const wasMarried = characterId ? await suggestionService.wasCharacterEverMarried(characterId) : false;
+        const originCharacter = characterId ? await characterService.findCharacter(characterId) : null;
+        const wasMarried = (characterId && originCharacter?.baseRarity !== 'LEGENDARY')
+          ? await suggestionService.wasCharacterEverMarried(characterId)
+          : false;
         if (wasMarried) {
           const normalizedReason = (reason || '')
             .normalize('NFD')
@@ -2021,7 +2041,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
               },
             });
           }
-          const char = await characterService.findCharacter(characterId);
+          const char = originCharacter;
           const suggestion = await suggestionService.submitNewCharacterSuggestion(session.userId, {
             name: (characterName || char?.name || characterId).trim(),
             series: (series || char?.series || 'Indefinida').trim(),

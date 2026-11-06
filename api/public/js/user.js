@@ -57,6 +57,19 @@ function isLegendaryPhraseValid(str) {
   return normalizeLegendaryPhrase(str) === 'personagem casado criar versao lendaria';
 }
 
+// As travas de "personagem casado virando Lendário" (foto + frase + 30s) só se aplicam quando
+// existe upgrade real de raridade. Se o personagem JÁ é Lendário, o usuário está apenas
+// corrigindo dados do personagem: nenhuma verificação deve ser feita.
+function isCharacterAlreadyLegendary() {
+  return Boolean(activeSuggestCharacter) && (activeSuggestCharacter.baseRarity || '') === 'LEGENDARY';
+}
+
+function suggestMarriedGuardActive() {
+  if (!activeSuggestCharacter) return false;
+  if (isCharacterAlreadyLegendary()) return false;
+  return Boolean(activeSuggestCharacter.wasEverMarried);
+}
+
 function updateEditInfoSubmitButtonState() {
   const btn = document.getElementById('btn-submit-edit-info');
   if (!btn) return;
@@ -74,7 +87,7 @@ function updateEditInfoSubmitButtonState() {
   const reason = (document.getElementById('suggest-edit-reason')?.value || '').trim();
 
   const isReasonValid = reason.length >= 5;
-  const wasEverMarried = Boolean(activeSuggestCharacter.wasEverMarried);
+  const wasEverMarried = suggestMarriedGuardActive();
 
   if (wasEverMarried && suggestedRarity === 'LEGENDARY') {
     const phraseInput = document.getElementById('suggest-legendary-phrase-input')?.value || '';
@@ -3109,7 +3122,7 @@ async function openSuggestModal(charId, charName, currentRarity, preloadedChar =
   const editRarity = document.getElementById('suggest-edit-rarity');
   if (editRarity) {
     const legOption = editRarity.querySelector('option[value="LEGENDARY"]');
-    if (activeSuggestCharacter.wasEverMarried) {
+    if (suggestMarriedGuardActive()) {
       if (legOption) {
         legOption.textContent = '⭐ Lendário (Criar Novo Personagem)';
       }
@@ -3437,7 +3450,7 @@ function updateSuggestLegendaryMarriedBox() {
   if (!raritySelect || !box) return;
 
   const isLegendary = raritySelect.value === 'LEGENDARY';
-  const wasEverMarried = Boolean(activeSuggestCharacter?.wasEverMarried);
+  const wasEverMarried = suggestMarriedGuardActive();
 
   if (wasEverMarried && isLegendary) {
     box.classList.remove('hidden');
@@ -3472,7 +3485,7 @@ async function submitEditInfoSuggestion() {
     return;
   }
 
-  const wasEverMarried = Boolean(activeSuggestCharacter.wasEverMarried);
+  const wasEverMarried = suggestMarriedGuardActive();
   if (wasEverMarried && suggestedRarity !== 'LEGENDARY') {
     const normReason = reason.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const asksLegendary = /\b(lenda\w*|legend\w*|upgrade\w*|subir raridade|aumentar raridade|mudar raridade|virar lenda\w*|passar pra lenda\w*|bota.*lenda\w*|coloca.*lenda\w*|p[oõ]e.*lenda\w*)/i.test(normReason);

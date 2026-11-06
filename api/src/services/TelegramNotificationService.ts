@@ -263,8 +263,9 @@ export class TelegramNotificationService {
           { text: '🔵 Aceitar - Rare', callback_data: `sug_app_rar:${data.id}:RARE` },
           { text: '🟣 Aceitar - Epic', callback_data: `sug_app_rar:${data.id}:EPIC` },
         ]);
-        // Se o personagem já foi casado, a raridade máxima permitida para o mesmo é EPIC
-        if (!data.marriedUser) {
+        // Se o personagem já foi casado, a raridade máxima permitida para o mesmo é EPIC.
+        // Exceção: personagem que JÁ é Lendário não está sofrendo upgrade, o botão segue disponível.
+        if (!data.marriedUser || data.character?.baseRarity === 'LEGENDARY') {
           inlineKeyboard.push([
             { text: '🟡 Aceitar - Legendary', callback_data: `sug_app_rar:${data.id}:LEGENDARY` },
           ]);
