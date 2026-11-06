@@ -1573,6 +1573,7 @@ body.dark-mode .btn-card-report:hover {
 .waifu-card.soulmate-card > * {
   position: relative;
   z-index: 1;
+  box-shadow: 0px -3px 11px #c0148d;
 }
 
 .waifu-card.soulmate-card .card-img-wrapper {
