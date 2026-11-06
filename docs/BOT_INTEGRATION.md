@@ -198,10 +198,16 @@ Content-Type: application/json
   "success": true,
   "data": {
     "kakeraEarned": 150,
-    "newKakeraBalance": 520
+    "newKakeraBalance": 520,
+    "cancelledListings": 1
   }
 }
 ```
+
+> **Efeito colateral automático:** se o personagem estivesse anunciado nos classificados, o anúncio é
+> encerrado junto com o divórcio (`status = CANCELLED`) e as ofertas pendentes dele são canceladas
+> (com `cancelReason`; o comprador é avisado no próximo roll). `cancelledListings` indica quantos
+> anúncios foram encerrados — o bot pode citar isso na mensagem de divórcio.
 
 ---
 

@@ -1,4 +1,4 @@
-import { PrismaClient, Rarity } from '@prisma/client';
+import { PrismaClient, Prisma, Rarity, ListingStatus, OfferStatus } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { DomainError } from '../errors/DomainError.js';
 import { calculateDivorceRefund, getDailyDivorceRate } from '../utils/rarityCalculator.js';
@@ -112,6 +112,47 @@ export class DivorceService {
       }
     }
     return 1;
+  }
+
+  /**
+   * Remove (cancela) os anúncios ativos do personagem nos classificados quando o usuário perde a posse.
+   * Mantém o histórico para auditoria: o status vai para CANCELLED, e as ofertas pendentes são
+   * canceladas com notificação para os compradores no próximo roll (buyerNotifiedStatus).
+   * Deve rodar dentro da mesma transação do divórcio para garantir consistência.
+   */
+  private async cancelCharacterListings(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    characterId: string,
+    cancelReason: string
+  ): Promise<number> {
+    const listings = await tx.marketListing.findMany({
+      where: { userId, characterId, status: ListingStatus.ACTIVE },
+      select: { id: true },
+    });
+
+    if (listings.length === 0) {
+      return 0;
+    }
+
+    const listingIds = listings.map((l) => l.id);
+
+    await tx.marketOffer.updateMany({
+      where: { listingId: { in: listingIds }, status: OfferStatus.PENDING },
+      data: {
+        status: OfferStatus.CANCELLED,
+        cancelReason,
+        notifiedBuyer: false,
+        buyerNotifiedStatus: 'CANCELLED',
+      },
+    });
+
+    await tx.marketListing.updateMany({
+      where: { id: { in: listingIds } },
+      data: { status: ListingStatus.CANCELLED },
+    });
+
+    return listingIds.length;
   }
 
   private async getInflationMultiplier(): Promise<number> {
@@ -265,6 +306,8 @@ export class DivorceService {
     });
 
     // 5. Executar transação atômica
+    let cancelledListings = 0;
+
     const result = await this.prisma.$transaction(async (tx) => {
       // Remove do harém
       await tx.haremEntry.delete({
@@ -277,6 +320,14 @@ export class DivorceService {
           where: { id: soulmateRecord.id },
         });
       }
+
+      // Apaga o anúncio do personagem nos classificados (o usuário não é mais o dono)
+      cancelledListings = await this.cancelCharacterListings(
+        tx,
+        userId,
+        character.id,
+        'O divórcio encerrou o anúncio: o vendedor não possui mais este personagem.'
+      );
 
       // Decrementa claimCount de forma segura evitando valores negativos
       await tx.$executeRaw`
@@ -335,6 +386,7 @@ export class DivorceService {
         fullRefundKakera: refund.fullNetKakera,
         keysLost: keys - refund.remainingKeys,
         newKakeraBalance: result.kakera,
+        cancelledListings,
         isSoulmate,
         inflationMultiplier,
         dailyDivorceCount: currentDivorceNumber,
@@ -373,6 +425,8 @@ export class DivorceService {
       };
     }
 
+    let cancelledListings = 0;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.haremEntry.delete({
         where: { id: haremEntry.id },
@@ -385,6 +439,14 @@ export class DivorceService {
         },
       });
 
+      // Apaga o anúncio do personagem nos classificados (o usuário não é mais o dono)
+      cancelledListings = await this.cancelCharacterListings(
+        tx,
+        userId,
+        haremEntry.characterId,
+        'O anúncio foi encerrado: o vendedor não possui mais este personagem.'
+      );
+
       await tx.$executeRaw`
         UPDATE characters
         SET "claimCount" = GREATEST(0, "claimCount" - 1)
@@ -396,6 +458,7 @@ export class DivorceService {
       success: true,
       data: {
         message: `Personagem ${haremEntry.characterId} foi removido à força do harém de ${userId}.`,
+        cancelledListings,
       },
     };
   }
