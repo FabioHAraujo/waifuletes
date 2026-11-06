@@ -290,6 +290,99 @@ describe('📸 Ações de Foto (Adição vs Substituição) e Notificações no 
     expect(fallbackCalled).toBe(true);
     expect(fallbackText).toContain('Emilia');
   });
+
+  it('handleCallback com mr_del deve responder erro de armazenamento temporário se redis for undefined', async () => {
+    const service = new TelegramNotificationService(); // sem redis
+    (service as any).botToken = 'mock_bot_token';
+
+    let answeredText: string | null = null;
+    (service as any).answerCallback = async (id: string, text: string) => {
+      answeredText = text;
+    };
+
+    const callbackQuery = {
+      id: 'cb_query_mr_1',
+      data: 'mr_del:report_xyz:1',
+      from: { first_name: 'Mod', username: 'admin' },
+      message: { chat: { id: 777 }, message_id: 888 },
+    };
+
+    const mockSuggestionService = {
+      deactivateCharacter: vi.fn(),
+    };
+
+    await service.handleCallback(callbackQuery, mockSuggestionService);
+
+    expect(answeredText).toBe('Armazenamento temporário indisponível.');
+    expect(mockSuggestionService.deactivateCharacter).not.toHaveBeenCalled();
+  });
+
+  it('handleCallback com mr_del deve desativar personagem e persistir status quando redis estiver configurado', async () => {
+    const mockReportData = {
+      id: 'report_xyz',
+      source: 'Telegram Test',
+      slots: [
+        { slot: 1, characterId: 'char_100', characterName: 'Rem', removed: false },
+        { slot: 2, characterId: 'char_200', characterName: 'Ram', removed: false },
+      ],
+    };
+
+    let redisStore: Record<string, string> = {
+      'telegram:multireport:report_xyz:data': JSON.stringify(mockReportData),
+    };
+
+    const mockRedis = {
+      get: vi.fn(async (key: string) => redisStore[key] || null),
+      set: vi.fn(async (key: string, val: string) => {
+        redisStore[key] = val;
+      }),
+    };
+
+    const service = new TelegramNotificationService(mockRedis as any);
+    (service as any).botToken = 'mock_bot_token';
+
+    let answeredText: string | null = null;
+    let updatedMarkup: any = null;
+    let appendedMessageText: string | null = null;
+
+    (service as any).answerCallback = async (id: string, text: string) => {
+      answeredText = text;
+    };
+    (service as any).updateTelegramMessage = async (
+      chatId: any,
+      messageId: any,
+      message: any,
+      appendText: string,
+      newMarkup: any
+    ) => {
+      appendedMessageText = appendText;
+      updatedMarkup = newMarkup;
+    };
+
+    const callbackQuery = {
+      id: 'cb_query_mr_2',
+      data: 'mr_del:report_xyz:1',
+      from: { first_name: 'Mod', username: 'admin' },
+      message: { chat: { id: 777 }, message_id: 888 },
+    };
+
+    const mockSuggestionService = {
+      deactivateCharacter: vi.fn(async () => ({ success: true })),
+    };
+
+    await service.handleCallback(callbackQuery, mockSuggestionService);
+
+    expect(mockSuggestionService.deactivateCharacter).toHaveBeenCalledWith(
+      'char_100',
+      'Denúncia em multi-roll (Slot #1) via Telegram Test',
+      'telegram:Mod (@admin)'
+    );
+    expect(answeredText).toContain('Personagem #1 (Rem) removido!');
+    expect(mockRedis.set).toHaveBeenCalled();
+    const updatedData = JSON.parse(redisStore['telegram:multireport:report_xyz:data']);
+    expect(updatedData.slots[0].removed).toBe(true);
+    expect(updatedData.slots[1].removed).toBe(false);
+  });
 });
 
 describe('🤖 Prompt de IA e Classificação por Rank Mudae no RarityAdvisorService', () => {

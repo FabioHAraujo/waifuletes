@@ -6,7 +6,7 @@ import { CharacterService } from '../../services/CharacterService.js';
 export const telegramRoutes: FastifyPluginAsync = async (fastify) => {
   const characterService = new CharacterService(fastify.prisma, fastify.redis);
   const suggestionService = new SuggestionService(fastify.prisma, fastify.redis, characterService);
-  const telegramService = new TelegramNotificationService();
+  const telegramService = new TelegramNotificationService(fastify.redis);
 
   fastify.post('/api/telegram/webhook', {
     schema: {

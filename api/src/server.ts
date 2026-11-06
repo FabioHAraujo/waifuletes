@@ -306,7 +306,7 @@ async function start() {
     // Registra webhook do Telegram se configurado e URL pública válida
     try {
       const { TelegramNotificationService } = await import('./services/TelegramNotificationService.js');
-      const telegramService = new TelegramNotificationService();
+      const telegramService = new TelegramNotificationService(server.redis);
       if (telegramService.isConfigured && config.PUBLIC_BASE_URL.startsWith('https://')) {
         await telegramService.registerWebhook(config.PUBLIC_BASE_URL);
       }
