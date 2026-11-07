@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ListingStatus } from '@prisma/client';
 import { CharacterService } from './CharacterService.js';
 import { config } from '../config.js';
 
@@ -15,6 +15,11 @@ export class WishlistService {
         character: {
           include: {
             _count: { select: { wishlists: true } },
+            marketListings: {
+              where: { status: ListingStatus.ACTIVE },
+              select: { id: true },
+              take: 1,
+            },
             haremEntries: {
               take: 1,
               include: {
@@ -34,8 +39,9 @@ export class WishlistService {
       const isMarried = Boolean(haremEntry);
       const marriedTo = haremEntry?.user?.name || null;
       const marriedToPublicId = haremEntry?.user?.publicId || null;
+      const isForSale = Boolean(entry.character.marketListings && entry.character.marketListings.length > 0);
 
-      const { haremEntries, _count, ...charRest } = entry.character;
+      const { haremEntries, _count, marketListings, ...charRest } = entry.character;
 
       return {
         id: entry.id,
@@ -44,6 +50,7 @@ export class WishlistService {
         isMarried,
         marriedTo,
         marriedToPublicId,
+        isForSale,
         character: {
           ...charRest,
           wishlistCount: _count?.wishlists ?? 0,
@@ -52,6 +59,7 @@ export class WishlistService {
           isMarried,
           marriedTo,
           marriedToPublicId,
+          isForSale,
         },
       };
     });
@@ -160,6 +168,11 @@ export class WishlistService {
         character: {
           include: {
             _count: { select: { wishlists: true } },
+            marketListings: {
+              where: { status: ListingStatus.ACTIVE },
+              select: { id: true },
+              take: 1,
+            },
             haremEntries: {
               take: 1,
               include: {
@@ -179,7 +192,8 @@ export class WishlistService {
     const isMarried = Boolean(haremEntry);
     const marriedTo = haremEntry?.user?.name || null;
     const marriedToPublicId = haremEntry?.user?.publicId || null;
-    const { haremEntries, _count, ...charRest } = entry.character;
+    const isForSale = Boolean(entry.character.marketListings && entry.character.marketListings.length > 0);
+    const { haremEntries, _count, marketListings, ...charRest } = entry.character;
 
     return {
       success: true,
@@ -192,6 +206,7 @@ export class WishlistService {
           isMarried,
           marriedTo,
           marriedToPublicId,
+          isForSale,
           character: {
             ...charRest,
             wishlistCount: _count?.wishlists ?? 0,
@@ -200,6 +215,7 @@ export class WishlistService {
             isMarried,
             marriedTo,
             marriedToPublicId,
+            isForSale,
           },
         },
       },

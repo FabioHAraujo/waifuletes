@@ -334,6 +334,35 @@ body.dark-mode button[disabled] {
   pointer-events: auto !important;
 }
 
+/* Badge/Botão de À Venda (Destaque Verde na Wishlist) */
+.btn-retro.btn-for-sale,
+.btn-for-sale,
+button.btn-for-sale {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.5px !important;
+  cursor: default !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  text-shadow: 1px 1px 0 #047857 !important;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.4) !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+body.dark-mode .btn-retro.btn-for-sale,
+body.dark-mode .btn-for-sale,
+body.dark-mode button.btn-for-sale {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.5) !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
 .btn-primary {
   background: var(--primary-retro);
   color: #ffffff;

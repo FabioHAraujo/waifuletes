@@ -326,6 +326,54 @@ export class MarketService {
   }
 
   /**
+   * Retorna os anúncios ATIVOS cujos personagens estão na wishlist do usuário
+   */
+  async getWishlistListings(userId: string) {
+    const listings = await this.prisma.marketListing.findMany({
+      where: {
+        status: ListingStatus.ACTIVE,
+        character: {
+          wishlists: {
+            some: { userId },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: { id: true, name: true, publicId: true },
+        },
+        character: {
+          include: {
+            _count: {
+              select: { wishlists: true },
+            },
+            haremEntries: {
+              select: { userId: true, keys: true, isFavorite: true },
+            },
+          },
+        },
+      },
+    });
+
+    return listings.map((l) => {
+      const ownerHarem = (l.character as any).haremEntries?.find((h: any) => h.userId === l.userId);
+      const keys = ownerHarem?.keys || 1;
+      const isSoulmate = keys >= 10;
+      return {
+        ...l,
+        keys,
+        isSoulmate,
+        character: {
+          ...this.formatCharacter(l.character),
+          keys,
+          isSoulmate,
+        },
+      };
+    });
+  }
+
+  /**
    * Retorna todas as ofertas enviadas pelo usuário nos últimos 15 dias
    */
   async getUserSentOffers(buyerId: string) {

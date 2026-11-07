@@ -971,6 +971,7 @@ function setupEventListeners() {
 
   // Botão de atualizar mercado
   document.getElementById('btn-refresh-market')?.addEventListener('click', () => {
+    loadWishlistMarket();
     loadGlobalMarket();
   });
 
@@ -1161,6 +1162,15 @@ async function loadUserData() {
 
       loadCatalogCharacters();
       renderPrivateHarem(harem);
+
+      if (Array.isArray(userSessionData.wishlist)) {
+        window.marketWishlistCharIds = new Set(
+          userSessionData.wishlist
+            .filter(w => w.isForSale || w.character?.isForSale)
+            .map(w => w.character?.id || w.characterId)
+        );
+      }
+
       renderPrivateWishlist(userSessionData.wishlist || []);
       loadUserSuggestions();
       loadUserMythics();
@@ -2139,6 +2149,12 @@ function renderPrivateWishlist(wishlist) {
       const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
       const isMarried = Boolean(entry.isMarried || char.isMarried);
       const spouse = entry.marriedTo || char.marriedTo;
+      const isForSale = Boolean(
+        entry.isForSale ||
+        char.isForSale ||
+        (Array.isArray(char.marketListings) && char.marketListings.length > 0) ||
+        (window.marketWishlistCharIds && window.marketWishlistCharIds.has(char.id))
+      );
 
       const card = document.createElement('div');
       if (isMarried) {
@@ -2206,6 +2222,11 @@ function renderPrivateWishlist(wishlist) {
                 <i class="fas fa-lightbulb"></i> Sugerir
               </button>
             </div>
+            ${isForSale ? `
+              <button type="button" class="btn-retro btn-sm btn-for-sale" style="width: 100%; background: #10b981 !important; color: #ffffff !important; border-color: #059669 !important; font-weight: 900 !important; letter-spacing: 0.5px !important; cursor: default; pointer-events: none; text-shadow: 1px 1px 0 #047857; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.4) !important; padding: 5px 10px; margin-top: 2px;" tabindex="-1">
+                <i class="fas fa-tag"></i> À VENDA!
+              </button>
+            ` : ''}
           </div>
         </div>
       `;
@@ -3281,6 +3302,7 @@ async function toggleWishlist(charId, btn = null, event = null) {
 
       const wishTabCard = document.getElementById(`wish-card-${charId}`);
       if (wishTabCard) wishTabCard.remove();
+      if (window.marketWishlistCharIds) window.marketWishlistCharIds.delete(charId);
 
       Api.showToast('Personagem removido da sua Wishlist.', '🗑️');
     } else {
@@ -3296,6 +3318,12 @@ async function toggleWishlist(charId, btn = null, event = null) {
         return;
       }
 
+      const isForSale = Boolean(res.data?.entry?.isForSale || res.data?.entry?.character?.isForSale);
+      if (isForSale) {
+        if (!window.marketWishlistCharIds) window.marketWishlistCharIds = new Set();
+        window.marketWishlistCharIds.add(charId);
+      }
+
       if (auth.isOwner && userSessionData) {
         if (!Array.isArray(userSessionData.wishlist)) {
           userSessionData.wishlist = [];
@@ -3304,7 +3332,8 @@ async function toggleWishlist(charId, btn = null, event = null) {
           id: res.data?.entry?.id || charId,
           characterId: charId,
           isStarWish: false,
-          character: res.data?.entry?.character || { id: charId },
+          isForSale,
+          character: res.data?.entry?.character || { id: charId, isForSale },
         });
         const countEl = document.getElementById('wishlist-count');
         if (countEl) countEl.textContent = userSessionData.wishlist.length;
@@ -3450,6 +3479,7 @@ async function removeFromWishlist(charId) {
     Api.showToast('Personagem removido da Wishlist.', '🗑️');
     const card = document.getElementById(`wish-card-${charId}`);
     if (card) card.remove();
+    if (window.marketWishlistCharIds) window.marketWishlistCharIds.delete(charId);
 
     userSessionData.wishlist = (userSessionData.wishlist || []).filter(w => (w.character?.id || w.characterId) !== charId);
     const countEl = document.getElementById('wishlist-count');
@@ -4886,6 +4916,7 @@ async function confirmPublishListing() {
       closeModal('modal-market-sell');
       Api.showToast('Personagem anunciado nos classificados com sucesso!', '✨');
       loadMyListings();
+      loadWishlistMarket();
       loadGlobalMarket();
       updateMarketPendingBadge();
     } else {
@@ -4925,6 +4956,7 @@ async function updateMarketPendingBadge() {
 
 function loadMarketTab() {
   loadMyListings();
+  loadWishlistMarket();
   loadGlobalMarket();
   loadMySentOffers();
 }
@@ -5001,6 +5033,7 @@ async function cancelMyListing(listingId) {
     if (res.success) {
       Api.showToast('Anúncio cancelado com sucesso.', 'ℹ️');
       loadMyListings();
+      loadWishlistMarket();
       loadGlobalMarket();
       updateMarketPendingBadge();
     } else {
@@ -5156,6 +5189,104 @@ async function rejectMarketOffer(offerId, listingId, characterName) {
   }
 }
 
+function createMarketListingCard(listing) {
+  const char = listing.character;
+  const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
+  const sellerName = listing.user?.name || 'Jogador';
+  const isOwnListing = Boolean(userSessionData && listing.user?.publicId === userSessionData.publicId);
+
+  const card = document.createElement('div');
+  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
+  card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+
+  const keys = listing.keys || char.keys || 1;
+  const isSoulmate = Boolean(listing.isSoulmate || char.isSoulmate || keys >= 10);
+  const keysBadgeHtml = isSoulmate
+    ? `<div class="badge-keys" style="background: #ec4899; color: white; border-color: #f472b6;" title="💖 Soulmate (${keys} chaves)"><span>💖</span> <span>${keys}</span></div>`
+    : `<div class="badge-keys" title="🔑 ${keys} chave(s)"><span>🔑</span> <span>${keys}</span></div>`;
+
+  card.innerHTML = `
+    <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes">
+      <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+      <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
+        ${rarity.emoji} ${rarity.label}
+      </div>
+      ${keysBadgeHtml}
+      ${isOwnListing ? `<div class="badge-married" style="background: #3b82f6; color: white; top: 8px; left: 8px;">SEU ANÚNCIO</div>` : ''}
+    </div>
+    <div class="card-info">
+      <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
+      <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+        <i class="fas fa-user-tag"></i> Vendedor: <strong>${escapeHtml(sellerName)}</strong>
+      </div>
+      <div style="background: var(--bg-retro-accent); padding: 6px 8px; border-radius: 4px; font-size: 12px; margin: 8px 0; border: var(--border-retro);">
+        <strong style="color: #f59e0b;"><i class="fas fa-search"></i> Procura:</strong> ${escapeHtml(listing.interest)}
+      </div>
+      <div class="card-actions" style="margin-top: 8px;">
+        ${isOwnListing ? `
+          <button class="btn-retro btn-sm" style="width: 100%; opacity: 0.8;" disabled>
+            <i class="fas fa-check"></i> Seu Personagem
+          </button>
+        ` : `
+          <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="openOfferModal('${listing.id}', '${escapeAttr(char.name)}', '${getCharImg(char)}', '${escapeAttr(listing.interest)}')">
+            <i class="fas fa-handshake"></i> Fazer Oferta
+          </button>
+        `}
+      </div>
+    </div>
+  `;
+
+  const imgEl = card.querySelector('.card-img-wrapper img');
+  if (imgEl && Array.isArray(char.imageUrls) && char.imageUrls.length > 1) {
+    initCardSlideshow(card, imgEl, char.imageUrls, false);
+  }
+
+  return card;
+}
+
+let marketWishlistListings = [];
+
+async function loadWishlistMarket() {
+  const section = document.getElementById('section-market-wishlist');
+  const grid = document.getElementById('market-wishlist-grid');
+  if (!section || !grid) return;
+
+  if (!userSessionToken || !userPublicId) {
+    section.classList.add('hidden');
+    grid.innerHTML = '';
+    return;
+  }
+
+  try {
+    const res = await Api.get(`/api/web/user/${encodeURIComponent(userPublicId)}/market/wishlist-listings?token=${encodeURIComponent(userSessionToken)}`);
+    if (!res.success || !Array.isArray(res.data) || res.data.length === 0) {
+      section.classList.add('hidden');
+      grid.innerHTML = '';
+      marketWishlistListings = [];
+      return;
+    }
+
+    marketWishlistListings = res.data;
+    if (!window.marketWishlistCharIds) window.marketWishlistCharIds = new Set();
+    marketWishlistListings.forEach(l => {
+      if (l.characterId) window.marketWishlistCharIds.add(l.characterId);
+      if (l.character?.id) window.marketWishlistCharIds.add(l.character.id);
+    });
+
+    grid.innerHTML = '';
+    marketWishlistListings.forEach(listing => {
+      grid.appendChild(createMarketListingCard(listing));
+    });
+
+    section.classList.remove('hidden');
+  } catch (err) {
+    console.error('Erro ao carregar wishlist nos classificados:', err);
+    section.classList.add('hidden');
+    grid.innerHTML = '';
+  }
+}
+
 async function loadGlobalMarket() {
   const grid = document.getElementById('global-market-grid');
   if (!grid) return;
@@ -5189,53 +5320,7 @@ async function loadGlobalMarket() {
 
     grid.innerHTML = '';
     listings.forEach(listing => {
-      const char = listing.character;
-      const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
-      const sellerName = listing.user?.name || 'Jogador';
-      const isOwnListing = Boolean(userSessionData && listing.user?.publicId === userSessionData.publicId);
-
-      const card = document.createElement('div');
-      card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
-      card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
-
-      const keys = listing.keys || char.keys || 1;
-      const isSoulmate = Boolean(listing.isSoulmate || char.isSoulmate || keys >= 10);
-      const keysBadgeHtml = isSoulmate
-        ? `<div class="badge-keys" style="background: #ec4899; color: white; border-color: #f472b6;" title="💖 Soulmate (${keys} chaves)"><span>💖</span> <span>${keys}</span></div>`
-        : `<div class="badge-keys" title="🔑 ${keys} chave(s)"><span>🔑</span> <span>${keys}</span></div>`;
-
-      card.innerHTML = `
-        <div class="card-img-wrapper">
-          <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-          <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
-            ${rarity.emoji} ${rarity.label}
-          </div>
-          ${keysBadgeHtml}
-          ${isOwnListing ? `<div class="badge-married" style="background: #3b82f6; color: white; top: 8px; left: 8px;">SEU ANÚNCIO</div>` : ''}
-        </div>
-        <div class="card-info">
-          <div class="card-name">${escapeHtml(char.name)}</div>
-          <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
-          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-            <i class="fas fa-user-tag"></i> Vendedor: <strong>${escapeHtml(sellerName)}</strong>
-          </div>
-          <div style="background: var(--bg-retro-accent); padding: 6px 8px; border-radius: 4px; font-size: 12px; margin: 8px 0; border: var(--border-retro);">
-            <strong style="color: #f59e0b;"><i class="fas fa-search"></i> Procura:</strong> ${escapeHtml(listing.interest)}
-          </div>
-          <div class="card-actions" style="margin-top: 8px;">
-            ${isOwnListing ? `
-              <button class="btn-retro btn-sm" style="width: 100%; opacity: 0.8;" disabled>
-                <i class="fas fa-check"></i> Seu Personagem
-              </button>
-            ` : `
-              <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="openOfferModal('${listing.id}', '${escapeAttr(char.name)}', '${getCharImg(char)}', '${escapeAttr(listing.interest)}')">
-                <i class="fas fa-handshake"></i> Fazer Oferta
-              </button>
-            `}
-          </div>
-        </div>
-      `;
-      grid.appendChild(card);
+      grid.appendChild(createMarketListingCard(listing));
     });
   } catch (err) {
     grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 28px; color: var(--accent-red);">Erro ao carregar classificados globais.</div>';

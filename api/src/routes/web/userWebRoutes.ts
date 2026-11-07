@@ -2199,6 +2199,42 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * Lista anúncios ativos de waifus que estão na wishlist do usuário logado
+   */
+  fastify.get('/api/web/user/:publicId/market/wishlist-listings', {
+    schema: {
+      tags: ['Mercado (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+      },
+      querystring: {
+        type: 'object',
+        required: ['token'],
+        properties: { token: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const { token } = request.query as { token: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const listings = await marketService.getWishlistListings(session.userId);
+      return reply.send({ success: true, data: listings });
+    },
+  });
+
+  /**
    * Lista pública dos anúncios ativos de um usuário específico (sem token)
    */
   fastify.get('/api/web/user/:publicId/market/user-listings', {

@@ -479,6 +479,18 @@
           </div>
         </div>
 
+        <!-- Seção: Wishlist nos Classificados (Exibida somente se houver personagens da wishlist anunciados) -->
+        <div id="section-market-wishlist" class="hidden" style="margin-bottom: 28px;">
+          <div class="retro-divider" style="margin: 32px 0 20px 0; display: flex; align-items: center; gap: 14px;">
+            <div style="flex: 1; height: 3px; background: var(--border-color, #2d241e);"></div>
+            <span style="font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #ec4899; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-heart"></i> Wishlist nos Classificados
+            </span>
+            <div style="flex: 1; height: 3px; background: var(--border-color, #2d241e);"></div>
+          </div>
+          <div id="market-wishlist-grid" class="waifu-grid"></div>
+        </div>
+
         <!-- Divisor Retrô Pixel-Art -->
         <div class="retro-divider" style="margin: 32px 0; display: flex; align-items: center; gap: 14px;">
           <div style="flex: 1; height: 3px; background: var(--border-color, #2d241e);"></div>
@@ -1712,6 +1724,6 @@
 
   <script src="/vendor/cropper.min.js"></script>
   <script src="/js/api.js?v=20261107-harem-layout-opt"></script>
-  <script src="/js/user.js?v=20261107-wishlist-count-fix"></script>
+  <script src="/js/user.js?v=20261107-market-wishlist"></script>
 </body>
 </html>
