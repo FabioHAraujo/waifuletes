@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { config } from '../config.js';
 import { DomainError } from '../errors/DomainError.js';
+import { optimizeImageUnder1Mb, MAX_IMAGE_UPLOAD_BYTES } from '../utils/imageOptimizer.js';
 import { CharacterService, slugify } from './CharacterService.js';
 import { TelegramNotificationService } from './TelegramNotificationService.js';
 import { NotificationService } from './NotificationService.js';
@@ -387,12 +388,16 @@ export class SuggestionService {
       const suggestionId = randomUUID();
 
       if (imageBuffer && imageBuffer.length > 0) {
-        const fileName = `${suggestionId}.png`;
+        if (imageBuffer.length > MAX_IMAGE_UPLOAD_BYTES) {
+          throw new DomainError('PAYLOAD_TOO_LARGE', 'A imagem enviada é muito grande! Compacte ela antes', 413);
+        }
+        const optimized = await optimizeImageUnder1Mb(imageBuffer);
+        const fileName = `${suggestionId}.${optimized.ext}`;
         const suggestionsDir = path.resolve(config.MEDIA_DIR, 'suggestions');
 
         await fs.mkdir(suggestionsDir, { recursive: true });
         const filePath = path.join(suggestionsDir, fileName);
-        await fs.writeFile(filePath, imageBuffer);
+        await fs.writeFile(filePath, optimized.buffer);
 
         relPath = `suggestions/${fileName}`;
       }
@@ -653,11 +658,15 @@ export class SuggestionService {
       const suggestionId = randomUUID();
 
       if (data.imageBuffer && data.imageBuffer.length > 0) {
-        const fileName = `${suggestionId}.png`;
+        if (data.imageBuffer.length > MAX_IMAGE_UPLOAD_BYTES) {
+          throw new DomainError('PAYLOAD_TOO_LARGE', 'A imagem enviada é muito grande! Compacte ela antes', 413);
+        }
+        const optimized = await optimizeImageUnder1Mb(data.imageBuffer);
+        const fileName = `${suggestionId}.${optimized.ext}`;
         const suggestionsDir = path.resolve(config.MEDIA_DIR, 'suggestions');
         await fs.mkdir(suggestionsDir, { recursive: true });
         const filePath = path.join(suggestionsDir, fileName);
-        await fs.writeFile(filePath, data.imageBuffer);
+        await fs.writeFile(filePath, optimized.buffer);
         relPath = `suggestions/${fileName}`;
       }
 

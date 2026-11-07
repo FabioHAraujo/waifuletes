@@ -17,6 +17,7 @@ import { CollectionService } from '../../services/CollectionService.js';
 import { UserService } from '../../services/UserService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
+import { optimizeImageUnder1Mb, MAX_IMAGE_UPLOAD_BYTES } from '../../utils/imageOptimizer.js';
 import { config } from '../../config.js';
 import { Rarity, Gender } from '@prisma/client';
 
@@ -2874,12 +2875,15 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
       if (trimmed.startsWith('data:image/')) {
         const match = trimmed.match(/^data:image\/(\w+);base64,(.+)$/);
         if (match) {
-          const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-          const buffer = Buffer.from(match[2], 'base64');
+          const rawBuffer = Buffer.from(match[2], 'base64');
+          if (rawBuffer.length > MAX_IMAGE_UPLOAD_BYTES) {
+            throw new DomainError('PAYLOAD_TOO_LARGE', 'A imagem enviada é muito grande! Compacte ela antes', 413);
+          }
+          const optimized = await optimizeImageUnder1Mb(rawBuffer);
           await fs.mkdir(uploadsDir, { recursive: true });
-          const fileName = `${Date.now()}_${i}.${ext}`;
+          const fileName = `${Date.now()}_${i}.${optimized.ext}`;
           const filePath = path.join(uploadsDir, fileName);
-          await fs.writeFile(filePath, buffer);
+          await fs.writeFile(filePath, optimized.buffer);
           result.push(`uploads/characters/${charId}/${fileName}`);
           continue;
         }

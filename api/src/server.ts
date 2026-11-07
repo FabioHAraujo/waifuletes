@@ -42,6 +42,7 @@ import { externalCatalogRoutes } from './routes/external/externalCatalogRoutes.j
 
 const fastify = Fastify({
   trustProxy: true,
+  bodyLimit: 75 * 1024 * 1024, // 75MB para permitir envio de fotos de personagens e míticos
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
     redact: ['req.headers.authorization', 'req.headers["x-api-key"]'],
@@ -186,6 +187,16 @@ async function buildServer() {
 
   // Tratamento global de erros
   fastify.setErrorHandler((error, request, reply) => {
+    if (error.statusCode === 413 || (error as any).code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+      return reply.status(413).send({
+        success: false,
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'A imagem enviada é muito grande! Compacte ela antes',
+        },
+      });
+    }
+
     if (error instanceof DomainError) {
       return reply.status(error.statusCode).send({
         success: false,

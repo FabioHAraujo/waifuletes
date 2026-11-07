@@ -181,6 +181,11 @@ function setupAdminEvents() {
   editFileInput.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      Api.showToast('A imagem enviada é muito grande! Compacte ela antes', '⚠️');
+      editFileInput.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {

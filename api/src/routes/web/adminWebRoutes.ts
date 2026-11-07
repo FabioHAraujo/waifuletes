@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../../config.js';
+import { optimizeImageUnder1Mb, MAX_IMAGE_UPLOAD_BYTES } from '../../utils/imageOptimizer.js';
 import { WebSessionService } from '../../services/WebSessionService.js';
 import { SuggestionService } from '../../services/SuggestionService.js';
 import { CharacterService } from '../../services/CharacterService.js';
@@ -334,12 +335,19 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
         : [...character.imageUrls];
 
       if (newImageBuffer && newImageBuffer.length > 0) {
+        if (newImageBuffer.length > MAX_IMAGE_UPLOAD_BYTES) {
+          return reply.status(413).send({
+            success: false,
+            error: { code: 'PAYLOAD_TOO_LARGE', message: 'A imagem enviada é muito grande! Compacte ela antes' },
+          });
+        }
+        const optimized = await optimizeImageUnder1Mb(newImageBuffer);
         const uploadsDir = path.resolve(config.MEDIA_DIR, 'uploads', 'characters', character.id);
         await fs.mkdir(uploadsDir, { recursive: true });
 
-        const fileName = `${Date.now()}_default.png`;
+        const fileName = `${Date.now()}_default.${optimized.ext}`;
         const filePath = path.join(uploadsDir, fileName);
-        await fs.writeFile(filePath, newImageBuffer);
+        await fs.writeFile(filePath, optimized.buffer);
 
         const relPath = `uploads/characters/${character.id}/${fileName}`;
         if (photoAction === 'REPLACE' && targetPhoto) {

@@ -163,15 +163,32 @@ const CharacterPage = {
 
     // Raridade
     const rarityEl = document.getElementById('char-rarity');
-    const rConfig = RARITY_CONFIG[cRarity] || RARITY_CONFIG.COMMON;
+    const isMythic = Boolean(c.isMythic || c.rarity === 'MYTHIC' || c.baseRarity === 'MYTHIC');
     if (rarityEl) {
-      rarityEl.innerHTML = `<span style="color:${rConfig.color}; font-weight:800;">${rConfig.emoji} ${rConfig.label}</span>`;
+      if (isMythic) {
+        rarityEl.innerHTML = `<span class="badge-rarity" style="position: static; display: inline-block; background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6); padding: 4px 10px; border-radius: 4px;">🔮 MÍTICO</span>`;
+      } else {
+        const rConfig = RARITY_CONFIG[cRarity] || RARITY_CONFIG.COMMON;
+        rarityEl.innerHTML = `<span style="color:${rConfig.color}; font-weight:800;">${rConfig.emoji} ${rConfig.label}</span>`;
+      }
     }
 
     // Linha de Casamento
     const marriageEl = document.getElementById('char-marriage-line');
     if (marriageEl) {
-      if (isClaimed) {
+      if (isMythic) {
+        const creator = c.creator || c.creatorUser;
+        const creatorName = creator?.name || cOwner?.name || 'Apoiador';
+        const creatorPublicId = creator?.publicId || cOwner?.publicId || null;
+        const creatorLink = creatorPublicId
+          ? `<a href="/user/${creatorPublicId}" target="_blank" style="color: #facc15; text-decoration: underline; font-weight: 800;">${escapeHtml(creatorName)}</a>`
+          : `<span style="color: #facc15; font-weight: 800;">${escapeHtml(creatorName)}</span>`;
+
+        marriageEl.innerHTML = `
+          <div style="margin-bottom: 6px;"><span style="color: #c084fc; font-weight: 800;">🔮 Forjado por:</span> ${creatorLink}</div>
+          <div style="font-size: 13px; color: #ec4899; font-weight: 700;">💍 Eternamente Casada(o) com ${creatorLink}</div>
+        `;
+      } else if (isClaimed) {
         const ownerName = cOwner?.name || (typeof cOwner === 'string' ? cOwner : 'Outro jogador');
         const ownerPublicId = cOwner?.publicId || null;
         if (ownerPublicId) {
@@ -235,6 +252,14 @@ const CharacterPage = {
     const authActionsEl = document.getElementById('char-actions-authenticated');
     const unauthBox = document.getElementById('char-unauth-box');
 
+    const isMythic = Boolean(this.charData?.isMythic || this.charData?.rarity === 'MYTHIC' || this.charData?.baseRarity === 'MYTHIC');
+
+    // Botão de Wishlist (oculto para Míticos)
+    const btnWishEl = document.getElementById('btn-char-wish');
+    if (btnWishEl) {
+      btnWishEl.style.display = isMythic ? 'none' : '';
+    }
+
     if (!this.isAuthenticated) {
       // MODO NÃO AUTENTICADO: Sem botões de ação que exigem autenticação
       authActionsEl.classList.add('hidden');
@@ -245,9 +270,11 @@ const CharacterPage = {
       document.getElementById('btn-char-like').onclick = () => {
         Api.showToast('Conecte sua conta com a Ravena AI para curtir personagens!', '🔒');
       };
-      document.getElementById('btn-char-wish').onclick = () => {
-        Api.showToast('Conecte sua conta com a Ravena AI para adicionar waifus à wishlist!', '🔒');
-      };
+      if (btnWishEl) {
+        btnWishEl.onclick = () => {
+          Api.showToast('Conecte sua conta com a Ravena AI para adicionar waifus à wishlist!', '🔒');
+        };
+      }
       return;
     }
 
@@ -279,6 +306,11 @@ const CharacterPage = {
       haremBtn.style.cssText = 'text-decoration: none; font-weight: 800;';
       haremBtn.innerHTML = '<i class="fas fa-ring"></i> Gerenciar no Meu Harém';
       authActionsEl.appendChild(haremBtn);
+    } else if (isMythic) {
+      const mythicNotice = document.createElement('div');
+      mythicNotice.style.cssText = 'font-size: 13px; font-weight: 800; color: #facc15; background: rgba(168, 85, 247, 0.2); border: 1.5px solid #a855f7; border-radius: 6px; padding: 10px; text-align: center;';
+      mythicNotice.innerHTML = '🔮 Criação Mítica forjada por um apoiador lendário da Ravena AI.';
+      authActionsEl.appendChild(mythicNotice);
     } else {
       if (isClaimed) {
         // Cobiçar
