@@ -203,21 +203,29 @@ export class UserService {
       throw new Error('INVALID_AMOUNT');
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { mythicSlots: { increment: amount } },
+    const cleanUserId = userId.includes('@') ? userId.split('@')[0].split(':')[0] : userId;
+
+    const updatedUser = await this.prisma.user.upsert({
+      where: { id: cleanUserId },
+      create: {
+        id: cleanUserId,
+        name: cleanUserId,
+        platform: 'WHATSAPP',
+        mythicSlots: amount,
+      },
+      update: { mythicSlots: { increment: amount } },
       select: { id: true, name: true, mythicSlots: true },
     });
 
     const usedSlots = await this.prisma.character.count({
-      where: { creatorUserId: userId, isMythic: true },
+      where: { creatorUserId: cleanUserId, isMythic: true },
     });
 
     // Registra notificação para o usuário informando sobre os novos slots
     try {
       await this.prisma.userNotification.create({
         data: {
-          userId,
+          userId: cleanUserId,
           type: 'SYSTEM',
           title: '🔮 Novo(s) Slot(s) de Mítico Liberado(s)!',
           message: `Você recebeu +${amount} slot(s) de criação mítica${reason ? ` (${reason})` : ''}. Acesse a aba Míticos para forjar sua lenda!`,
@@ -237,15 +245,16 @@ export class UserService {
   }
 
   async getMythicSlots(userId: string) {
+    const cleanUserId = userId.includes('@') ? userId.split('@')[0].split(':')[0] : userId;
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: cleanUserId },
       select: { id: true, mythicSlots: true },
     });
 
     if (!user) return null;
 
     const usedSlots = await this.prisma.character.count({
-      where: { creatorUserId: userId, isMythic: true },
+      where: { creatorUserId: cleanUserId, isMythic: true },
     });
 
     return {

@@ -339,7 +339,7 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
     },
   });
 
-  fastify.post('/user/:userId/mythic-slots', {
+  const addMythicSlotsRoute = {
     preHandler: verifyApiKey,
     schema: {
       description: 'Adiciona slots de personagens míticos para o usuário (concedido via doações/Ravena-AI)',
@@ -360,7 +360,7 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     },
-    handler: async (request, reply) => {
+    handler: async (request: any, reply: any) => {
       const { userId } = request.params as { userId: string };
       const { amount, reason } = request.body as { amount: number; reason?: string; donateValue?: number };
 
@@ -383,7 +383,10 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
     },
-  });
+  };
+
+  fastify.post('/user/:userId/mythic-slots', addMythicSlotsRoute);
+  fastify.post('/api/private/users/:userId/mythic-slots', addMythicSlotsRoute);
 
   fastify.get('/user/:userId/mythic-slots', {
     preHandler: verifyApiKey,

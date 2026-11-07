@@ -383,38 +383,43 @@ export class RollService {
 
       if (isClaimed) {
         if (isOwner) {
-          // Dono rolou o próprio personagem -> +1 Key
-          const updatedHarem = await this.prisma.haremEntry.update({
-            where: { id: existingHaremEntry.id },
-            data: { keys: { increment: 1 } },
-          });
+          if (chosen.isMythic) {
+            // Personagens Míticos possuem devoção eterna e não acumulam chaves nem viram soulmate
+            keyProgress = null;
+          } else {
+            // Dono rolou o próprio personagem -> +1 Key
+            const updatedHarem = await this.prisma.haremEntry.update({
+              where: { id: existingHaremEntry.id },
+              data: { keys: { increment: 1 } },
+            });
 
-          const newKeys = updatedHarem.keys;
-          let becameSoulmate = false;
+            const newKeys = updatedHarem.keys;
+            let becameSoulmate = false;
 
-          if (newKeys >= config.SOULMATE_KEYS_REQUIRED) {
-            await this.prisma.soulmate.upsert({
-              where: {
-                userId_characterId: {
+            if (newKeys >= config.SOULMATE_KEYS_REQUIRED) {
+              await this.prisma.soulmate.upsert({
+                where: {
+                  userId_characterId: {
+                    userId,
+                    characterId: chosen.id,
+                  },
+                },
+                create: {
                   userId,
                   characterId: chosen.id,
                 },
-              },
-              create: {
-                userId,
-                characterId: chosen.id,
-              },
-              update: {},
-            });
-            becameSoulmate = true;
-          }
+                update: {},
+              });
+              becameSoulmate = true;
+            }
 
-          keyProgress = {
-            currentKeys: newKeys,
-            requiredForSoulmate: config.SOULMATE_KEYS_REQUIRED,
-            isSoulmate: newKeys >= config.SOULMATE_KEYS_REQUIRED,
-            becameSoulmateNow: becameSoulmate && newKeys === config.SOULMATE_KEYS_REQUIRED,
-          };
+            keyProgress = {
+              currentKeys: newKeys,
+              requiredForSoulmate: config.SOULMATE_KEYS_REQUIRED,
+              isSoulmate: newKeys >= config.SOULMATE_KEYS_REQUIRED,
+              becameSoulmateNow: becameSoulmate && newKeys === config.SOULMATE_KEYS_REQUIRED,
+            };
+          }
         } else {
           // Outro usuário é dono -> cristal de kakera
           const crystalBase = KAKERA_CRYSTAL_BASE[chosen.baseRarity] ?? 10;
