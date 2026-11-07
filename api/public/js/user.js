@@ -2171,8 +2171,8 @@ function renderPrivateWishlist(wishlist) {
           </div>
           ${marriedBadgeHtml}
           ${entry.isStarWish ? '<div class="badge-married" title="Starwish!">⭐</div>' : ''}
-          <div class="badge-wishes" data-char-id="${char.id}" title="Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para remover da Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
-            <span>✨</span> <span>${char.wishlistCount || 0}</span>
+          <div class="badge-wishes is-in-wishlist" data-char-id="${char.id}" title="Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para remover da Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
+            <span>⭐</span> <span class="wishes-count">${char.wishlistCount || 0}</span>
           </div>
           <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
             <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
@@ -3304,7 +3304,7 @@ async function toggleWishlist(charId, btn = null, event = null) {
           id: res.data?.entry?.id || charId,
           characterId: charId,
           isStarWish: false,
-          character: { id: charId },
+          character: res.data?.entry?.character || { id: charId },
         });
         const countEl = document.getElementById('wishlist-count');
         if (countEl) countEl.textContent = userSessionData.wishlist.length;
@@ -3321,7 +3321,7 @@ async function toggleWishlist(charId, btn = null, event = null) {
             id: res.data?.entry?.id || charId,
             characterId: charId,
             isStarWish: false,
-            character: { id: charId },
+            character: res.data?.entry?.character || { id: charId },
           });
         }
       }

@@ -53,7 +53,11 @@ export class HaremService {
         take,
         orderBy,
         include: {
-          character: true,
+          character: {
+            include: {
+              _count: { select: { wishlists: true } },
+            },
+          },
           collection: true,
         },
       }),
@@ -70,25 +74,29 @@ export class HaremService {
       page: limit > 0 ? page : 1,
       limit: limit > 0 ? limit : total,
       totalPages: limit > 0 ? Math.ceil(total / limit) : 1,
-      data: entries.map((e) => ({
-        id: e.id,
-        claimedAt: e.claimedAt,
-        claimedInGroup: e.claimedInGroup,
-        keys: e.keys,
-        isFavorite: e.isFavorite,
-        note: e.note,
-        collectionId: e.collectionId || null,
-        collection: e.collection
-          ? { id: e.collection.id, name: e.collection.name, isPrivate: e.collection.isPrivate }
-          : null,
-        pinnedPhoto: e.pinnedPhoto || null,
-        isSoulmate: (e.keys ?? 1) >= 10 || soulmateSet.has(e.characterId),
-        character: {
-          ...e.character,
-          imageUrl: this.resolveCardImageUrl(e.character.id, e.character.imageUrls, e.pinnedPhoto),
-          imageUrls: e.character.imageUrls.map((img) => this.characterService.formatImageUrl(e.character.id, img)),
-        },
-      })),
+      data: entries.map((e) => {
+        const { _count, ...charRest } = e.character;
+        return {
+          id: e.id,
+          claimedAt: e.claimedAt,
+          claimedInGroup: e.claimedInGroup,
+          keys: e.keys,
+          isFavorite: e.isFavorite,
+          note: e.note,
+          collectionId: e.collectionId || null,
+          collection: e.collection
+            ? { id: e.collection.id, name: e.collection.name, isPrivate: e.collection.isPrivate }
+            : null,
+          pinnedPhoto: e.pinnedPhoto || null,
+          isSoulmate: (e.keys ?? 1) >= 10 || soulmateSet.has(e.characterId),
+          character: {
+            ...charRest,
+            wishlistCount: _count?.wishlists ?? 0,
+            imageUrl: this.resolveCardImageUrl(e.character.id, e.character.imageUrls, e.pinnedPhoto),
+            imageUrls: e.character.imageUrls.map((img) => this.characterService.formatImageUrl(e.character.id, img)),
+          },
+        };
+      }),
     };
   }
 

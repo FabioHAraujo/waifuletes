@@ -14,6 +14,7 @@ export class WishlistService {
       include: {
         character: {
           include: {
+            _count: { select: { wishlists: true } },
             haremEntries: {
               take: 1,
               include: {
@@ -34,7 +35,7 @@ export class WishlistService {
       const marriedTo = haremEntry?.user?.name || null;
       const marriedToPublicId = haremEntry?.user?.publicId || null;
 
-      const { haremEntries, ...charRest } = entry.character;
+      const { haremEntries, _count, ...charRest } = entry.character;
 
       return {
         id: entry.id,
@@ -45,6 +46,7 @@ export class WishlistService {
         marriedToPublicId,
         character: {
           ...charRest,
+          wishlistCount: _count?.wishlists ?? 0,
           imageUrl: this.characterService.getRandomImageUrl(entry.character.id, entry.character.imageUrls),
           imageUrls: entry.character.imageUrls.map((img) => this.characterService.formatImageUrl(entry.character.id, img)),
           isMarried,
@@ -154,15 +156,52 @@ export class WishlistService {
       update: {
         isStarWish,
       },
+      include: {
+        character: {
+          include: {
+            _count: { select: { wishlists: true } },
+            haremEntries: {
+              take: 1,
+              include: {
+                user: {
+                  select: { id: true, name: true, publicId: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     this.characterService.updateCharacterScore(character.id).catch(() => {});
+
+    const haremEntry = entry.character.haremEntries?.[0];
+    const isMarried = Boolean(haremEntry);
+    const marriedTo = haremEntry?.user?.name || null;
+    const marriedToPublicId = haremEntry?.user?.publicId || null;
+    const { haremEntries, _count, ...charRest } = entry.character;
 
     return {
       success: true,
       data: {
         message: `${character.name} foi adicionada(o) à sua Wishlist! ${isStarWish ? '⭐ (Starwish)' : '💖'}`,
-        entry,
+        entry: {
+          id: entry.id,
+          isStarWish: entry.isStarWish,
+          addedAt: entry.addedAt,
+          isMarried,
+          marriedTo,
+          marriedToPublicId,
+          character: {
+            ...charRest,
+            wishlistCount: _count?.wishlists ?? 0,
+            imageUrl: this.characterService.getRandomImageUrl(entry.character.id, entry.character.imageUrls),
+            imageUrls: entry.character.imageUrls.map((img) => this.characterService.formatImageUrl(entry.character.id, img)),
+            isMarried,
+            marriedTo,
+            marriedToPublicId,
+          },
+        },
       },
     };
   }
