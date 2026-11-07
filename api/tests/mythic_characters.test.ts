@@ -6,6 +6,7 @@ import { DivorceService } from '../src/services/DivorceService.js';
 import { SuggestionService } from '../src/services/SuggestionService.js';
 import { MarketService } from '../src/services/MarketService.js';
 import { HaremService } from '../src/services/HaremService.js';
+import { CollectionService } from '../src/services/CollectionService.js';
 import { RARITY_BASE_WEIGHTS } from '../src/utils/rarityCalculator.js';
 import { DomainError } from '../src/errors/DomainError.js';
 
@@ -17,6 +18,7 @@ describe('🔮 Sistema de Personagens Míticos — Waifuletes API', () => {
     mockPrisma = {
       user: {
         update: vi.fn(),
+        upsert: vi.fn(),
         findUnique: vi.fn(),
       },
       character: {
@@ -60,7 +62,7 @@ describe('🔮 Sistema de Personagens Míticos — Waifuletes API', () => {
 
   describe('1. Gerenciamento de Slots Míticos (UserService)', () => {
     it('deve conceder slots e calcular availableSlots corretamente', async () => {
-      mockPrisma.user.update.mockResolvedValue({
+      mockPrisma.user.upsert.mockResolvedValue({
         id: 'user_1',
         name: 'Apoiador VIP',
         mythicSlots: 2,
@@ -202,6 +204,28 @@ describe('🔮 Sistema de Personagens Míticos — Waifuletes API', () => {
     it('peso base de drop para mítico deve ser idêntico ao de RARE', () => {
       expect(RARITY_BASE_WEIGHTS.RARE).toBeDefined();
       expect(RARITY_BASE_WEIGHTS.RARE).toBeGreaterThan(0);
+    });
+  });
+
+  describe('7. Restrição de Coleções / Pastas', () => {
+    it('deve rejeitar adicionar personagem mítico a uma coleção/pasta', async () => {
+      const mockPrismaCol: any = {
+        userCollection: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'col_1', name: 'Isekai' }),
+        },
+        haremEntry: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'entry_1',
+            userId: 'user_1',
+            characterId: 'char_mythic',
+            character: { id: 'char_mythic', name: 'Mítico Teste', isMythic: true, rarity: 'MYTHIC' },
+          }),
+        },
+      };
+
+      const collectionService = new CollectionService(mockPrismaCol);
+      await expect(collectionService.addCharacterToCollection('user_1', 'col_1', 'char_mythic'))
+        .rejects.toThrow('Personagens míticos não podem ser colocados em coleções/pastas.');
     });
   });
 });

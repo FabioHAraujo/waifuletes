@@ -5,7 +5,8 @@ const RARITY_MAP = {
   UNCOMMON:  { label: 'Incomum',  color: '#22c55e', bg: '#166534', class: 'rarity-uncommon' },
   RARE:      { label: 'Raro',     color: '#3b82f6', bg: '#1e40af', class: 'rarity-rare' },
   EPIC:      { label: 'Épico',    color: '#a855f7', bg: '#6b21a8', class: 'rarity-epic' },
-  LEGENDARY: { label: 'Lendário', color: '#eab308', bg: '#854d0e', class: 'rarity-legendary' }
+  LEGENDARY: { label: 'Lendário', color: '#eab308', bg: '#854d0e', class: 'rarity-legendary' },
+  MYTHIC:    { label: '🔮 Mítico', color: '#facc15', bg: 'linear-gradient(135deg, #581c87, #3b0764)', class: 'rarity-mythic' }
 };
 
 // Sintetizador Web Audio API Retrô
@@ -436,7 +437,8 @@ const Waifinder = {
   },
 
   createCardElement(char, layerIndex) {
-    const rarity = RARITY_MAP[char.baseRarity] || RARITY_MAP.COMMON;
+    const isMythic = Boolean(char.isMythic || char.baseRarity === 'MYTHIC');
+    const rarity = isMythic ? RARITY_MAP.MYTHIC : (RARITY_MAP[char.baseRarity] || RARITY_MAP.COMMON);
     const rawImg = (char.imageUrls && char.imageUrls[0]) || '';
     const imgUrl = this.formatCardImg(rawImg, char.id);
     const rankText = char.waifuRank ? `#${char.waifuRank}` : (char.rank ? `#${char.rank}` : '');
@@ -478,20 +480,26 @@ const Waifinder = {
         </div>
 
         <div class="waifinder-card-actions-wrap waifinder-rarity-action-wrap">
-          <!-- Grupo: Mudar Raridade -->
-          <div class="waifinder-action-group group-rarity">
-            <button type="button" class="btn-waifinder-sub-action btn-waifinder-change-rarity" title="Sugerir alteração de raridade">
-              <i class="fas fa-gem"></i> Mudar Raridade
-            </button>
-            <div class="waifinder-rarity-options hidden">
-              <button type="button" class="btn-rarity-opt opt-common ${char.baseRarity === 'COMMON' ? 'is-current' : ''}" data-rarity="COMMON" title="Comum">Comum</button>
-              <button type="button" class="btn-rarity-opt opt-uncommon ${char.baseRarity === 'UNCOMMON' ? 'is-current' : ''}" data-rarity="UNCOMMON" title="Incomum">Incomum</button>
-              <button type="button" class="btn-rarity-opt opt-rare ${char.baseRarity === 'RARE' ? 'is-current' : ''}" data-rarity="RARE" title="Raro">Raro</button>
-              <button type="button" class="btn-rarity-opt opt-epic ${char.baseRarity === 'EPIC' ? 'is-current' : ''}" data-rarity="EPIC" title="Épico">Épico</button>
-              <button type="button" class="btn-rarity-opt opt-legendary ${char.baseRarity === 'LEGENDARY' ? 'is-current' : ''}" data-rarity="LEGENDARY" title="Lendário">Lendário</button>
-              <button type="button" class="btn-rarity-opt opt-cancel" title="Fechar">✕</button>
+          ${isMythic ? `
+            <div class="waifinder-action-group group-rarity" style="color: #facc15; font-size: 11px; font-weight: 800; padding: 6px 10px; background: rgba(168, 85, 247, 0.25); border-radius: 4px; border: 1px solid #a855f7;">
+              🔮 Criação Mítica
             </div>
-          </div>
+          ` : `
+            <!-- Grupo: Mudar Raridade -->
+            <div class="waifinder-action-group group-rarity">
+              <button type="button" class="btn-waifinder-sub-action btn-waifinder-change-rarity" title="Sugerir alteração de raridade">
+                <i class="fas fa-gem"></i> Mudar Raridade
+              </button>
+              <div class="waifinder-rarity-options hidden">
+                <button type="button" class="btn-rarity-opt opt-common ${char.baseRarity === 'COMMON' ? 'is-current' : ''}" data-rarity="COMMON" title="Comum">Comum</button>
+                <button type="button" class="btn-rarity-opt opt-uncommon ${char.baseRarity === 'UNCOMMON' ? 'is-current' : ''}" data-rarity="UNCOMMON" title="Incomum">Incomum</button>
+                <button type="button" class="btn-rarity-opt opt-rare ${char.baseRarity === 'RARE' ? 'is-current' : ''}" data-rarity="RARE" title="Raro">Raro</button>
+                <button type="button" class="btn-rarity-opt opt-epic ${char.baseRarity === 'EPIC' ? 'is-current' : ''}" data-rarity="EPIC" title="Épico">Épico</button>
+                <button type="button" class="btn-rarity-opt opt-legendary ${char.baseRarity === 'LEGENDARY' ? 'is-current' : ''}" data-rarity="LEGENDARY" title="Lendário">Lendário</button>
+                <button type="button" class="btn-rarity-opt opt-cancel" title="Fechar">✕</button>
+              </div>
+            </div>
+          `}
 
           <!-- Grupo: Denunciar/Apagar -->
           <div class="waifinder-action-group group-report">

@@ -38,33 +38,34 @@ describe('🏰 Harem Settings, Privacy & Pinned Photo — Waifuletes', () => {
     if (charsJson.data?.data?.[0]) testChar1Id = charsJson.data.data[0].id;
     if (charsJson.data?.data?.[1]) testChar2Id = charsJson.data.data[1].id;
 
-    if (testChar1Id) {
-      await fetch(`${BASE_URL}/marry`, {
+    // Login de admin para casar nos testes sem lock de roll
+    const adminLoginRes = await fetch(`${BASE_URL}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: process.env.ADMIN_PASSWORD || process.env.ADMIN_WEB_PASSWORD || 'waifuletes_admin_secret' }),
+    });
+    const adminLoginJson = await adminLoginRes.json();
+    const adminToken = adminLoginJson.data?.token;
+
+    if (testChar1Id && adminToken) {
+      await fetch(`${BASE_URL}/api/admin/users/${encodeURIComponent(testUserId)}/marry`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${adminToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: testUserId,
-          characterId: testChar1Id,
-          groupId: 'test_group_harem',
-        }),
+        body: JSON.stringify({ characterId: testChar1Id }),
       });
     }
 
-    if (testChar2Id) {
-      await fetch(`${BASE_URL}/marry`, {
+    if (testChar2Id && adminToken) {
+      await fetch(`${BASE_URL}/api/admin/users/${encodeURIComponent(testUserId)}/marry`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${adminToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: testUserId,
-          characterId: testChar2Id,
-          groupId: 'test_group_harem',
-        }),
+        body: JSON.stringify({ characterId: testChar2Id }),
       });
     }
 

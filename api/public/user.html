@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Harém do Usuário • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261106-soulmate-shadow">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261107-mythics-fix-size">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -90,78 +90,121 @@
       <div class="retro-tabs">
         <button class="retro-tab active" data-tab="tab-catalog"><i class="fas fa-book"></i> Catálogo</button>
         <button class="retro-tab" data-tab="tab-rankings"><i class="fas fa-trophy"></i> Rankings</button>
-        <button class="retro-tab" data-tab="tab-harem"><i class="fas fa-ring"></i> Meu Harém (<span id="harem-count">0</span>)</button>
-        <button class="retro-tab" data-tab="tab-mythics"><i class="fas fa-hat-wizard"></i> 🔮 Míticos (<span id="mythics-count">0</span>/<span id="mythics-total-slots">0</span>)</button>
-        <button class="retro-tab" data-tab="tab-wishlist"><i class="fas fa-star"></i> Minha Wishlist (<span id="wishlist-count">0</span>)</button>
+        <button class="retro-tab" data-tab="tab-harem"><i class="fas fa-ring"></i> Harém (<span id="harem-count">0</span>)</button>
         <button class="retro-tab" data-tab="tab-market"><i class="fas fa-store"></i> Classificados <span id="market-pending-badge" class="badge-tag hidden" style="background:#f59e0b;color:#000;margin-left:4px;font-weight:800;padding:3px 6px;border-radius:4px;font-size:11px;">0</span></button>
-        <button class="retro-tab" data-tab="tab-suggestions"><i class="fas fa-lightbulb"></i> Sugestões (<span id="user-suggestions-count">0</span>)</button>
         <button class="retro-tab" data-tab="tab-notifications"><i class="fas fa-bell"></i> Notificações <span id="notifications-count-badge" class="badge-tag hidden" style="background:#ef4444;color:#fff;margin-left:4px;font-weight:800;padding:2px 6px;border-radius:4px;font-size:11px;">0</span></button>
       </div>
 
       <!-- Aba 1: Catálogo Geral com Ações Rápidas -->
       <div class="tab-content" id="tab-catalog">
-        <div class="search-panel" style="margin-bottom: 20px;">
-          <div class="search-input-group">
-            <i class="fas fa-search"></i>
-            <input type="text" id="catalog-search-input" class="retro-input" placeholder="Buscar personagens por nome ou série...">
+        <!-- Subtabs do Catálogo -->
+        <div class="retro-tabs retro-subtabs" id="catalog-subtabs">
+          <button class="retro-tab retro-subtab active" data-subtab="subtab-catalog-characters"><i class="fas fa-book-open"></i> Personagens</button>
+          <button class="retro-tab retro-subtab" data-subtab="subtab-catalog-suggestions"><i class="fas fa-lightbulb"></i> Sugestões (<span id="user-suggestions-count">0</span>)</button>
+        </div>
+
+        <!-- Subtab 1.1: Personagens do Catálogo -->
+        <div class="subtab-content" id="subtab-catalog-characters">
+          <div class="search-panel" style="margin-bottom: 20px;">
+            <div class="search-input-group">
+              <i class="fas fa-search"></i>
+              <input type="text" id="catalog-search-input" class="retro-input" placeholder="Buscar personagens por nome ou série...">
+            </div>
+            <div class="filters-row">
+              <!-- Gênero -->
+              <div class="filter-group">
+                <span><i class="fas fa-venus-mars"></i> Gênero:</span>
+                <div class="pill-group" id="catalog-gender-pills">
+                  <button class="retro-pill active" data-gender="">Todos</button>
+                  <button class="retro-pill" data-gender="FEMALE">Feminino</button>
+                  <button class="retro-pill" data-gender="MALE">Masculino</button>
+                  <button class="retro-pill" data-gender="OTHER">Outro</button>
+                </div>
+              </div>
+
+              <!-- Estado Civil -->
+              <div class="filter-group">
+                <span><i class="fas fa-ring"></i> Estado:</span>
+                <div class="pill-group" id="catalog-marital-pills">
+                  <button class="retro-pill active" data-status="">Todos</button>
+                  <button class="retro-pill" data-status="single">Solteiros</button>
+                  <button class="retro-pill" data-status="married">💍 Casados</button>
+                </div>
+              </div>
+
+              <!-- Raridade -->
+              <div class="filter-group">
+                <span><i class="fas fa-gem"></i> Raridade:</span>
+                <select id="catalog-rarity-select" class="retro-select">
+                  <option value="">Todas</option>
+                  <option value="MYTHIC">🔮 Mítico</option>
+                  <option value="LEGENDARY">⭐ Lendário</option>
+                  <option value="EPIC">🟣 Épico</option>
+                  <option value="RARE">🔵 Raro</option>
+                  <option value="UNCOMMON">🟢 Incomum</option>
+                  <option value="COMMON">⚪ Comum</option>
+                </select>
+              </div>
+
+              <!-- Ordem -->
+              <div class="filter-group">
+                <span><i class="fas fa-sort"></i> Ordem:</span>
+                <select id="catalog-sort-select" class="retro-select">
+                  <option value="wishlist" selected>Mais Desejados (Wishlist)</option>
+                  <option value="ranking">Popularidade (Ranking)</option>
+                  <option value="rarity">Raridade</option>
+                  <option value="name">Nome (A-Z)</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <div class="filters-row">
-            <!-- Gênero -->
-            <div class="filter-group">
-              <span><i class="fas fa-venus-mars"></i> Gênero:</span>
-              <div class="pill-group" id="catalog-gender-pills">
-                <button class="retro-pill active" data-gender="">Todos</button>
-                <button class="retro-pill" data-gender="FEMALE">Feminino</button>
-                <button class="retro-pill" data-gender="MALE">Masculino</button>
-                <button class="retro-pill" data-gender="OTHER">Outro</button>
-              </div>
-            </div>
 
-            <!-- Estado Civil -->
-            <div class="filter-group">
-              <span><i class="fas fa-ring"></i> Estado:</span>
-              <div class="pill-group" id="catalog-marital-pills">
-                <button class="retro-pill active" data-status="">Todos</button>
-                <button class="retro-pill" data-status="single">Solteiros</button>
-                <button class="retro-pill" data-status="married">💍 Casados</button>
-              </div>
-            </div>
+          <div id="catalog-grid" class="waifu-grid"></div>
 
-            <!-- Raridade -->
-            <div class="filter-group">
-              <span><i class="fas fa-gem"></i> Raridade:</span>
-              <select id="catalog-rarity-select" class="retro-select">
-                <option value="">Todas</option>
-                <option value="LEGENDARY">⭐ Lendário</option>
-                <option value="EPIC">🟣 Épico</option>
-                <option value="RARE">🔵 Raro</option>
-                <option value="UNCOMMON">🟢 Incomum</option>
-                <option value="COMMON">⚪ Comum</option>
-              </select>
-            </div>
-
-            <!-- Ordem -->
-            <div class="filter-group">
-              <span><i class="fas fa-sort"></i> Ordem:</span>
-              <select id="catalog-sort-select" class="retro-select">
-                <option value="wishlist" selected>Mais Desejados (Wishlist)</option>
-                <option value="ranking">Popularidade (Ranking)</option>
-                <option value="rarity">Raridade</option>
-                <option value="name">Nome (A-Z)</option>
-              </select>
+          <!-- Paginação do Catálogo -->
+          <div class="pagination-bar">
+            <div class="page-info"><span id="catalog-total-count">0 personagens</span></div>
+            <div class="page-controls">
+              <button class="btn-retro btn-sm" id="catalog-btn-prev" disabled><i class="fas fa-angle-left"></i> Anterior</button>
+              <span class="page-indicator" id="catalog-page-indicator">1 / 1</span>
+              <button class="btn-retro btn-sm" id="catalog-btn-next" disabled>Próxima <i class="fas fa-angle-right"></i></button>
             </div>
           </div>
         </div>
 
-        <div id="catalog-grid" class="waifu-grid"></div>
+        <!-- Subtab 1.2: Sugestões do Usuário -->
+        <div class="subtab-content hidden" id="subtab-catalog-suggestions">
+          <div id="user-suggestions-block-banner" class="hidden" style="margin-bottom: 16px; background: #fee2e2; border: 2px solid #ef4444; border-radius: 6px; padding: 12px 16px; color: #991b1b; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">⚠️</span>
+            <span>Você está temporariamente impedido de enviar sugestões por suspeita de spam.</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm);">
+            <div>
+              <span style="font-weight: 800; font-size: 15px;">💡 Minhas Sugestões</span>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Acompanhe o status das suas sugestões. Personagens aceitos entram na sua Wishlist automaticamente!
+              </p>
+            </div>
+            <button class="btn-retro btn-sm btn-gold" id="btn-open-suggest-char">
+              <i class="fas fa-plus-circle"></i> Sugerir Personagem
+            </button>
+          </div>
 
-        <!-- Paginação do Catálogo -->
-        <div class="pagination-bar">
-          <div class="page-info"><span id="catalog-total-count">0 personagens</span></div>
-          <div class="page-controls">
-            <button class="btn-retro btn-sm" id="catalog-btn-prev" disabled><i class="fas fa-angle-left"></i> Anterior</button>
-            <span class="page-indicator" id="catalog-page-indicator">1 / 1</span>
-            <button class="btn-retro btn-sm" id="catalog-btn-next" disabled>Próxima <i class="fas fa-angle-right"></i></button>
+          <div style="overflow-x: auto;">
+            <table class="retro-table" id="table-user-suggestions">
+              <thead>
+                <tr style="background: var(--bg-retro-accent);">
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Personagem / Detalhes</th>
+                  <th>Status</th>
+                  <th>Resposta / Motivo</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-user-suggestions">
+                <tr><td colspan="5" style="text-align: center; padding: 20px;">Carregando sugestões...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -219,170 +262,198 @@
 
       <!-- Aba 3: Harém -->
       <div class="tab-content hidden" id="tab-harem">
-        <!-- Container "Configurações do Harém" -->
-        <div id="private-harem-settings-container" style="background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 16px; box-shadow: var(--shadow-retro-sm); margin-bottom: 24px;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color, #2d241e);">
-            <i class="fas fa-cog" style="color: #ec4899; font-size: 18px;"></i>
-            <span style="font-weight: 800; font-size: 16px; color: var(--text-main);">Configurações do Harém</span>
-          </div>
+        <!-- Subtabs do Harém -->
+        <div class="retro-tabs retro-subtabs" id="harem-subtabs">
+          <button class="retro-tab retro-subtab active" data-subtab="subtab-harem-married"><i class="fas fa-ring"></i> Casados (<span id="harem-count-sub">0</span>)</button>
+          <button class="retro-tab retro-subtab" data-subtab="subtab-harem-mythics"><i class="fas fa-hat-wizard"></i> 🔮 Míticos (<span id="mythics-count">0</span>/<span id="mythics-total-slots">0</span>)</button>
+          <button class="retro-tab retro-subtab" data-subtab="subtab-harem-wishlist"><i class="fas fa-star"></i> Wishlist (<span id="wishlist-count">0</span>)</button>
+          <button class="retro-tab retro-subtab" data-subtab="subtab-harem-settings"><i class="fas fa-cog"></i> Configurações</button>
+        </div>
 
-          <!-- 1. Nome do Harém -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--border-retro); flex-wrap: wrap; gap: 10px;">
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-weight: 800; font-size: 14px;">👑 Nome do Harém:</span>
-                <span id="display-harem-name" style="font-weight: 800; font-size: 14px; color: #ec4899;"><em>(Sem nome definido)</em></span>
-              </div>
-              <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
-                Defina um nome para seu harém (máximo 20 caracteres). Ele aparece no comando <b>!mu-harem</b> e no topo da sua página pública.
-              </p>
+        <!-- Subtab 3.1: Waifus Casadas -->
+        <div class="subtab-content" id="subtab-harem-married">
+          <!-- Busca e Filtros do Harém -->
+          <div class="search-panel" id="harem-search-panel" style="margin-bottom: 24px; max-width: 650px; margin-left: auto; margin-right: auto;">
+            <div class="search-input-group">
+              <i class="fas fa-search"></i>
+              <input type="text" id="harem-search-input" class="retro-input" placeholder="Buscar no harém por personagem ou série...">
+              <button id="btn-clear-harem-search" class="btn-retro btn-sm hidden" style="padding: 4px 8px; margin-right: 4px;" title="Limpar busca">&times;</button>
             </div>
-            <button class="btn-retro btn-sm btn-purple" id="btn-open-edit-harem-name" onclick="openEditHaremNameModal()">
-              <i class="fas fa-edit"></i> Alterar Nome
-            </button>
-          </div>
-
-          <!-- 2. Harém Privado -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px dashed var(--border-retro); flex-wrap: wrap; gap: 10px;">
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-weight: 800; font-size: 14px;">🔒 Visibilidade do Harém:</span>
-                <span id="harem-privacy-status-badge" class="badge-tag" style="background: #22c55e; color: #fff; font-weight: 800;">Público</span>
+            <div class="filters-row" style="margin-top: 10px; justify-content: center;">
+              <div class="filter-group">
+                <span><i class="fas fa-gem"></i> Raridade:</span>
+                <select id="harem-rarity-select" class="retro-select">
+                  <option value="">Todas</option>
+                  <option value="LEGENDARY">⭐ Lendário</option>
+                  <option value="EPIC">🟣 Épico</option>
+                  <option value="RARE">🔵 Raro</option>
+                  <option value="UNCOMMON">🟢 Incomum</option>
+                  <option value="COMMON">⚪ Comum</option>
+                </select>
               </div>
-              <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
-                Se ativado, visitantes na sua página pública verão apenas <i>"O usuário xxx decidiu privar seu harém."</i>
-              </p>
             </div>
-            <button class="btn-retro btn-sm" id="btn-toggle-harem-privacy" onclick="toggleHaremPrivacy()">
-              <i class="fas fa-lock"></i> Alternar Privacidade
-            </button>
           </div>
 
-          <!-- 3. Pastas & Coleções Reordenáveis -->
-          <div style="padding-top: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <!-- Seção de Favoritos Privados -->
+          <div id="private-favorites-section" class="hidden" style="margin-bottom: 24px; text-align: center;">
+            <div style="display: inline-block; background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 8px 24px; box-shadow: var(--shadow-retro-sm); margin-bottom: 14px;">
+              <span style="font-weight: 800; font-size: 16px; color: #ec4899;">💖 Favoritos em Destaque 💖</span>
+            </div>
+            <div id="private-favorites-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;"></div>
+          </div>
+
+          <!-- Seção de Coleções / Pastas (Containers com Grids de Waifus) -->
+          <div id="private-collections-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;"></div>
+
+          <!-- Título do Harém Geral -->
+          <div id="private-harem-general-title" style="margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);"><i class="fas fa-ring"></i> Harém Geral</span>
+              <div style="flex: 1; height: 2px; background: var(--border-color, #2d241e);"></div>
+            </div>
+          </div>
+
+          <div id="harem-grid" class="waifu-grid"></div>
+
+          <!-- Paginação do Harém Geral -->
+          <div class="pagination-bar" id="harem-pagination" style="margin-top: 20px;">
+            <div class="page-info"><span id="harem-general-total-count">0 personagens</span></div>
+            <div class="page-controls">
+              <button class="btn-retro btn-sm" id="harem-btn-prev" disabled><i class="fas fa-angle-left"></i> Anterior</button>
+              <span class="page-indicator" id="harem-page-indicator">1 / 1</span>
+              <button class="btn-retro btn-sm" id="harem-btn-next" disabled>Próxima <i class="fas fa-angle-right"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtab 3.2: Míticos (Lendas Forjadas por Apoiadores) -->
+        <div class="subtab-content hidden" id="subtab-harem-mythics">
+          <div class="mythic-header-panel" style="background: linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #1e1b4b 100%); border: 2px solid #a855f7; border-radius: 8px; padding: 20px; color: #fff; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.35);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
               <div>
-                <span style="font-weight: 800; font-size: 14px;">📁 Pastas & Coleções:</span>
-                <span id="collections-count-badge" class="badge-tag" style="background: #3b82f6; color: #fff; margin-left: 6px; font-weight: 800;">0/15</span>
-                <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
-                  Arraste para alterar a ordem das coleções. Clique no olho para torná-la privada (oculta no harém público).
+                <h2 style="margin: 0; font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 8px; color: #facc15;">
+                  <span>🔮</span> Lendas & Míticos
+                </h2>
+                <p style="margin: 8px 0 0 0; font-size: 13px; line-height: 1.5; color: #e9d5ff; max-width: 650px;">
+                  Lendas! Mitos! Histórias contadas pelo povo, pelo seus criadores. Personagens especiais e únicos, trazidos ao mundo por pessoas mais especiais ainda - as que ajudam o projeto da ravena a ficar vivo.
                 </p>
               </div>
-              <button class="btn-retro btn-sm btn-gold" id="btn-open-new-collection" onclick="openNewCollectionModal()">
-                <i class="fas fa-folder-plus"></i> + Nova Coleção
-              </button>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                <div style="background: rgba(0,0,0,0.45); border: 1.5px solid #c084fc; border-radius: 6px; padding: 8px 16px; text-align: center;">
+                  <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #d8b4fe; display: block; font-weight: 700;">Seus Slots</span>
+                  <span style="font-size: 20px; font-weight: 900; color: #fff;"><span id="mythic-slots-used">0</span> / <span id="mythic-slots-total">0</span></span>
+                </div>
+                <button class="btn-retro btn-sm btn-gold" id="btn-open-create-mythic" onclick="openCreateMythicModal()" style="font-weight: 800; padding: 8px 16px;">
+                  <i class="fas fa-plus"></i> Forjar Novo Mítico
+                </button>
+              </div>
             </div>
+          </div>
 
-            <!-- Lista Reordenável Drag & Drop -->
-            <div id="collections-reorder-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
-              <!-- Injetado dinamicamente via JS -->
+          <div id="mythics-grid" class="waifu-grid" style="min-height: 180px;">
+            <!-- Injetado dinamicamente via JS -->
+          </div>
+        </div>
+
+        <!-- Subtab 3.3: Wishlist -->
+        <div class="subtab-content hidden" id="subtab-harem-wishlist">
+          <!-- Busca na Wishlist -->
+          <div class="search-panel" id="wishlist-search-panel" style="margin-bottom: 20px; max-width: 650px; margin-left: auto; margin-right: auto;">
+            <div class="search-input-group">
+              <i class="fas fa-search"></i>
+              <input type="text" id="wishlist-search-input" class="retro-input" placeholder="Buscar na wishlist por personagem ou série...">
+              <button id="btn-clear-wishlist-search" class="btn-retro btn-sm hidden" style="padding: 4px 8px; margin-right: 4px;" title="Limpar busca">&times;</button>
             </div>
           </div>
-        </div>
 
-        <!-- Seção de Favoritas Privadas -->
-        <div id="private-favorites-section" class="hidden" style="margin-bottom: 24px; text-align: center;">
-          <div style="display: inline-block; background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 8px 24px; box-shadow: var(--shadow-retro-sm); margin-bottom: 14px;">
-            <span style="font-weight: 800; font-size: 16px; color: #ec4899;">💖 Favoritas em Destaque 💖</span>
-          </div>
-          <div id="private-favorites-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;"></div>
-        </div>
-
-        <!-- Seção de Coleções / Pastas (Containers com Grids de Waifus) -->
-        <div id="private-collections-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;"></div>
-
-        <!-- Título do Harém Geral -->
-        <div id="private-harem-general-title" style="margin-bottom: 14px;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);"><i class="fas fa-ring"></i> Harém Geral</span>
-            <div style="flex: 1; height: 2px; background: var(--border-color, #2d241e);"></div>
-          </div>
-        </div>
-
-        <div id="harem-grid" class="waifu-grid"></div>
-      </div>
-
-      <!-- Aba: Míticos (Lendas Forjadas por Apoiadores) -->
-      <div class="tab-content hidden" id="tab-mythics">
-        <div class="mythic-header-panel" style="background: linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #1e1b4b 100%); border: 2px solid #a855f7; border-radius: 8px; padding: 20px; color: #fff; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.35);">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm);">
             <div>
-              <h2 style="margin: 0; font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 8px; color: #facc15;">
-                <span>🔮</span> Lendas & Míticos
-              </h2>
-              <p style="margin: 8px 0 0 0; font-size: 13px; line-height: 1.5; color: #e9d5ff; max-width: 650px;">
-                Lendas! Mitos! Histórias contadas pelo povo, pelo seus criadores. Personagens especiais e únicos, trazidos ao mundo por pessoas mais especiais ainda - as que ajudam o projeto da ravena a ficar vivo.
+              <span style="font-weight: 800; font-size: 15px;">🌟 Lista de Desejos</span>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Personagens que já foram casados são realçados com <b>borda vermelha</b>.
+              </p>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                Chance para as personagens da wishlist atualmente em <b id="wishlist-bonus-val" style="color: #10b981; font-weight: 800;">+0%</b>
               </p>
             </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-              <div style="background: rgba(0,0,0,0.45); border: 1.5px solid #c084fc; border-radius: 6px; padding: 8px 16px; text-align: center;">
-                <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #d8b4fe; display: block; font-weight: 700;">Seus Slots</span>
-                <span style="font-size: 20px; font-weight: 900; color: #fff;"><span id="mythic-slots-used">0</span> / <span id="mythic-slots-total">0</span></span>
-              </div>
-              <button class="btn-retro btn-sm btn-gold" id="btn-open-create-mythic" onclick="openCreateMythicModal()" style="font-weight: 800; padding: 8px 16px;">
-                <i class="fas fa-plus"></i> Forjar Novo Mítico
-              </button>
+            <button class="btn-retro btn-sm btn-danger" id="btn-clear-wishlist">
+              <i class="fas fa-broom"></i> Limpar Wishlist (Remover Casadas)
+            </button>
+          </div>
+          <div id="wishlist-grid" class="waifu-grid"></div>
+
+          <!-- Paginação da Wishlist (50 por página) -->
+          <div class="pagination-bar" id="wishlist-pagination" style="margin-top: 20px;">
+            <div class="page-info"><span id="wishlist-total-count">0 personagens</span></div>
+            <div class="page-controls">
+              <button class="btn-retro btn-sm" id="wishlist-btn-prev" disabled><i class="fas fa-angle-left"></i> Anterior</button>
+              <span class="page-indicator" id="wishlist-page-indicator">1 / 1</span>
+              <button class="btn-retro btn-sm" id="wishlist-btn-next" disabled>Próxima <i class="fas fa-angle-right"></i></button>
             </div>
           </div>
         </div>
 
-        <div id="mythics-grid" class="waifu-grid" style="min-height: 180px;">
-          <!-- Injetado dinamicamente via JS -->
-        </div>
-      </div>
+        <!-- Subtab 3.4: Configurações do Harém -->
+        <div class="subtab-content hidden" id="subtab-harem-settings">
+          <div id="private-harem-settings-container" style="background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 16px; box-shadow: var(--shadow-retro-sm); margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color, #2d241e);">
+              <i class="fas fa-cog" style="color: #ec4899; font-size: 18px;"></i>
+              <span style="font-weight: 800; font-size: 16px; color: var(--text-main);">Configurações do Harém</span>
+            </div>
 
-      <!-- Aba 3: Wishlist -->
-      <div class="tab-content hidden" id="tab-wishlist">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm);">
-          <div>
-            <span style="font-weight: 800; font-size: 15px;">🌟 Lista de Desejos</span>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-              Personagens que já foram casados são realçados com <b>borda vermelha</b>.
-            </p>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-              Chance para as personagens da wishlist atualmente em <b id="wishlist-bonus-val" style="color: #10b981; font-weight: 800;">+0%</b>
-            </p>
+            <!-- 1. Nome do Harém -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--border-retro); flex-wrap: wrap; gap: 10px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: 800; font-size: 14px;">👑 Nome do Harém:</span>
+                  <span id="display-harem-name" style="font-weight: 800; font-size: 14px; color: #ec4899;"><em>(Sem nome definido)</em></span>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                  Defina um nome para seu harém (máximo 20 caracteres). Ele aparece no comando <b>!mu-harem</b> e no topo da sua página pública.
+                </p>
+              </div>
+              <button class="btn-retro btn-sm btn-purple" id="btn-open-edit-harem-name" onclick="openEditHaremNameModal()">
+                <i class="fas fa-edit"></i> Alterar Nome
+              </button>
+            </div>
+
+            <!-- 2. Harém Privado -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px dashed var(--border-retro); flex-wrap: wrap; gap: 10px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: 800; font-size: 14px;">🔒 Visibilidade do Harém:</span>
+                  <span id="harem-privacy-status-badge" class="badge-tag" style="background: #22c55e; color: #fff; font-weight: 800;">Público</span>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                  Se ativado, visitantes na sua página pública verão apenas <i>"O usuário xxx decidiu privar seu harém."</i>
+                </p>
+              </div>
+              <button class="btn-retro btn-sm" id="btn-toggle-harem-privacy" onclick="toggleHaremPrivacy()">
+                <i class="fas fa-lock"></i> Alternar Privacidade
+              </button>
+            </div>
+
+            <!-- 3. Pastas & Coleções Reordenáveis -->
+            <div style="padding-top: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <span style="font-weight: 800; font-size: 14px;">📁 Pastas & Coleções:</span>
+                  <span id="collections-count-badge" class="badge-tag" style="background: #3b82f6; color: #fff; margin-left: 6px; font-weight: 800;">0/15</span>
+                  <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                    Arraste para alterar a ordem das coleções. Clique no olho para torná-la privada (oculta no harém público).
+                  </p>
+                </div>
+                <button class="btn-retro btn-sm btn-gold" id="btn-open-new-collection" onclick="openNewCollectionModal()">
+                  <i class="fas fa-folder-plus"></i> + Nova Coleção
+                </button>
+              </div>
+
+              <!-- Lista Reordenável Drag & Drop -->
+              <div id="collections-reorder-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                <!-- Injetado dinamicamente via JS -->
+              </div>
+            </div>
           </div>
-          <button class="btn-retro btn-sm btn-danger" id="btn-clear-wishlist">
-            <i class="fas fa-broom"></i> Limpar Wishlist (Remover Casadas)
-          </button>
-        </div>
-        <div id="wishlist-grid" class="waifu-grid"></div>
-      </div>
-
-      <!-- Aba 4: Sugestões do Usuário -->
-      <div class="tab-content hidden" id="tab-suggestions">
-        <div id="user-suggestions-block-banner" class="hidden" style="margin-bottom: 16px; background: #fee2e2; border: 2px solid #ef4444; border-radius: 6px; padding: 12px 16px; color: #991b1b; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 22px;">⚠️</span>
-          <span>Você está temporariamente impedido de enviar sugestões por suspeita de spam.</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm);">
-          <div>
-            <span style="font-weight: 800; font-size: 15px;">💡 Minhas Sugestões</span>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-              Acompanhe o status das suas sugestões. Personagens aceitos entram na sua Wishlist automaticamente!
-            </p>
-          </div>
-          <button class="btn-retro btn-sm btn-gold" id="btn-open-suggest-char">
-            <i class="fas fa-plus-circle"></i> Sugerir Personagem
-          </button>
-        </div>
-
-        <div style="overflow-x: auto;">
-          <table class="retro-table" id="table-user-suggestions">
-            <thead>
-              <tr style="background: var(--bg-retro-accent);">
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Personagem / Detalhes</th>
-                <th>Status</th>
-                <th>Resposta / Motivo</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-user-suggestions">
-              <tr><td colspan="5" style="text-align: center; padding: 20px;">Carregando sugestões...</td></tr>
-            </tbody>
-          </table>
         </div>
       </div>
 
@@ -528,10 +599,18 @@
 
       <!-- Aba 1: Harém Público (Padrão) -->
       <div class="tab-content public-tab-content" id="public-tab-harem">
-        <!-- Seção de Favoritas em Destaque (Centralizadas no Topo) -->
+        <!-- Seção de Míticos Forjados (Fica no topo, visível se tiver pelo menos 1 mítico) -->
+        <div id="public-mythics-section" class="hidden" style="margin-bottom: 28px; text-align: center;">
+          <div style="display: inline-block; background: linear-gradient(135deg, #2e1065 0%, #581c87 100%); border: 2px solid #a855f7; border-radius: var(--radius-retro); padding: 8px 24px; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.35); margin-bottom: 16px;">
+            <span style="font-weight: 800; font-size: 16px; color: #facc15;">🔮 Míticos & Lendas 🔮</span>
+          </div>
+          <div id="public-mythics-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; max-width: 1200px; margin: 0 auto;"></div>
+        </div>
+
+        <!-- Seção de Favoritos em Destaque (Centralizados no Topo) -->
         <div id="public-favorites-section" class="hidden" style="margin-bottom: 28px; text-align: center;">
           <div style="display: inline-block; background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 8px 24px; box-shadow: var(--shadow-retro-sm); margin-bottom: 16px;">
-            <span style="font-weight: 800; font-size: 16px; color: #ec4899;">💖 Favoritas 💖</span>
+            <span style="font-weight: 800; font-size: 16px; color: #ec4899;">💖 Favoritos 💖</span>
           </div>
           <div id="public-favorites-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; max-width: 1200px; margin: 0 auto;"></div>
         </div>
@@ -1525,6 +1604,26 @@
                 </button>
               </div>
 
+              <!-- Área de Recorte (Cropper) para Mítico -->
+              <div id="mythic-cropper-container" class="hidden" style="margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.03); border: var(--border-retro); border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-weight: 800; font-size: 12px; color: var(--gold-dark);"><i class="fas fa-crop-alt"></i> Ajuste o recorte do card (225x350):</span>
+                  <button type="button" class="btn-retro btn-sm" onclick="cancelMythicCrop()" style="font-size: 11px; padding: 2px 8px;">Cancelar</button>
+                </div>
+                <div class="cropper-img-box" style="max-height: 280px;">
+                  <img id="mythic-cropper-img" src="" alt="Recorte de foto mítica" style="max-width: 100%;">
+                </div>
+                <div class="cropper-preview-container" style="justify-content: space-between; align-items: center; margin-top: 10px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="crop-preview-box" id="mythic-crop-preview" style="width: 55px;"></div>
+                    <span style="font-size: 11px; color: var(--text-muted);">Enquadre a imagem no formato oficial do card.</span>
+                  </div>
+                  <button type="button" class="btn-retro btn-sm btn-primary" id="btn-apply-mythic-crop" onclick="applyMythicCrop()" style="font-size: 12px; padding: 6px 14px;">
+                    <i class="fas fa-check"></i> Aplicar Recorte
+                  </button>
+                </div>
+              </div>
+
               <!-- Grade de Miniaturas das Fotos -->
               <div id="mythic-photos-thumbnails" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; min-height: 60px;">
                 <!-- Miniaturas com botão de remover -->
@@ -1612,7 +1711,7 @@
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261105-soulmate-fx"></script>
-  <script src="/js/user.js?v=20261106-legendary-already"></script>
+  <script src="/js/api.js?v=20261107-harem-layout-opt"></script>
+  <script src="/js/user.js?v=20261107-harem-layout-opt"></script>
 </body>
 </html>

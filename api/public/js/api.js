@@ -83,8 +83,23 @@ const Api = {
         }
       }
 
-      if (!res.ok && json && !json.error && !json.message) {
-        json.error = { message: `Erro HTTP ${res.status}: ${res.statusText || 'Falha na resposta do servidor'}` };
+      if (!res.ok) {
+        if (!json || typeof json !== 'object') json = {};
+        const isTooLarge =
+          res.status === 413 ||
+          json.code === 'FST_ERR_CTP_BODY_TOO_LARGE' ||
+          json.error?.code === 'PAYLOAD_TOO_LARGE' ||
+          (typeof json.message === 'string' && json.message.toLowerCase().includes('too large')) ||
+          (typeof json.error?.message === 'string' && json.error.message.toLowerCase().includes('too large'));
+
+        if (isTooLarge) {
+          const customMsg = 'A imagem enviada é muito grande! Compacte ela antes';
+          json.success = false;
+          json.error = { code: 'PAYLOAD_TOO_LARGE', message: customMsg };
+          json.message = customMsg;
+        } else if (!json.error && !json.message) {
+          json.error = { message: `Erro HTTP ${res.status}: ${res.statusText || 'Falha na resposta do servidor'}` };
+        }
       }
       return json;
     } catch (err) {

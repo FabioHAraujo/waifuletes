@@ -14,7 +14,7 @@ export const publicCharacterRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           series: { type: 'string' },
-          rarity: { type: 'string', enum: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'] },
+          rarity: { type: 'string', enum: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC'] },
           gender: { type: 'string', enum: ['FEMALE', 'MALE', 'OTHER'] },
           tag: { type: 'string' },
           search: { type: 'string' },
@@ -30,7 +30,7 @@ export const publicCharacterRoutes: FastifyPluginAsync = async (fastify) => {
       const isTrusted = isTrustedRequest(request);
 
       let cacheKey: string | null = null;
-      const isRandom = !query.sort || query.sort === 'random';
+      const isRandom = (!query.sort && !query.search) || query.sort === 'random';
       if (!isTrusted && !isRandom) {
         cacheKey = `cache:characters:list:${JSON.stringify(query)}`;
         const cached = await fastify.redis.get(cacheKey);
@@ -53,7 +53,7 @@ export const publicCharacterRoutes: FastifyPluginAsync = async (fastify) => {
           tag: query.tag,
           search: query.search,
           maritalStatus: query.maritalStatus,
-          sort: query.sort || 'random',
+          sort: query.sort || (query.search ? 'popularity' : 'random'),
           page: query.page ? Math.min(1000, Math.max(1, Number(query.page))) : 1,
           limit: query.limit ? Math.min(100, Math.max(1, Number(query.limit))) : 20,
         },

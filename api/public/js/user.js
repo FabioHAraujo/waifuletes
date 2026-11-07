@@ -37,6 +37,52 @@ let activeReportCharacter = null;
 let activeSellCharacter = null;
 let activeOfferListing = null;
 
+// Estado de busca e paginação do Harém (Casados) e Wishlist
+let haremFilterState = {
+  search: '',
+  rarity: '',
+  page: 1,
+  pageSize: 30,
+};
+
+let wishlistFilterState = {
+  search: '',
+  page: 1,
+  pageSize: 50,
+};
+
+function normalizeSearchText(str) {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function matchesTextFilter(textSearch, ...fields) {
+  if (!textSearch) return true;
+  const tokens = normalizeSearchText(textSearch).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const combined = normalizeSearchText(fields.join(' '));
+  return tokens.every(token => combined.includes(token));
+}
+
+function matchesHaremCard(entry, searchText, rarityFilter) {
+  const char = entry?.character;
+  if (!char) return false;
+
+  if (rarityFilter) {
+    const r = (char.baseRarity || char.rarity || 'COMMON').toUpperCase();
+    if (r !== rarityFilter.toUpperCase()) return false;
+  }
+
+  if (searchText) {
+    return matchesTextFilter(searchText, char.name, char.series, char.id);
+  }
+
+  return true;
+}
+
 // Controle de verificação e countdown para versão lendária de personagem casado
 let legendaryCountdownTimer = null;
 let legendaryCountdownRemaining = 30;
@@ -415,32 +461,37 @@ function setupEventListeners() {
     });
   }
 
-  // Alternância de abas do painel privado
-  const tabs = document.querySelectorAll('#private-panel .retro-tabs .retro-tab[data-tab]');
-  tabs.forEach(tab => {
+  // Alternância de abas principais do painel privado
+  const mainTabs = document.querySelectorAll('#private-panel .retro-tabs:not(.retro-subtabs) .retro-tab[data-tab]');
+  mainTabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-
       const targetId = tab.dataset.tab;
-      document.querySelectorAll('#private-panel .tab-content').forEach(c => c.classList.add('hidden'));
-      const activeContent = document.getElementById(targetId);
-      if (activeContent) activeContent.classList.remove('hidden');
+      switchTab(targetId);
+    });
+  });
 
-      if (targetId === 'tab-catalog') {
+  // Alternância de subabas do painel privado (Catálogo e Harém)
+  const privateSubtabs = document.querySelectorAll('#private-panel .retro-subtabs .retro-subtab[data-subtab]');
+  privateSubtabs.forEach(subtab => {
+    subtab.addEventListener('click', () => {
+      const parentContainer = subtab.closest('.retro-subtabs');
+      const targetId = subtab.dataset.subtab;
+      if (parentContainer) {
+        activateSubTab(parentContainer.id, targetId, true);
+      }
+      if (targetId === 'subtab-catalog-characters') {
         loadCatalogCharacters();
-      } else if (targetId === 'tab-rankings') {
-        loadRankings();
-      } else if (targetId === 'tab-suggestions') {
+      } else if (targetId === 'subtab-catalog-suggestions') {
         loadUserSuggestions();
-      } else if (targetId === 'tab-market') {
-        loadMarketTab();
-      } else if (targetId === 'tab-notifications') {
-        loadUserNotifications();
-      } else if (targetId === 'tab-mythics') {
+      } else if (targetId === 'subtab-harem-mythics') {
         loadUserMythics();
       }
     });
+  });
+
+  // Listener para navegação por histórico/hash (F5, favoritos, botões avançar/voltar)
+  window.addEventListener('hashchange', () => {
+    navigateToHash(window.location.hash);
   });
 
   // Alternância de abas do painel público (Harém e Classificados)
@@ -579,6 +630,12 @@ function setupEventListeners() {
       const file = e.target.files?.[0];
       if (!file) return;
 
+      if (file.size > 10 * 1024 * 1024) {
+        Api.showToast('A imagem enviada é muito grande! Compacte ela antes', '⚠️');
+        cropInput.value = '';
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const cropperImg = document.getElementById('cropper-img');
@@ -628,6 +685,110 @@ function setupEventListeners() {
     });
   }
 
+  // Busca e Filtros do Harém (Casados)
+  let haremSearchTimer = null;
+  const haremSearchInput = document.getElementById('harem-search-input');
+  const btnClearHaremSearch = document.getElementById('btn-clear-harem-search');
+  if (haremSearchInput) {
+    haremSearchInput.addEventListener('input', () => {
+      clearTimeout(haremSearchTimer);
+      if (btnClearHaremSearch) {
+        if (haremSearchInput.value.trim()) btnClearHaremSearch.classList.remove('hidden');
+        else btnClearHaremSearch.classList.add('hidden');
+      }
+      haremSearchTimer = setTimeout(() => {
+        haremFilterState.search = haremSearchInput.value.trim();
+        haremFilterState.page = 1;
+        renderPrivateHarem(userSessionData?.harem || []);
+      }, 300);
+    });
+  }
+
+  if (btnClearHaremSearch) {
+    btnClearHaremSearch.addEventListener('click', () => {
+      if (haremSearchInput) haremSearchInput.value = '';
+      btnClearHaremSearch.classList.add('hidden');
+      haremFilterState.search = '';
+      haremFilterState.page = 1;
+      renderPrivateHarem(userSessionData?.harem || []);
+    });
+  }
+
+  const haremRaritySelect = document.getElementById('harem-rarity-select');
+  if (haremRaritySelect) {
+    haremRaritySelect.addEventListener('change', () => {
+      haremFilterState.rarity = haremRaritySelect.value;
+      haremFilterState.page = 1;
+      renderPrivateHarem(userSessionData?.harem || []);
+    });
+  }
+
+  // Paginação do Harém Geral
+  const haremBtnPrev = document.getElementById('harem-btn-prev');
+  if (haremBtnPrev) {
+    haremBtnPrev.addEventListener('click', () => {
+      if (haremFilterState.page > 1) {
+        haremFilterState.page--;
+        renderPrivateHarem(userSessionData?.harem || []);
+      }
+    });
+  }
+
+  const haremBtnNext = document.getElementById('harem-btn-next');
+  if (haremBtnNext) {
+    haremBtnNext.addEventListener('click', () => {
+      haremFilterState.page++;
+      renderPrivateHarem(userSessionData?.harem || []);
+    });
+  }
+
+  // Busca e Paginação da Wishlist
+  let wishlistSearchTimer = null;
+  const wishlistSearchInput = document.getElementById('wishlist-search-input');
+  const btnClearWishlistSearch = document.getElementById('btn-clear-wishlist-search');
+  if (wishlistSearchInput) {
+    wishlistSearchInput.addEventListener('input', () => {
+      clearTimeout(wishlistSearchTimer);
+      if (btnClearWishlistSearch) {
+        if (wishlistSearchInput.value.trim()) btnClearWishlistSearch.classList.remove('hidden');
+        else btnClearWishlistSearch.classList.add('hidden');
+      }
+      wishlistSearchTimer = setTimeout(() => {
+        wishlistFilterState.search = wishlistSearchInput.value.trim();
+        wishlistFilterState.page = 1;
+        renderPrivateWishlist(userSessionData?.wishlist || []);
+      }, 300);
+    });
+  }
+
+  if (btnClearWishlistSearch) {
+    btnClearWishlistSearch.addEventListener('click', () => {
+      if (wishlistSearchInput) wishlistSearchInput.value = '';
+      btnClearWishlistSearch.classList.add('hidden');
+      wishlistFilterState.search = '';
+      wishlistFilterState.page = 1;
+      renderPrivateWishlist(userSessionData?.wishlist || []);
+    });
+  }
+
+  const wishlistBtnPrev = document.getElementById('wishlist-btn-prev');
+  if (wishlistBtnPrev) {
+    wishlistBtnPrev.addEventListener('click', () => {
+      if (wishlistFilterState.page > 1) {
+        wishlistFilterState.page--;
+        renderPrivateWishlist(userSessionData?.wishlist || []);
+      }
+    });
+  }
+
+  const wishlistBtnNext = document.getElementById('wishlist-btn-next');
+  if (wishlistBtnNext) {
+    wishlistBtnNext.addEventListener('click', () => {
+      wishlistFilterState.page++;
+      renderPrivateWishlist(userSessionData?.wishlist || []);
+    });
+  }
+
   // Monitora alterações nos campos de sugestão para habilitar/desabilitar o botão (cinza quando inválido)
   ['suggest-edit-name', 'suggest-edit-series', 'suggest-edit-description', 'suggest-edit-reason'].forEach(id => {
     const el = document.getElementById(id);
@@ -653,6 +814,11 @@ function setupEventListeners() {
   if (suggestLegPhotoInput) {
     suggestLegPhotoInput.addEventListener('change', (e) => {
       const file = e.target.files?.[0];
+      if (file && file.size > 10 * 1024 * 1024) {
+        Api.showToast('A imagem enviada é muito grande! Compacte ela antes', '⚠️');
+        e.target.value = '';
+        return;
+      }
       const prevBox = document.getElementById('suggest-legendary-preview-container');
       const prevImg = document.getElementById('suggest-legendary-preview-img');
       if (file && prevBox && prevImg) {
@@ -694,6 +860,11 @@ function setupEventListeners() {
     newCharPhoto.addEventListener('change', (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        Api.showToast('A imagem enviada é muito grande! Compacte ela antes', '⚠️');
+        e.target.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (evt) => {
         const img = document.getElementById('new-char-img-preview');
@@ -994,6 +1165,13 @@ async function loadUserData() {
       loadUserSuggestions();
       loadUserMythics();
       updateMarketPendingBadge();
+
+      // Navegação por Hash inicial (restauração de rota salva, favorito ou F5)
+      if (window.location.hash) {
+        navigateToHash(window.location.hash);
+      } else {
+        updateUrlHash('catalogo', 'personagens');
+      }
     } else {
       document.getElementById('btn-session-auth')?.classList.add('hidden');
       document.getElementById('btn-share-public')?.classList.add('hidden');
@@ -1267,14 +1445,14 @@ function createPrivateHaremCard(entry, options = {}) {
   if (isMythic) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
         <div class="mythic-bottom-badge" onclick="openWaifuPreview('${char.id}')" title="🔮 Personagem Mítico">🔮 Mítico</div>
         <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
         <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-          ${colBtnHtml}
           <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openCardOptionsModal('${char.id}')">
             ⚙️ Opções
           </button>
@@ -1284,7 +1462,7 @@ function createPrivateHaremCard(entry, options = {}) {
   } else if (isSoulmate) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -1301,7 +1479,7 @@ function createPrivateHaremCard(entry, options = {}) {
   } else {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
         ${rarityBadgeHtml}
         ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
         ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
@@ -1748,54 +1926,83 @@ function renderPrivateHarem(harem) {
   const colContainer = document.getElementById('private-collections-container');
   const colBadge = document.getElementById('collections-count-badge');
   const generalTitle = document.getElementById('private-harem-general-title');
+  const haremPagination = document.getElementById('harem-pagination');
 
   // Atualiza cache de entradas para acesso rápido nas opções
   haremEntryCache.clear();
   harem.forEach(e => haremEntryCache.set(e.character.id, e));
 
-  const totalCount = userSessionData?.totalHarem !== undefined ? userSessionData.totalHarem : harem.length;
-  document.getElementById('harem-count').textContent = totalCount;
+  // 1. Filtrar míticos fora da aba Casados (exibidos exclusivamente na aba Míticos)
+  const isMythic = (e) => Boolean(e.character?.isMythic || String(e.character?.rarity || '').toUpperCase() === 'MYTHIC');
+  const marriedHarem = harem.filter(e => !isMythic(e));
 
-  // 1. Renderiza lista reordenável de coleções no container Configurações do Harém
+  const totalCount = marriedHarem.length;
+  const haremCountEl = document.getElementById('harem-count');
+  if (haremCountEl) haremCountEl.textContent = totalCount;
+  const haremCountSub = document.getElementById('harem-count-sub');
+  if (haremCountSub) haremCountSub.textContent = totalCount;
+
+  // Renderiza lista reordenável de coleções no container Configurações do Harém
   const collections = userSessionData?.collections || [];
   if (colBadge) colBadge.textContent = `${collections.length}/15`;
   const btnNewCol = document.getElementById('btn-open-new-collection');
   if (btnNewCol) btnNewCol.disabled = collections.length >= 15;
   renderCollectionsReorderList(collections);
 
-  if (harem.length === 0) {
+  if (marriedHarem.length === 0) {
     if (favSection) favSection.classList.add('hidden');
     if (generalTitle) generalTitle.style.display = 'none';
+    if (haremPagination) haremPagination.classList.add('hidden');
     grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; font-weight: bold;">Seu harém ainda está vazio. Jogue no WhatsApp usando !mu-roll para casar com waifus!</div>';
     return;
   }
 
-  sortHaremCards(harem);
+  sortHaremCards(marriedHarem);
 
-  // 2. Favoritas (até 5) - omite badge-collection-tag
-  const favorites = harem.filter(e => e.isFavorite).slice(0, 5);
-  if (favorites.length > 0 && favSection && favGrid) {
-    favSection.classList.remove('hidden');
-    favGrid.innerHTML = '';
-    favorites.forEach(entry => favGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
-  } else if (favSection) {
-    favSection.classList.add('hidden');
+  const searchText = (haremFilterState.search || '').trim();
+  const rarityFilter = (haremFilterState.rarity || '').trim();
+  const hasFilter = Boolean(searchText || rarityFilter);
+  const searchSummary = searchText || (rarityFilter ? (RARITY_CONFIG[rarityFilter]?.label || rarityFilter) : '');
+
+  // 2. Favoritas em Destaque
+  const allFavorites = marriedHarem.filter(e => e.isFavorite);
+  const matchingFavorites = allFavorites.filter(e => matchesHaremCard(e, searchText, rarityFilter));
+
+  if (favSection && favGrid) {
+    if (hasFilter) {
+      favSection.classList.remove('hidden');
+      favGrid.innerHTML = '';
+      if (matchingFavorites.length > 0) {
+        matchingFavorites.forEach(entry => favGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
+      } else {
+        favGrid.innerHTML = `<div style="width: 100%; text-align: center; padding: 14px; font-size: 13px; color: var(--text-muted); font-style: italic;">Nenhum favorito encontrado para "${escapeHtml(searchSummary)}"</div>`;
+      }
+    } else {
+      if (allFavorites.length > 0) {
+        favSection.classList.remove('hidden');
+        favGrid.innerHTML = '';
+        allFavorites.slice(0, 5).forEach(entry => favGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
+      } else {
+        favSection.classList.add('hidden');
+      }
+    }
   }
 
-  // 3. Coleções (blocos com grid de waifus) - omite badge-collection-tag dentro da pasta
+  // 3. Coleções (blocos com grid de waifus)
   if (colContainer) {
     colContainer.innerHTML = '';
     collections.forEach(col => {
       const colCard = document.createElement('div');
       colCard.style.cssText = 'background: var(--bg-card); border: var(--border-retro); border-radius: var(--radius-retro); padding: 14px; box-shadow: var(--shadow-retro-sm);';
 
-      const colChars = harem.filter(e => e.collectionId === col.id);
+      const allColChars = marriedHarem.filter(e => e.collectionId === col.id);
+      const matchingColChars = allColChars.filter(e => matchesHaremCard(e, searchText, rarityFilter));
 
       colCard.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 16px; font-weight: 800;">📂 ${escapeHtml(col.name)}</span>
-            <span class="badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;">${colChars.length} waifus</span>
+            <span class="badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;">${allColChars.length} waifus</span>
             ${col.isPrivate ? '<span class="badge-tag" style="background: #ef4444; color: #fff; font-weight: 800;"><i class="fas fa-eye-slash"></i> Privada</span>' : ''}
           </div>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -1818,8 +2025,10 @@ function renderPrivateHarem(harem) {
       `;
 
       const subGrid = colCard.querySelector(`#col-grid-${col.id}`);
-      if (colChars.length > 0) {
-        colChars.forEach(entry => subGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
+      if (matchingColChars.length > 0) {
+        matchingColChars.forEach(entry => subGrid.appendChild(createPrivateHaremCard(entry, { hideCollectionBadge: true })));
+      } else if (hasFilter) {
+        subGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 14px; text-align: center; font-size: 13px; color: var(--text-muted); font-style: italic;">Nenhum personagem nesta pasta encontrado para "${escapeHtml(searchSummary)}"</div>`;
       } else {
         subGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 14px; text-align: center; font-size: 13px; color: var(--text-muted); font-style: italic;">Esta pasta está vazia. Clique em "📁 Coleção" em qualquer waifu abaixo para movê-la para cá.</div>`;
       }
@@ -1828,15 +2037,43 @@ function renderPrivateHarem(harem) {
     });
   }
 
-  // 4. Harém Geral (waifus que não estão em nenhuma coleção)
-  const generalEntries = harem.filter(e => !e.collectionId);
+  // 4. Harém Geral com Paginação
+  const allGeneralEntries = marriedHarem.filter(e => !e.collectionId);
+  const matchingGeneralEntries = allGeneralEntries.filter(e => matchesHaremCard(e, searchText, rarityFilter));
   if (generalTitle) generalTitle.style.display = 'block';
 
+  const totalGeneral = matchingGeneralEntries.length;
+  const pageSize = haremFilterState.pageSize || 30;
+  const totalGeneralPages = Math.max(1, Math.ceil(totalGeneral / pageSize));
+  haremFilterState.page = Math.min(Math.max(1, haremFilterState.page), totalGeneralPages);
+
+  const startIndex = (haremFilterState.page - 1) * pageSize;
+  const pagedGeneral = matchingGeneralEntries.slice(startIndex, startIndex + pageSize);
+
   grid.innerHTML = '';
-  if (generalEntries.length > 0) {
-    generalEntries.forEach(entry => grid.appendChild(createPrivateHaremCard(entry)));
+  if (pagedGeneral.length > 0) {
+    pagedGeneral.forEach(entry => grid.appendChild(createPrivateHaremCard(entry)));
+  } else if (hasFilter) {
+    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted); font-weight: bold;">Nenhum personagem no harém geral encontrado para "${escapeHtml(searchSummary)}"</div>`;
   } else {
     grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted); font-weight: bold;">Todas as waifus do seu harém estão organizadas em coleções! ✨</div>';
+  }
+
+  // Atualiza controles de paginação
+  if (haremPagination) {
+    if (totalGeneral === 0 && !hasFilter) {
+      haremPagination.classList.add('hidden');
+    } else {
+      haremPagination.classList.remove('hidden');
+      const totalCountEl = document.getElementById('harem-general-total-count');
+      if (totalCountEl) totalCountEl.textContent = `${totalGeneral} ${totalGeneral === 1 ? 'personagem' : 'personagens'}`;
+      const pageIndicator = document.getElementById('harem-page-indicator');
+      if (pageIndicator) pageIndicator.textContent = `${haremFilterState.page} / ${totalGeneralPages}`;
+      const btnPrev = document.getElementById('harem-btn-prev');
+      if (btnPrev) btnPrev.disabled = haremFilterState.page <= 1;
+      const btnNext = document.getElementById('harem-btn-next');
+      if (btnNext) btnNext.disabled = haremFilterState.page >= totalGeneralPages;
+    }
   }
 }
 
@@ -1870,95 +2107,134 @@ function renderPrivateWishlist(wishlist) {
     bonusEl.textContent = `+${bonusFormatted}%`;
   }
 
+  const paginationEl = document.getElementById('wishlist-pagination');
+
   if (wishlist.length === 0) {
+    if (paginationEl) paginationEl.classList.add('hidden');
     grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; font-weight: bold;">Sua wishlist está vazia. Use a aba "Catálogo" para desejar personagens!</div>';
     return;
   }
 
-  grid.innerHTML = '';
-  wishlist.forEach(entry => {
+  const searchText = (wishlistFilterState.search || '').trim();
+  const filtered = wishlist.filter(entry => {
     const char = entry.character;
-    const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
-    const isMarried = Boolean(entry.isMarried || char.isMarried);
-    const spouse = entry.marriedTo || char.marriedTo;
+    if (!char) return false;
+    return matchesTextFilter(searchText, char.name, char.series, char.id);
+  });
 
-    const card = document.createElement('div');
-    if (isMarried) {
-      card.className = 'waifu-card is-married-wishlist';
-      card.style.borderColor = '#ef4444';
-    } else {
-      card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
-      card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
-    }
-    card.id = `wish-card-${char.id}`;
+  const totalFiltered = filtered.length;
+  const pageSize = wishlistFilterState.pageSize || 50;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  wishlistFilterState.page = Math.min(Math.max(1, wishlistFilterState.page), totalPages);
 
-    let marriedBadgeHtml = '';
-    if (isMarried) {
-      marriedBadgeHtml = `
-        <div class="badge-married-alert" title="Casada(o) com ${escapeHtml(spouse || 'outro jogador')}">
-          💍 Casada ${spouse ? `(${escapeHtml(spouse)})` : ''}
-        </div>
-      `;
-    }
+  const startIndex = (wishlistFilterState.page - 1) * pageSize;
+  const pagedItems = filtered.slice(startIndex, startIndex + pageSize);
 
-    if (entry.collectionId) {
-      try { localStorage.setItem(`waifu_last_col_${char.id}`, entry.collectionId); } catch (_) {}
-    }
+  grid.innerHTML = '';
+  if (pagedItems.length === 0) {
+    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted); font-weight: bold;">Nenhum personagem na wishlist encontrado para "${escapeHtml(searchText)}"</div>`;
+  } else {
+    pagedItems.forEach(entry => {
+      const char = entry.character;
+      const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
+      const isMarried = Boolean(entry.isMarried || char.isMarried);
+      const spouse = entry.marriedTo || char.marriedTo;
 
-    card.innerHTML = `
-      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-        <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
-          ${rarity.emoji} ${rarity.label}
-        </div>
-        ${marriedBadgeHtml}
-        ${entry.isStarWish ? '<div class="badge-married" title="Starwish!">⭐</div>' : ''}
-        <div class="badge-wishes" data-char-id="${char.id}" title="Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para remover da Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
-          <span>✨</span> <span>${char.wishlistCount || 0}</span>
-        </div>
-        <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
-          <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
-        </div>
-      </div>
-      <div class="card-info">
-        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
-        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
-        <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-          ${!isMarried ? `
-            <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800; border-color: #d97706; color: #92400e; background: #fef3c7;" onclick="openInvestModal('${char.id}')">
-              <i class="fas fa-coins"></i> 📈 Investir
-            </button>
-          ` : ''}
-          ${isMarried && entry.marriedToPublicId !== userSessionData?.publicId ? `
-            ${userCovetedSet.has(char.id) ? `
-              <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" disabled>
-                <i class="fas fa-check"></i> 👀 Cobiçado
-              </button>
-            ` : `
-              <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" onclick="covetCharacter('${char.id}', this, event)">
-                <i class="fas fa-eye"></i> 👀 Cobiçar
-              </button>
-            `}
-          ` : ''}
-          <div style="display: flex; gap: 6px; width: 100%;">
-            <button class="btn-retro btn-sm btn-danger" style="flex: 1;" onclick="removeFromWishlist('${char.id}')">
-              <i class="fas fa-times"></i> Remover
-            </button>
-            <button class="btn-retro btn-sm" style="flex: 1;" onclick="openSuggestModal('${char.id}', '${escapeHtml(char.name)}', '${char.baseRarity}')">
-              <i class="fas fa-lightbulb"></i> Sugerir
-            </button>
+      const card = document.createElement('div');
+      if (isMarried) {
+        card.className = 'waifu-card is-married-wishlist';
+        card.style.borderColor = '#ef4444';
+      } else {
+        card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}`;
+        card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+      }
+      card.id = `wish-card-${char.id}`;
+
+      let marriedBadgeHtml = '';
+      if (isMarried) {
+        marriedBadgeHtml = `
+          <div class="badge-married-alert" title="Casada(o) com ${escapeHtml(spouse || 'outro jogador')}">
+            💍 Casada ${spouse ? `(${escapeHtml(spouse)})` : ''}
+          </div>
+        `;
+      }
+
+      if (entry.collectionId) {
+        try { localStorage.setItem(`waifu_last_col_${char.id}`, entry.collectionId); } catch (_) {}
+      }
+
+      card.innerHTML = `
+        <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+          <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+          <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
+            ${rarity.emoji} ${rarity.label}
+          </div>
+          ${marriedBadgeHtml}
+          ${entry.isStarWish ? '<div class="badge-married" title="Starwish!">⭐</div>' : ''}
+          <div class="badge-wishes" data-char-id="${char.id}" title="Desejado por ${char.wishlistCount || 0} pessoa(s). Clique para remover da Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
+            <span>✨</span> <span>${char.wishlistCount || 0}</span>
+          </div>
+          <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
+            <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
           </div>
         </div>
-      </div>
-    `;
+        <div class="card-info">
+          <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')">${escapeHtml(char.name)}</div>
+          <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+          <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+            ${!isMarried ? `
+              <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800; border-color: #d97706; color: #92400e; background: #fef3c7;" onclick="openInvestModal('${char.id}')">
+                <i class="fas fa-coins"></i> 📈 Investir
+              </button>
+            ` : ''}
+            ${isMarried && entry.marriedToPublicId !== userSessionData?.publicId ? `
+              ${userCovetedSet.has(char.id) ? `
+                <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" disabled>
+                  <i class="fas fa-check"></i> 👀 Cobiçado
+                </button>
+              ` : `
+                <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" onclick="covetCharacter('${char.id}', this, event)">
+                  <i class="fas fa-eye"></i> 👀 Cobiçar
+                </button>
+              `}
+            ` : ''}
+            <div style="display: flex; gap: 6px; width: 100%;">
+              <button class="btn-retro btn-sm btn-danger" style="flex: 1;" onclick="removeFromWishlist('${char.id}')">
+                <i class="fas fa-times"></i> Remover
+              </button>
+              <button class="btn-retro btn-sm" style="flex: 1;" onclick="openSuggestModal('${char.id}', '${escapeHtml(char.name)}', '${char.baseRarity}')">
+                <i class="fas fa-lightbulb"></i> Sugerir
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
 
-    const imgEl = card.querySelector('.card-img-wrapper img');
-    if (imgEl) {
-      initCardSlideshow(card, imgEl, char.imageUrls, false);
+      const imgEl = card.querySelector('.card-img-wrapper img');
+      if (imgEl) {
+        initCardSlideshow(card, imgEl, char.imageUrls, false);
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  // Atualiza controles de paginação da Wishlist
+  if (paginationEl) {
+    if (totalFiltered === 0 && !searchText) {
+      paginationEl.classList.add('hidden');
+    } else {
+      paginationEl.classList.remove('hidden');
+      const totalEl = document.getElementById('wishlist-total-count');
+      if (totalEl) totalEl.textContent = `${totalFiltered} ${totalFiltered === 1 ? 'personagem' : 'personagens'}`;
+      const pageIndicator = document.getElementById('wishlist-page-indicator');
+      if (pageIndicator) pageIndicator.textContent = `${wishlistFilterState.page} / ${totalPages}`;
+      const btnPrev = document.getElementById('wishlist-btn-prev');
+      if (btnPrev) btnPrev.disabled = wishlistFilterState.page <= 1;
+      const btnNext = document.getElementById('wishlist-btn-next');
+      if (btnNext) btnNext.disabled = wishlistFilterState.page >= totalPages;
     }
-
-    grid.appendChild(card);
-  });
+  }
 }
 
 function createPublicHaremCard(entry) {
@@ -1995,7 +2271,8 @@ function createPublicHaremCard(entry) {
   if (isMythic) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -2006,7 +2283,7 @@ function createPublicHaremCard(entry) {
   } else if (isSoulmate) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -2017,7 +2294,7 @@ function createPublicHaremCard(entry) {
   } else {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
         ${rarityBadgeHtml}
         ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
         ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
@@ -2050,6 +2327,8 @@ function renderPublicHarem(harem) {
   const totalCount = userSessionData?.totalHarem !== undefined ? userSessionData.totalHarem : (harem ? harem.length : 0);
   if (haremCountBadge) haremCountBadge.textContent = String(totalCount);
 
+  const mythicsSection = document.getElementById('public-mythics-section');
+  const mythicsGrid = document.getElementById('public-mythics-grid');
   const favoritesSection = document.getElementById('public-favorites-section');
   const favoritesGrid = document.getElementById('public-favorites-grid');
   const collectionsSection = document.getElementById('public-collections-section');
@@ -2058,6 +2337,7 @@ function renderPublicHarem(harem) {
   const grid = document.getElementById('public-harem-grid');
 
   if (harem.length === 0) {
+    if (mythicsSection) mythicsSection.classList.add('hidden');
     if (favoritesSection) favoritesSection.classList.add('hidden');
     if (collectionsSection) collectionsSection.classList.add('hidden');
     if (sectionTitle) sectionTitle.classList.add('hidden');
@@ -2067,8 +2347,18 @@ function renderPublicHarem(harem) {
 
   sortHaremCards(harem);
 
-  // 1. Favoritas (em cima)
-  const favorites = harem.filter(entry => entry.isFavorite).slice(0, 5);
+  // 1. Míticos Forjados (Fica acima de todos e só é exibida se tiver pelo menos 1 Mítico)
+  const mythicEntries = harem.filter(entry => entry.character?.isMythic);
+  if (mythicEntries.length > 0 && mythicsSection && mythicsGrid) {
+    mythicsSection.classList.remove('hidden');
+    mythicsGrid.innerHTML = '';
+    mythicEntries.forEach(entry => mythicsGrid.appendChild(createPublicHaremCard(entry)));
+  } else if (mythicsSection) {
+    mythicsSection.classList.add('hidden');
+  }
+
+  // 2. Favoritos (em cima, logo após os míticos)
+  const favorites = harem.filter(entry => entry.isFavorite && !entry.character?.isMythic).slice(0, 5);
   if (favorites.length > 0 && favoritesSection && favoritesGrid) {
     favoritesSection.classList.remove('hidden');
     favoritesGrid.innerHTML = '';
@@ -2077,16 +2367,16 @@ function renderPublicHarem(harem) {
     favoritesSection.classList.add('hidden');
   }
 
-  // 2. Coleções do Usuário (separadas em pastas)
+  // 3. Coleções do Usuário (separadas em pastas, excluindo míticos)
   const collections = userSessionData?.collections || [];
-  const colWithChars = collections.filter(c => harem.some(e => e.collectionId === c.id));
+  const colWithChars = collections.filter(c => harem.some(e => e.collectionId === c.id && !e.character?.isMythic));
 
   if (colWithChars.length > 0 && collectionsSection && collectionsContainer) {
     collectionsSection.classList.remove('hidden');
     collectionsContainer.innerHTML = '';
 
     colWithChars.forEach(col => {
-      const colChars = harem.filter(e => e.collectionId === col.id);
+      const colChars = harem.filter(e => e.collectionId === col.id && !e.character?.isMythic);
       if (colChars.length === 0) return;
 
       const colBox = document.createElement('div');
@@ -2108,15 +2398,19 @@ function renderPublicHarem(harem) {
     collectionsSection.classList.add('hidden');
   }
 
-  // 3. Harém Geral (demais personagens sem coleção e não favoritos)
-  const generalOthers = harem.filter(e => !e.collectionId && !favorites.includes(e));
+  // 4. Harém Geral (demais personagens sem coleção, não favoritos e não míticos)
+  const generalOthers = harem.filter(e => !e.collectionId && !e.character?.isMythic && !favorites.includes(e));
   if (generalOthers.length > 0) {
     if (sectionTitle) sectionTitle.classList.remove('hidden');
     grid.innerHTML = '';
     generalOthers.forEach(entry => grid.appendChild(createPublicHaremCard(entry)));
   } else {
     if (sectionTitle) sectionTitle.classList.add('hidden');
-    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted); font-weight: bold;">Todas as waifus estão organizadas acima nas coleções! ✨</div>';
+    if (mythicEntries.length > 0 || favorites.length > 0 || colWithChars.length > 0) {
+      grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted); font-weight: bold;">Todas as waifus estão organizadas acima nas coleções ou em destaque! ✨</div>';
+    } else {
+      grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; font-weight: bold;">Este usuário ainda não possui personagens no harém.</div>';
+    }
   }
 }
 
@@ -2127,6 +2421,13 @@ function renderPublicHarem(harem) {
 let currentAssignCharId = null;
 
 function openAssignCollectionModal(characterId, characterName, charImg, currentCollectionId) {
+  const entry = haremEntryCache.get(characterId);
+  const char = entry?.character;
+  if (char?.isMythic || String(char?.rarity || '').toUpperCase() === 'MYTHIC') {
+    Api.showToast('Personagens míticos não podem ser colocados em coleções!', '⚠️');
+    return;
+  }
+
   currentAssignCharId = characterId;
   const modal = document.getElementById('modal-assign-collection');
   if (!modal) return;
@@ -2394,8 +2695,8 @@ function openBatchAddCharactersModal(colId, colName) {
   }
 
   const harem = userSessionData?.harem || [];
-  // Filtra waifus que NÃO estão em nenhuma coleção (ou seja, pertencem ao Harém Geral)
-  batchAvailableHaremEntries = harem.filter(e => !e.collectionId);
+  // Filtra waifus que NÃO estão em nenhuma coleção e NÃO são míticas (pertencem ao Harém Geral)
+  batchAvailableHaremEntries = harem.filter(e => !e.collectionId && !e.character?.isMythic && String(e.character?.rarity || '').toUpperCase() !== 'MYTHIC');
 
   if (batchAvailableHaremEntries.length === 0) {
     Api.showToast('Todos os seus personagens já pertencem a alguma pasta!', 'ℹ️');
@@ -2716,6 +3017,7 @@ async function loadCatalogCharacters() {
     const currentWishes = new Set((userSessionData?.wishlist || []).map(w => w.character?.id || w.characterId));
 
     characters.forEach(char => {
+      const isMythic = Boolean(char.isMythic || char.baseRarity === 'MYTHIC');
       const rarityKey = char.baseRarity || 'COMMON';
       const rarityCfg = RARITY_CONFIG[rarityKey] || RARITY_CONFIG.COMMON;
       const isAlreadyWish = currentWishes.has(char.id);
@@ -2725,8 +3027,17 @@ async function loadCatalogCharacters() {
       const wishlistCount = char.wishlistCount || 0;
 
       const card = document.createElement('div');
-      card.className = `waifu-card rarity-${rarityKey.toLowerCase()}`;
-      card.style.borderColor = rarityKey === 'COMMON' ? '#000000' : rarityCfg.color;
+      if (isMythic) {
+        const cust = char.mythicCustomization || {};
+        const animType = cust.animationType || 'spin';
+        card.className = `waifu-card mythic-card anim-${animType}`;
+        card.style.setProperty('--mythic-border-color', cust.borderColor || '#a855f7');
+        card.style.setProperty('--mythic-glow-color', cust.glowColor || '#c084fc');
+        card.style.borderColor = cust.borderColor || '#a855f7';
+      } else {
+        card.className = `waifu-card rarity-${rarityKey.toLowerCase()}`;
+        card.style.borderColor = rarityKey === 'COMMON' ? '#000000' : rarityCfg.color;
+      }
 
       let marriedTooltip = '💍 Solteira(o)';
       if (isMarried) {
@@ -2735,16 +3046,22 @@ async function loadCatalogCharacters() {
           : '💍 Casada(o)';
       }
 
+      const topBadgeHtml = isMythic
+        ? `<div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>`
+        : `<div class="badge-rarity" style="border-color: ${rarityCfg.color}; color: ${rarityCfg.color};" title="Raridade: ${rarityCfg.label}">
+            ${rarityCfg.emoji} ${rarityCfg.label}
+          </div>`;
+
       card.innerHTML = `
         <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
           <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-          <div class="badge-rarity" style="border-color: ${rarityCfg.color}; color: ${rarityCfg.color};" title="Raridade: ${rarityCfg.label}">
-            ${rarityCfg.emoji} ${rarityCfg.label}
-          </div>
+          ${topBadgeHtml}
           ${isMarried ? `<div class="badge-married ${spousePublicId ? 'badge-married-link' : ''}" title="${marriedTooltip}">💍</div>` : ''}
-          <div class="badge-wishes" data-char-id="${char.id}" title="${wishlistCount} pessoa(s) adicionaram à wishlist. Clique para alternar Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
-            <span>✨</span> <span>${wishlistCount}</span>
-          </div>
+          ${!isMythic ? `
+            <div class="badge-wishes" data-char-id="${char.id}" title="${wishlistCount} pessoa(s) adicionaram à wishlist. Clique para alternar Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
+              <span>✨</span> <span>${wishlistCount}</span>
+            </div>
+          ` : ''}
           <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
             <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
           </div>
@@ -2753,26 +3070,32 @@ async function loadCatalogCharacters() {
           <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeHtml(char.name)}">${escapeHtml(char.name)}</div>
           <div class="card-series" title="${escapeHtml(char.series || 'Sem série')}">${escapeHtml(char.series || 'Sem série')}</div>
           <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-            <button class="btn-retro btn-sm ${isAlreadyWish ? 'btn-wish-active' : 'btn-gold'}" style="width: 100%;" onclick="toggleWishlist('${char.id}', this, event)" title="${isAlreadyWish ? 'Clique para remover da Wishlist' : 'Adicionar à Wishlist'}">
-              ${isAlreadyWish ? '<i class="fas fa-check"></i> Na Wishlist' : '<i class="fas fa-star"></i> + Wishlist'}
-            </button>
-            ${isMarried && spousePublicId !== userSessionData?.publicId ? `
-              ${userCovetedSet.has(char.id) ? `
-                <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" disabled>
-                  <i class="fas fa-check"></i> 👀 Cobiçado
-                </button>
-              ` : `
-                <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" onclick="covetCharacter('${char.id}', this, event)">
-                  <i class="fas fa-eye"></i> 👀 Cobiçar
-                </button>
-              `}
-            ` : ''}
-            <button class="btn-retro btn-sm btn-danger" style="width: 100%;" onclick="openReportModal('${char.id}', '${escapeHtml(char.name)}')">
-              <i class="fas fa-ban"></i> Denunciar 🔞
-            </button>
-            <button class="btn-retro btn-sm" style="width: 100%;" onclick="openSuggestModal('${char.id}', '${escapeHtml(char.name)}', '${char.baseRarity}')">
-              <i class="fas fa-lightbulb"></i> Sugerir Mudança
-            </button>
+            ${isMythic ? `
+              <div style="text-align: center; padding: 6px; background: rgba(168, 85, 247, 0.15); border: 1px solid #a855f7; border-radius: 4px; font-weight: 800; font-size: 12px; color: #facc15;">
+                🔮 Criação Mítica
+              </div>
+            ` : `
+              <button class="btn-retro btn-sm ${isAlreadyWish ? 'btn-wish-active' : 'btn-gold'}" style="width: 100%;" onclick="toggleWishlist('${char.id}', this, event)" title="${isAlreadyWish ? 'Clique para remover da Wishlist' : 'Adicionar à Wishlist'}">
+                ${isAlreadyWish ? '<i class="fas fa-check"></i> Na Wishlist' : '<i class="fas fa-star"></i> + Wishlist'}
+              </button>
+              ${isMarried && spousePublicId !== userSessionData?.publicId ? `
+                ${userCovetedSet.has(char.id) ? `
+                  <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" disabled>
+                    <i class="fas fa-check"></i> 👀 Cobiçado
+                  </button>
+                ` : `
+                  <button class="btn-retro btn-sm" style="width: 100%; border-color: #ec4899; color: #ec4899;" onclick="covetCharacter('${char.id}', this, event)">
+                    <i class="fas fa-eye"></i> 👀 Cobiçar
+                  </button>
+                `}
+              ` : ''}
+              <button class="btn-retro btn-sm btn-danger" style="width: 100%;" onclick="openReportModal('${char.id}', '${escapeHtml(char.name)}')">
+                <i class="fas fa-ban"></i> Denunciar 🔞
+              </button>
+              <button class="btn-retro btn-sm" style="width: 100%;" onclick="openSuggestModal('${char.id}', '${escapeHtml(char.name)}', '${char.baseRarity}')">
+                <i class="fas fa-lightbulb"></i> Sugerir Mudança
+              </button>
+            `}
           </div>
         </div>
       `;
@@ -2903,7 +3226,10 @@ async function executeDivorce() {
       userSessionData.totalHarem--;
     }
     const newCount = userSessionData.totalHarem !== undefined ? userSessionData.totalHarem : userSessionData.harem.length;
-    document.getElementById('harem-count').textContent = newCount;
+    const haremCountEl = document.getElementById('harem-count');
+    if (haremCountEl) haremCountEl.textContent = newCount;
+    const haremCountSub = document.getElementById('harem-count-sub');
+    if (haremCountSub) haremCountSub.textContent = newCount;
     document.getElementById('user-subtitle').textContent = `${newCount} personagens colecionados no harém`;
   } catch (err) {
     Api.showToast('Erro de comunicação ao divorciar.', '❌');
@@ -3696,6 +4022,9 @@ function openModal(id) {
 }
 
 function closeModal(id) {
+  if (id === 'modal-mythic-edit' && typeof cancelMythicCrop === 'function') {
+    cancelMythicCrop();
+  }
   const el = document.getElementById(id);
   if (el) el.classList.add('hidden');
 }
@@ -4041,7 +4370,9 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
   }
 
   const rarityEl = document.getElementById('waifu-preview-rarity');
-  if (cRarity && RARITY_CONFIG[cRarity]) {
+  if (isMythic) {
+    rarityEl.innerHTML = `<span class="badge-rarity" style="position: static; display: inline-block; background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6); padding: 4px 10px; border-radius: 4px;">🔮 MÍTICO</span>`;
+  } else if (cRarity && RARITY_CONFIG[cRarity]) {
     const r = RARITY_CONFIG[cRarity];
     rarityEl.innerHTML = `<span style="color:${r.color}; font-weight:800;">${r.emoji} ${r.label}</span>`;
   } else {
@@ -4061,7 +4392,19 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
   // Linha de Casamento
   const marriageLineEl = document.getElementById('waifu-preview-marriage-line');
   if (marriageLineEl) {
-    if (isClaimed) {
+    if (isMythic) {
+      const creator = fullChar?.creator || fullChar?.creatorUser;
+      const creatorName = creator?.name || cOwner?.name || 'Apoiador';
+      const creatorPublicId = creator?.publicId || cOwner?.publicId || null;
+      const creatorLink = creatorPublicId
+        ? `<a href="/user/${creatorPublicId}" target="_blank" style="color: #facc15; text-decoration: underline; font-weight: 800;">${escapeHtml(creatorName)}</a>`
+        : `<span style="color: #facc15; font-weight: 800;">${escapeHtml(creatorName)}</span>`;
+
+      marriageLineEl.innerHTML = `
+        <div style="margin-bottom: 4px;"><span style="color: #c084fc; font-weight: 800;">🔮 Forjado por:</span> ${creatorLink}</div>
+        <div style="font-size: 13px; color: #ec4899; font-weight: 700;">💍 Eternamente Casada(o) com ${creatorLink}</div>
+      `;
+    } else if (isClaimed) {
       const ownerName = cOwner?.name || (typeof cOwner === 'string' ? cOwner : 'Outro jogador');
       const ownerPublicId = cOwner?.publicId || null;
       if (ownerPublicId) {
@@ -4324,9 +4667,189 @@ function openSuggestFromPreview() {
   }
 }
 
-function switchTab(tabId) {
-  const tabBtn = document.querySelector(`.retro-tabs .retro-tab[data-tab="${tabId}"]`);
-  if (tabBtn) tabBtn.click();
+/**
+ * Sincroniza o Hash da URL com a aba e subaba ativas (ex: #harem/miticos, #catalogo/sugestoes)
+ * Permite navegação direta, favoritos e preservação de estado ao pressionar F5.
+ */
+function updateUrlHash(mainTabKey, subtabKey = null) {
+  let hash = '#' + mainTabKey;
+  if (subtabKey) {
+    hash += '/' + subtabKey;
+  }
+  if (window.location.hash !== hash) {
+    const url = new URL(window.location.href);
+    url.hash = hash;
+    history.replaceState(null, '', url.toString());
+  }
+}
+
+/**
+ * Ativa uma aba principal do painel privado
+ */
+function activateMainTab(tabId, updateHash = true) {
+  const tabBtn = document.querySelector(`#private-panel .retro-tabs:not(.retro-subtabs) .retro-tab[data-tab="${tabId}"]`);
+  const allTabs = document.querySelectorAll('#private-panel .retro-tabs:not(.retro-subtabs) .retro-tab[data-tab]');
+  allTabs.forEach(t => t.classList.remove('active'));
+  if (tabBtn) tabBtn.classList.add('active');
+
+  document.querySelectorAll('#private-panel > .tab-content').forEach(c => c.classList.add('hidden'));
+  const activeContent = document.getElementById(tabId);
+  if (activeContent) activeContent.classList.remove('hidden');
+
+  if (updateHash) {
+    if (tabId === 'tab-catalog') {
+      const activeSub = document.querySelector('#catalog-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-catalog-characters';
+      if (activeSub === 'subtab-catalog-suggestions') updateUrlHash('catalogo', 'sugestoes');
+      else updateUrlHash('catalogo', 'personagens');
+    } else if (tabId === 'tab-rankings') {
+      updateUrlHash('rankings');
+    } else if (tabId === 'tab-harem') {
+      const activeSub = document.querySelector('#harem-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-harem-married';
+      if (activeSub === 'subtab-harem-mythics') updateUrlHash('harem', 'miticos');
+      else if (activeSub === 'subtab-harem-wishlist') updateUrlHash('harem', 'wishlist');
+      else if (activeSub === 'subtab-harem-settings') updateUrlHash('harem', 'configuracoes');
+      else updateUrlHash('harem', 'casados');
+    } else if (tabId === 'tab-market') {
+      updateUrlHash('classificados');
+    } else if (tabId === 'tab-notifications') {
+      updateUrlHash('notificacoes');
+    }
+  }
+}
+
+/**
+ * Ativa uma subaba interna (Catálogo ou Harém)
+ */
+function activateSubTab(subtabsContainerId, subtabId, updateHash = true) {
+  const container = document.getElementById(subtabsContainerId);
+  if (!container) return;
+
+  const subBtn = container.querySelector(`.retro-subtab[data-subtab="${subtabId}"]`);
+  container.querySelectorAll('.retro-subtab').forEach(t => t.classList.remove('active'));
+  if (subBtn) subBtn.classList.add('active');
+
+  const tabContent = container.closest('.tab-content');
+  if (tabContent) {
+    tabContent.querySelectorAll('.subtab-content').forEach(c => c.classList.add('hidden'));
+    const activeSub = document.getElementById(subtabId);
+    if (activeSub) activeSub.classList.remove('hidden');
+  }
+
+  if (updateHash) {
+    if (subtabId === 'subtab-catalog-characters') updateUrlHash('catalogo', 'personagens');
+    else if (subtabId === 'subtab-catalog-suggestions') updateUrlHash('catalogo', 'sugestoes');
+    else if (subtabId === 'subtab-harem-married') updateUrlHash('harem', 'casados');
+    else if (subtabId === 'subtab-harem-mythics') updateUrlHash('harem', 'miticos');
+    else if (subtabId === 'subtab-harem-wishlist') updateUrlHash('harem', 'wishlist');
+    else if (subtabId === 'subtab-harem-settings') updateUrlHash('harem', 'configuracoes');
+  }
+}
+
+/**
+ * Alterna dinamicamente abas e subabas do painel
+ */
+function switchTab(tabId, subtabId = null) {
+  // Compatibilidade com chamadas legadas
+  if (tabId === 'tab-mythics') {
+    activateMainTab('tab-harem', false);
+    activateSubTab('harem-subtabs', 'subtab-harem-mythics', true);
+    loadUserMythics();
+    return;
+  }
+  if (tabId === 'tab-wishlist') {
+    activateMainTab('tab-harem', false);
+    activateSubTab('harem-subtabs', 'subtab-harem-wishlist', true);
+    return;
+  }
+  if (tabId === 'tab-settings' || tabId === 'tab-harem-settings') {
+    activateMainTab('tab-harem', false);
+    activateSubTab('harem-subtabs', 'subtab-harem-settings', true);
+    return;
+  }
+  if (tabId === 'tab-suggestions') {
+    activateMainTab('tab-catalog', false);
+    activateSubTab('catalog-subtabs', 'subtab-catalog-suggestions', true);
+    loadUserSuggestions();
+    return;
+  }
+
+  activateMainTab(tabId, !subtabId);
+
+  if (tabId === 'tab-catalog') {
+    const targetSub = subtabId || document.querySelector('#catalog-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-catalog-characters';
+    activateSubTab('catalog-subtabs', targetSub, true);
+    if (targetSub === 'subtab-catalog-suggestions') loadUserSuggestions();
+    else loadCatalogCharacters();
+  } else if (tabId === 'tab-harem') {
+    const targetSub = subtabId || document.querySelector('#harem-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-harem-married';
+    activateSubTab('harem-subtabs', targetSub, true);
+    if (targetSub === 'subtab-harem-mythics') loadUserMythics();
+  } else if (tabId === 'tab-rankings') {
+    loadRankings();
+  } else if (tabId === 'tab-market') {
+    loadMarketTab();
+  } else if (tabId === 'tab-notifications') {
+    loadUserNotifications();
+  }
+}
+
+/**
+ * Roteia a interface a partir do hash atual na URL (ex: #harem/miticos, #rankings)
+ */
+function navigateToHash(hash) {
+  if (!hash) return;
+  const cleanHash = hash.replace(/^#/, '').toLowerCase().trim();
+  if (!cleanHash) return;
+
+  const parts = cleanHash.split('/');
+  const mainPart = parts[0];
+  const subPart = parts[1];
+
+  if (mainPart === 'catalogo' || mainPart === 'catalog') {
+    activateMainTab('tab-catalog', false);
+    if (subPart === 'sugestoes' || subPart === 'suggestions') {
+      activateSubTab('catalog-subtabs', 'subtab-catalog-suggestions', false);
+      loadUserSuggestions();
+    } else {
+      activateSubTab('catalog-subtabs', 'subtab-catalog-characters', false);
+      loadCatalogCharacters();
+    }
+  } else if (mainPart === 'sugestoes' || mainPart === 'suggestions') {
+    activateMainTab('tab-catalog', false);
+    activateSubTab('catalog-subtabs', 'subtab-catalog-suggestions', false);
+    loadUserSuggestions();
+  } else if (mainPart === 'rankings' || mainPart === 'ranking') {
+    activateMainTab('tab-rankings', false);
+    loadRankings();
+  } else if (mainPart === 'harem') {
+    activateMainTab('tab-harem', false);
+    if (subPart === 'miticos' || subPart === 'mythics') {
+      activateSubTab('harem-subtabs', 'subtab-harem-mythics', false);
+      loadUserMythics();
+    } else if (subPart === 'wishlist' || subPart === 'desejos') {
+      activateSubTab('harem-subtabs', 'subtab-harem-wishlist', false);
+    } else if (subPart === 'configuracoes' || subPart === 'settings') {
+      activateSubTab('harem-subtabs', 'subtab-harem-settings', false);
+    } else {
+      activateSubTab('harem-subtabs', 'subtab-harem-married', false);
+    }
+  } else if (mainPart === 'miticos' || mainPart === 'mythics') {
+    activateMainTab('tab-harem', false);
+    activateSubTab('harem-subtabs', 'subtab-harem-mythics', false);
+    loadUserMythics();
+  } else if (mainPart === 'wishlist') {
+    activateMainTab('tab-harem', false);
+    activateSubTab('harem-subtabs', 'subtab-harem-wishlist', false);
+  } else if (mainPart === 'configuracoes' || mainPart === 'settings') {
+    activateMainTab('tab-harem', false);
+    activateSubTab('harem-subtabs', 'subtab-harem-settings', false);
+  } else if (mainPart === 'classificados' || mainPart === 'mercado' || mainPart === 'market') {
+    activateMainTab('tab-market', false);
+    loadMarketTab();
+  } else if (mainPart === 'notificacoes' || mainPart === 'notifications') {
+    activateMainTab('tab-notifications', false);
+    loadUserNotifications();
+  }
 }
 
 function openSellModal(characterId, characterName, imageUrl, series) {
@@ -5614,6 +6137,7 @@ async function loadRankings() {
 let userMythicsList = [];
 let userMythicSlotsData = { totalSlots: 0, usedSlots: 0, availableSlots: 0 };
 let mythicPhotosState = []; // Array de strings (URLs ou DataURLs base64)
+let mythicCropperInstance = null;
 
 async function loadUserMythics() {
   if (!userSessionToken || !userPublicId) return;
@@ -5706,6 +6230,7 @@ function createMythicCard(char) {
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes">
       <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+      <div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>
     </div>
     <div class="card-info">
       <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -5751,6 +6276,7 @@ function openCreateMythicModal() {
   document.getElementById('btn-save-mythic').innerHTML = '<i class="fas fa-magic"></i> Forjar Lenda Mítica';
 
   mythicPhotosState = [];
+  cancelMythicCrop();
   renderMythicPhotoThumbnails();
   updateMythicPreview();
   openModal('modal-mythic-edit');
@@ -5788,6 +6314,7 @@ function openEditMythicModal(char) {
     ? [...char.rawImageUrls]
     : Array.isArray(char.imageUrls) ? [...char.imageUrls] : [];
 
+  cancelMythicCrop();
   renderMythicPhotoThumbnails();
   updateMythicPreview();
   openModal('modal-mythic-edit');
@@ -5827,8 +6354,8 @@ function handleMythicFileUpload(event) {
     return;
   }
 
-  if (file.size > 8 * 1024 * 1024) {
-    Api.showToast('A imagem deve ter no máximo 8MB.', '⚠️');
+  if (file.size > 10 * 1024 * 1024) {
+    Api.showToast('A imagem enviada é muito grande! Compacte ela antes', '⚠️');
     event.target.value = '';
     return;
   }
@@ -5836,14 +6363,75 @@ function handleMythicFileUpload(event) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const dataUrl = e.target?.result;
-    if (dataUrl) {
+    if (!dataUrl) return;
+
+    const cropperContainer = document.getElementById('mythic-cropper-container');
+    const cropperImg = document.getElementById('mythic-cropper-img');
+    if (!cropperContainer || !cropperImg) {
       mythicPhotosState.push(String(dataUrl));
       renderMythicPhotoThumbnails();
       updateMythicPreview();
+      return;
     }
+
+    cropperImg.src = dataUrl;
+    cropperContainer.classList.remove('hidden');
+
+    if (mythicCropperInstance) {
+      mythicCropperInstance.destroy();
+      mythicCropperInstance = null;
+    }
+
+    // Inicializa Cropper.js com proporção 225x350 (9/14 - proporção padrão de cards Waifuletes/Mudae)
+    mythicCropperInstance = new Cropper(cropperImg, {
+      aspectRatio: 225 / 350,
+      viewMode: 1,
+      autoCropArea: 0.95,
+      preview: '#mythic-crop-preview',
+      responsive: true,
+    });
+
+    cropperContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
   reader.readAsDataURL(file);
   event.target.value = '';
+}
+
+function applyMythicCrop() {
+  if (!mythicCropperInstance) return;
+
+  if (mythicPhotosState.length >= 5) {
+    Api.showToast('Limite de 5 fotos atingido por personagem.', '⚠️');
+    cancelMythicCrop();
+    return;
+  }
+
+  const canvas = mythicCropperInstance.getCroppedCanvas({ width: 450, height: 700 });
+  if (!canvas) {
+    Api.showToast('Erro ao recortar imagem.', '❌');
+    return;
+  }
+
+  const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+  mythicPhotosState.push(croppedDataUrl);
+
+  cancelMythicCrop();
+  renderMythicPhotoThumbnails();
+  updateMythicPreview();
+  Api.showToast('Foto recortada e adicionada com sucesso!', '✂️');
+}
+
+function cancelMythicCrop() {
+  if (mythicCropperInstance) {
+    mythicCropperInstance.destroy();
+    mythicCropperInstance = null;
+  }
+  const cropperContainer = document.getElementById('mythic-cropper-container');
+  if (cropperContainer) {
+    cropperContainer.classList.add('hidden');
+  }
+  const fileInput = document.getElementById('mythic-file-input');
+  if (fileInput) fileInput.value = '';
 }
 
 function addMythicPhotoUrl() {

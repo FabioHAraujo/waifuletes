@@ -294,6 +294,10 @@ export class CollectionService {
       throw new DomainError('NOT_IN_HAREM', 'Você não é casado com este personagem ou ele não está no seu harém.', 400);
     }
 
+    if (haremEntry.character.isMythic) {
+      throw new DomainError('MYTHIC_CANNOT_BE_IN_COLLECTION', 'Personagens míticos não podem ser colocados em coleções/pastas.', 400);
+    }
+
     await this.prisma.haremEntry.update({
       where: { id: haremEntry.id },
       data: { collectionId: collection.id },

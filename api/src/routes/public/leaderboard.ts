@@ -187,21 +187,21 @@ export const publicLeaderboardRoutes: FastifyPluginAsync = async (fastify) => {
             u.id,
             u.name,
             u.platform,
-            count(h.id)::int as "totalMarriages",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON')::int as "commonCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON')::int as "uncommonCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'RARE')::int as "rareCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC')::int as "epicCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY')::int as "legendaryCount",
-            coalesce(sum(h.keys), 0)::int as "totalKeys",
+            count(h.id) FILTER (WHERE c.is_mythic IS NOT TRUE)::int as "totalMarriages",
+            count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON' AND c.is_mythic IS NOT TRUE)::int as "commonCount",
+            count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON' AND c.is_mythic IS NOT TRUE)::int as "uncommonCount",
+            count(h.id) FILTER (WHERE c."baseRarity" = 'RARE' AND c.is_mythic IS NOT TRUE)::int as "rareCount",
+            count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC' AND c.is_mythic IS NOT TRUE)::int as "epicCount",
+            count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY' AND c.is_mythic IS NOT TRUE)::int as "legendaryCount",
+            coalesce(sum(h.keys) FILTER (WHERE c.is_mythic IS NOT TRUE), 0)::int as "totalKeys",
             (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) as "totalSoulmates",
             (
-              count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON') * 2 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON') * 6 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'RARE') * 20 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC') * 60 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY') * 200 +
-              coalesce(sum(h.keys), 0) * 1 +
+              count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON' AND c.is_mythic IS NOT TRUE) * 2 +
+              count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON' AND c.is_mythic IS NOT TRUE) * 6 +
+              count(h.id) FILTER (WHERE c."baseRarity" = 'RARE' AND c.is_mythic IS NOT TRUE) * 20 +
+              count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC' AND c.is_mythic IS NOT TRUE) * 60 +
+              count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY' AND c.is_mythic IS NOT TRUE) * 200 +
+              coalesce(sum(h.keys) FILTER (WHERE c.is_mythic IS NOT TRUE), 0) * 1 +
               (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) * 3000
             )::int as "collectionPoints"
           FROM users u

@@ -9,7 +9,7 @@ import { DomainError } from '../errors/DomainError.js';
 
 export interface CharacterFilter {
   series?: string;
-  rarity?: Rarity;
+  rarity?: Rarity | 'MYTHIC' | string;
   gender?: Gender;
   tag?: string;
   search?: string;
@@ -177,7 +177,12 @@ export class CharacterService {
       where.series = { contains: filter.series, mode: 'insensitive' };
     }
     if (filter.rarity) {
-      where.baseRarity = filter.rarity;
+      if (filter.rarity === 'MYTHIC') {
+        where.isMythic = true;
+      } else {
+        where.baseRarity = filter.rarity as Rarity;
+        where.isMythic = false;
+      }
     }
     if (filter.gender) {
       where.gender = filter.gender;
@@ -211,16 +216,20 @@ export class CharacterService {
       where.haremEntries = { none: {} };
     }
 
-    // Ordenação inicial aleatória alternando 1 de cada raridade em ordem decrescente
-    const isRandomSort = filter.sort === 'random' || !filter.sort;
+    // Ordenação inicial aleatória alternando 1 de cada raridade em ordem decrescente (apenas quando não há busca ativa)
+    const isRandomSort = (filter.sort === 'random' || !filter.sort) && !filter.search && filter.rarity !== 'MYTHIC';
     if (isRandomSort) {
       const rarities: Rarity[] = filter.rarity
-        ? [filter.rarity]
+        ? [filter.rarity as Rarity]
         : ['LEGENDARY', 'EPIC', 'RARE', 'UNCOMMON', 'COMMON'];
 
       const countPerRarity = Math.ceil(limit / rarities.length);
 
       const conditions: string[] = [];
+
+      if (!filter.rarity) {
+        conditions.push('is_mythic = false');
+      }
 
       if (filter.status === 'inactive' || filter.isActive === false) {
         conditions.push('"isActive" = false');
@@ -293,6 +302,9 @@ export class CharacterService {
               where: { id: { in: finalIds } },
               include: {
                 _count: { select: { wishlists: true } },
+                creatorUser: {
+                  select: { id: true, publicId: true, name: true },
+                },
                 haremEntries: {
                   take: 1,
                   include: {
@@ -319,6 +331,12 @@ export class CharacterService {
             owner = isTrusted ? rawOwner : { name: rawOwner.name, publicId: rawOwner.publicId };
           }
 
+          const rawCreator = c.creatorUser ?? null;
+          let creator: any = null;
+          if (rawCreator) {
+            creator = { name: rawCreator.name, publicId: rawCreator.publicId };
+          }
+
           const { haremEntries, ...charRest } = c;
 
           return {
@@ -327,6 +345,7 @@ export class CharacterService {
             imageUrls: c.imageUrls.map((img: string) => this.formatImageUrl(c.id, img)),
             isClaimed: !!rawOwner,
             owner,
+            creator,
             claimedInGroup: isTrusted ? (c.haremEntries?.[0]?.claimedInGroup ?? null) : null,
             wishlistCount: c._count?.wishlists ?? 0,
           };
@@ -357,6 +376,9 @@ export class CharacterService {
               wishlists: true,
             },
           },
+          creatorUser: {
+            select: { id: true, publicId: true, name: true },
+          },
           haremEntries: {
             take: 1,
             include: {
@@ -384,6 +406,12 @@ export class CharacterService {
             : { name: rawOwner.name, publicId: rawOwner.publicId };
         }
 
+        const rawCreator = c.creatorUser ?? null;
+        let creator: any = null;
+        if (rawCreator) {
+          creator = { name: rawCreator.name, publicId: rawCreator.publicId };
+        }
+
         const { haremEntries, ...charRest } = c;
 
         return {
@@ -392,6 +420,7 @@ export class CharacterService {
           imageUrls: c.imageUrls.map((img: string) => this.formatImageUrl(c.id, img)),
           isClaimed: !!rawOwner,
           owner,
+          creator,
           claimedInGroup: isTrusted ? (c.haremEntries?.[0]?.claimedInGroup ?? null) : null,
           wishlistCount: c._count?.wishlists ?? 0,
         };
@@ -412,6 +441,9 @@ export class CharacterService {
         ],
       },
       include: {
+        creatorUser: {
+          select: { id: true, publicId: true, name: true, platform: true },
+        },
         haremEntries: {
           include: {
             user: {
@@ -439,7 +471,15 @@ export class CharacterService {
         : { name: rawOwner.name, publicId: rawOwner.publicId };
     }
 
-    const { haremEntries, ...charRest } = character;
+    const { haremEntries, creatorUser, ...charRest } = character;
+
+    const creator = creatorUser
+      ? {
+          id: isTrusted ? creatorUser.id : undefined,
+          name: creatorUser.name,
+          publicId: creatorUser.publicId,
+        }
+      : null;
 
     const hasActiveHarem = character.haremEntries.length > 0;
     const hasClaimCount = character.claimCount > 0;
@@ -464,6 +504,7 @@ export class CharacterService {
       isClaimed: !!rawOwner,
       wasEverMarried,
       owner,
+      creator,
       claimedInGroup: isTrusted ? (character.haremEntries[0]?.claimedInGroup ?? null) : null,
       wishlistCount: character._count?.wishlists ?? 0,
     };
