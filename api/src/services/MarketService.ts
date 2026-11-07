@@ -69,6 +69,10 @@ export class MarketService {
       throw new DomainError('NOT_IN_HAREM', 'Você não possui este personagem no seu harém.');
     }
 
+    if (haremEntry.character.isMythic) {
+      throw new DomainError('CANNOT_LIST_MYTHIC', 'Personagens Míticos pertencem exclusivamente ao seu criador e não podem ser anunciados nos classificados.');
+    }
+
     // 2. Checa se já existe anúncio ativo para este personagem
     const existingListing = await this.prisma.marketListing.findFirst({
       where: { characterId, status: ListingStatus.ACTIVE },

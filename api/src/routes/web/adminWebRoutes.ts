@@ -8,12 +8,14 @@ import { SuggestionService } from '../../services/SuggestionService.js';
 import { CharacterService } from '../../services/CharacterService.js';
 import { CooldownService } from '../../services/CooldownService.js';
 import { MarryService } from '../../services/MarryService.js';
+import { UserService } from '../../services/UserService.js';
 import { Prisma, Rarity, Gender, SuggestionStatus, SuggestionType } from '@prisma/client';
 
 export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
   const webSessionService = new WebSessionService(fastify.redis, fastify.prisma);
   const characterService = new CharacterService(fastify.prisma, fastify.redis);
   const suggestionService = new SuggestionService(fastify.prisma, fastify.redis, characterService);
+  const userService = new UserService(fastify.prisma, fastify.redis);
 
   /**
    * Middleware para checar autenticação de administrador
@@ -721,6 +723,7 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
             u.name,
             u.platform,
             u.kakera,
+            COALESCE(u.mythic_slots, 0)::int AS "mythicSlots",
             u."createdAt",
             COALESCE(h.total_harem, 0)::int AS "totalHarem",
             COALESCE(w.total_wishlist, 0)::int AS "totalWishlist",
@@ -754,6 +757,7 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
             u.name,
             u.platform,
             u.kakera,
+            COALESCE(u.mythic_slots, 0)::int AS "mythicSlots",
             u."createdAt",
             COALESCE(h.total_harem, 0)::int AS "totalHarem",
             COALESCE(w.total_wishlist, 0)::int AS "totalWishlist",
@@ -799,6 +803,7 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
               name: u.name,
               platform: u.platform,
               kakera: u.kakera,
+              mythicSlots: Number(u.mythicSlots) || 0,
               totalHarem: Number(u.totalHarem) || 0,
               totalWishlist: Number(u.totalWishlist) || 0,
               totalScore: Number(u.totalScore) || 0,
@@ -1001,5 +1006,152 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: requireAdminAuth,
     schema: updateZinthosSchema,
     handler: updateZinthosHandler,
+  });
+
+  /**
+   * Reseta os rolls do usuário para o valor máximo
+   */
+  fastify.post('/api/admin/users/:userId/reset-rolls', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Reseta os rolls do usuário para o valor máximo',
+      tags: ['Admin (Web)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        additionalProperties: false,
+        properties: { userId: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const user = await fastify.prisma.user.findFirst({
+        where: { OR: [{ id: userId }, { publicId: userId }] },
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+        });
+      }
+
+      const cooldownService = new CooldownService(fastify.redis);
+      await cooldownService.resetCooldown(user.id, 'roll');
+      const rollsState = await cooldownService.getUserRolls(user.id);
+
+      return reply.send({
+        success: true,
+        data: {
+          userId: user.id,
+          message: `Rolls de ${user.name} resetados com sucesso para o máximo (${rollsState.maxRolls} rolls).`,
+          rolls: rollsState,
+        },
+      });
+    },
+  });
+
+  /**
+   * Reseta todos os cooldowns de casamento (claim) do usuário
+   */
+  const resetClaimCooldownsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const user = await fastify.prisma.user.findFirst({
+      where: { OR: [{ id: userId }, { publicId: userId }] },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+      });
+    }
+
+    const cooldownService = new CooldownService(fastify.redis);
+    await cooldownService.resetCooldown(user.id, 'claim');
+
+    return reply.send({
+      success: true,
+      data: {
+        userId: user.id,
+        message: `Todos os cooldowns de casamento de ${user.name} foram resetados com sucesso!`,
+      },
+    });
+  };
+
+  fastify.post('/api/admin/users/:userId/reset-claim-cooldowns', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Reseta todos os cooldowns de casamento do usuário (liberando-o para casar)',
+      tags: ['Admin (Web)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        additionalProperties: false,
+        properties: { userId: { type: 'string' } },
+      },
+    },
+    handler: resetClaimCooldownsHandler,
+  });
+
+  fastify.post('/api/admin/users/:userId/reset-cds', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Alias para reset-claim-cooldowns',
+      tags: ['Admin (Web)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        additionalProperties: false,
+        properties: { userId: { type: 'string' } },
+      },
+    },
+    handler: resetClaimCooldownsHandler,
+  });
+
+  /**
+   * Concede ou altera slots de personagens míticos para um usuário
+   */
+  fastify.post('/api/admin/users/:userId/mythic-slots', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Concede slots de criação de personagens míticos para um usuário',
+      tags: ['Admin (Web)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        additionalProperties: false,
+        properties: { userId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['amount'],
+        additionalProperties: false,
+        properties: {
+          amount: { type: 'integer', minimum: 1 },
+          reason: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const { amount, reason = 'Concessão Administrativa' } = request.body as { amount: number; reason?: string };
+
+      try {
+        const result = await userService.addMythicSlots(userId, amount, reason);
+        return reply.send({
+          success: true,
+          data: {
+            ...result,
+            message: `+${amount} slot(s) mítico(s) concedido(s) com sucesso para o usuário!`,
+          },
+        });
+      } catch (err: any) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'ADMIN_GRANT_FAILED', message: err.message || 'Falha ao conceder slots míticos.' },
+        });
+      }
+    },
   });
 };

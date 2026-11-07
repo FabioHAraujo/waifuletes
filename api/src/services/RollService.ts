@@ -74,6 +74,7 @@ export class RollService {
           id: true,
           baseRarity: true,
           gender: true,
+          isMythic: true,
         },
       });
 
@@ -210,9 +211,11 @@ export class RollService {
         const claimCount = claimedMap.get(char.id) ?? 0;
         const shares = investmentMap.get(char.id) ?? 0;
 
-        if (isWish || claimCount > 0 || shares > 0) {
+        const isMythic = Boolean((char as any).isMythic);
+
+        if (isWish || claimCount > 0 || shares > 0 || isMythic) {
           const weight = calculateCharacterWeight({
-            baseRarity: char.baseRarity,
+            baseRarity: isMythic ? 'RARE' : char.baseRarity,
             claimCount,
             totalActiveUsersOrClaims: totalClaims,
             isWishlisted: isWish,
@@ -550,11 +553,15 @@ export class RollService {
             series: chosen.series,
             description: chosen.description,
             gender: chosen.gender,
-            rarity: chosen.baseRarity,
+            rarity: chosen.isMythic ? 'MYTHIC' : chosen.baseRarity,
+            baseRarity: chosen.baseRarity,
+            isMythic: Boolean(chosen.isMythic),
+            mythicCustomization: chosen.mythicCustomization || null,
             imageUrl: this.characterService.getRandomImageUrl(chosen.id, chosen.imageUrls),
             imageUrls: chosen.imageUrls.map((img) => this.characterService.formatImageUrl(chosen.id, img)),
             tags: chosen.tags,
           },
+          isMythic: Boolean(chosen.isMythic),
           available: !isClaimed && !instantMarriage,
           isWishlist: wishMap.has(chosen.id),
           isStarWish: wishMap.get(chosen.id) ?? false,

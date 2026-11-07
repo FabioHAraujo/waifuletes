@@ -91,6 +91,7 @@
         <button class="retro-tab active" data-tab="tab-catalog"><i class="fas fa-book"></i> Catálogo</button>
         <button class="retro-tab" data-tab="tab-rankings"><i class="fas fa-trophy"></i> Rankings</button>
         <button class="retro-tab" data-tab="tab-harem"><i class="fas fa-ring"></i> Meu Harém (<span id="harem-count">0</span>)</button>
+        <button class="retro-tab" data-tab="tab-mythics"><i class="fas fa-hat-wizard"></i> 🔮 Míticos (<span id="mythics-count">0</span>/<span id="mythics-total-slots">0</span>)</button>
         <button class="retro-tab" data-tab="tab-wishlist"><i class="fas fa-star"></i> Minha Wishlist (<span id="wishlist-count">0</span>)</button>
         <button class="retro-tab" data-tab="tab-market"><i class="fas fa-store"></i> Classificados <span id="market-pending-badge" class="badge-tag hidden" style="background:#f59e0b;color:#000;margin-left:4px;font-weight:800;padding:3px 6px;border-radius:4px;font-size:11px;">0</span></button>
         <button class="retro-tab" data-tab="tab-suggestions"><i class="fas fa-lightbulb"></i> Sugestões (<span id="user-suggestions-count">0</span>)</button>
@@ -299,6 +300,35 @@
         </div>
 
         <div id="harem-grid" class="waifu-grid"></div>
+      </div>
+
+      <!-- Aba: Míticos (Lendas Forjadas por Apoiadores) -->
+      <div class="tab-content hidden" id="tab-mythics">
+        <div class="mythic-header-panel" style="background: linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #1e1b4b 100%); border: 2px solid #a855f7; border-radius: 8px; padding: 20px; color: #fff; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.35);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <h2 style="margin: 0; font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 8px; color: #facc15;">
+                <span>🔮</span> Lendas & Míticos
+              </h2>
+              <p style="margin: 8px 0 0 0; font-size: 13px; line-height: 1.5; color: #e9d5ff; max-width: 650px;">
+                Lendas! Mitos! Histórias contadas pelo povo, pelo seus criadores. Personagens especiais e únicos, trazidos ao mundo por pessoas mais especiais ainda - as que ajudam o projeto da ravena a ficar vivo.
+              </p>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+              <div style="background: rgba(0,0,0,0.45); border: 1.5px solid #c084fc; border-radius: 6px; padding: 8px 16px; text-align: center;">
+                <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #d8b4fe; display: block; font-weight: 700;">Seus Slots</span>
+                <span style="font-size: 20px; font-weight: 900; color: #fff;"><span id="mythic-slots-used">0</span> / <span id="mythic-slots-total">0</span></span>
+              </div>
+              <button class="btn-retro btn-sm btn-gold" id="btn-open-create-mythic" onclick="openCreateMythicModal()" style="font-weight: 800; padding: 8px 16px;">
+                <i class="fas fa-plus"></i> Forjar Novo Mítico
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="mythics-grid" class="waifu-grid" style="min-height: 180px;">
+          <!-- Injetado dinamicamente via JS -->
+        </div>
       </div>
 
       <!-- Aba 3: Wishlist -->
@@ -1434,6 +1464,137 @@
       </div>
       <div class="modal-footer" style="justify-content: flex-end;">
         <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-choose-photo')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Forjar / Editar Personagem Mítico -->
+  <div class="modal-overlay hidden" id="modal-mythic-edit" style="z-index: 10010;">
+    <div class="modal-box" style="max-width: min(840px, 95vw); max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <span class="modal-title" id="mythic-modal-title">🔮 Forjar Personagem Mítico</span>
+        <button class="modal-close" onclick="closeModal('modal-mythic-edit')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; flex: 1; overflow-y: auto;">
+        <input type="hidden" id="mythic-edit-char-id">
+        <div style="display: grid; grid-template-columns: 1fr 280px; gap: 20px;" id="mythic-modal-layout">
+          <!-- Coluna da Esquerda: Formulário -->
+          <div>
+            <div style="margin-bottom: 12px;">
+              <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">Nome do Personagem: *</label>
+              <input type="text" id="mythic-input-name" class="retro-input" placeholder="Ex: Artoria Pendragon Alter" maxlength="80" required oninput="updateMythicPreview()">
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">Obra / Série / Origem:</label>
+              <input type="text" id="mythic-input-series" class="retro-input" placeholder="Ex: Fate Series ou Criação Original" maxlength="80" oninput="updateMythicPreview()">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+              <div>
+                <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">Gênero:</label>
+                <select id="mythic-input-gender" class="retro-select" style="width: 100%;">
+                  <option value="FEMALE">Feminino</option>
+                  <option value="MALE">Masculino</option>
+                  <option value="OTHER">Outro</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">Raridade:</label>
+                <input type="text" class="retro-input" value="🔮 MÍTICO" disabled style="background: rgba(0,0,0,0.06); font-weight: 800; color: #a855f7;">
+              </div>
+            </div>
+            <div style="margin-bottom: 14px;">
+              <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">História / Lore / Descrição:</label>
+              <textarea id="mythic-input-desc" class="retro-textarea" rows="2" placeholder="Descreva os feitos, personalidade ou origem da sua lenda..." maxlength="1000"></textarea>
+            </div>
+
+            <!-- Seção de Fotos (Até 5 fotos com upload ou URL) -->
+            <div style="background: var(--bg-card-subtle); border: var(--border-retro); border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 800; font-size: 13px;">📸 Fotos (<span id="mythic-photos-count">0</span>/5)</span>
+                <label class="btn-retro btn-sm btn-gold" style="cursor: pointer; margin: 0; font-size: 11px;">
+                  <i class="fas fa-upload"></i> Enviar Foto
+                  <input type="file" id="mythic-file-input" accept="image/*" style="display: none;" onchange="handleMythicFileUpload(event)">
+                </label>
+              </div>
+
+              <!-- Input para colar URL direta -->
+              <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                <input type="url" id="mythic-url-input" class="retro-input" placeholder="Ou cole a URL direta da imagem (https://...)" style="flex: 1; font-size: 12px;">
+                <button type="button" class="btn-retro btn-sm" onclick="addMythicPhotoUrl()" style="white-space: nowrap; font-size: 12px;">
+                  <i class="fas fa-plus"></i> Adicionar
+                </button>
+              </div>
+
+              <!-- Grade de Miniaturas das Fotos -->
+              <div id="mythic-photos-thumbnails" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; min-height: 60px;">
+                <!-- Miniaturas com botão de remover -->
+              </div>
+            </div>
+
+            <!-- Customização Estética do Card -->
+            <div style="background: var(--bg-card-subtle); border: var(--border-retro); border-radius: 8px; padding: 12px;">
+              <span style="font-weight: 800; font-size: 13px; display: block; margin-bottom: 8px;">✨ Personalização do Card</span>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                <div>
+                  <label style="font-weight: 700; font-size: 12px; display: block; margin-bottom: 4px;">Cor da Borda:</label>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <input type="color" id="mythic-color-border" value="#ffd700" onchange="updateMythicPreview()" style="width: 36px; height: 32px; padding: 0; border: var(--border-retro); border-radius: 4px; cursor: pointer;">
+                    <select id="mythic-preset-border" class="retro-select" style="flex: 1; font-size: 12px;" onchange="applyMythicPreset('border', this.value)">
+                      <option value="#ffd700">Ouro Real 🌟</option>
+                      <option value="#a855f7">Ametista Cósmica 🟣</option>
+                      <option value="#ef4444">Rubi Carmesim 🔴</option>
+                      <option value="#06b6d4">Ciano Astral 🔵</option>
+                      <option value="#10b981">Esmeralda Arcana 🟢</option>
+                      <option value="#ec4899">Rosa Shock 💖</option>
+                      <option value="#1f2937">Dark Obsidian ⚫</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style="font-weight: 700; font-size: 12px; display: block; margin-bottom: 4px;">Cor do Glow (Brilho):</label>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <input type="color" id="mythic-color-glow" value="#c084fc" onchange="updateMythicPreview()" style="width: 36px; height: 32px; padding: 0; border: var(--border-retro); border-radius: 4px; cursor: pointer;">
+                    <select id="mythic-preset-glow" class="retro-select" style="flex: 1; font-size: 12px;" onchange="applyMythicPreset('glow', this.value)">
+                      <option value="#c084fc">Violeta Cósmico 🟣</option>
+                      <option value="#ffd700">Ouro Puro 🌟</option>
+                      <option value="#f43f5e">Neon Rosa 💖</option>
+                      <option value="#22d3ee">Neon Ciano 🔵</option>
+                      <option value="#34d399">Neon Esmeralda 🟢</option>
+                      <option value="#f87171">Fogo Carmesim 🔴</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label style="font-weight: 700; font-size: 12px; display: block; margin-bottom: 4px;">Tipo de Animação do Card:</label>
+                <select id="mythic-select-animation" class="retro-select" style="width: 100%;" onchange="updateMythicPreview()">
+                  <option value="spin">Borda Giratória (Spin Clássico) 💫</option>
+                  <option value="pulse">Pulso Neon Cintilante 💓</option>
+                  <option value="shimmer">Onda Holográfica (Shimmer) 🌈</option>
+                  <option value="flame">Respiração Prismática (Prism Breath) 🔥</option>
+                  <option value="none">Estático Nobre (Sem animação intensa)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coluna da Direita: Preview do Card em Tempo Real -->
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="font-weight: 800; font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">PRÉ-VISUALIZAÇÃO AO VIVO</span>
+            <div id="mythic-preview-card-container" style="width: 220px;">
+              <!-- Card preview renderizado dinamicamente -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-mythic-edit')">Cancelar</button>
+        <button type="button" class="btn-retro btn-primary btn-sm" id="btn-save-mythic" onclick="saveMythicCharacter()">
+          <i class="fas fa-save"></i> Salvar Lenda Mítica
+        </button>
       </div>
     </div>
   </div>

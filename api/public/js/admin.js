@@ -1436,16 +1436,25 @@ async function loadAdminUsers() {
           ${renderZinthosCell(u.id, domKey, u.kakera || 0)}
         </td>
         <td style="text-align: center;">
-          <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; min-width: 250px; max-width: 320px; margin: 0 auto;">
             <button class="btn-retro btn-sm" onclick="impersonateUser('${escapeHtml(u.id)}')" title="Acessar painel web deste usuário">
               <i class="fas fa-external-link-alt"></i> Painel
             </button>
             <button class="btn-retro btn-sm btn-gold" onclick="openAdminMarryModal('${escapeHtml(u.id)}', '${escapeHtml(u.name)}')" title="Casar personagem com este usuário">
               <i class="fas fa-ring"></i> Casar
             </button>
+            <button class="btn-retro btn-sm btn-blue" onclick="adminResetRolls('${escapeHtml(u.id)}', '${escapeHtml(u.name)}')" title="Reseta o usuário para o máximo de rolls que ele pode ter">
+              <i class="fas fa-dice"></i> Rolls
+            </button>
+            <button class="btn-retro btn-sm btn-emerald" onclick="adminResetClaimCooldowns('${escapeHtml(u.id)}', '${escapeHtml(u.name)}')" title="Reseta todos os cooldowns de casamento do usuário (liberando ele pra casar)">
+              <i class="fas fa-clock"></i> Cds
+            </button>
+            <button class="btn-retro btn-sm" style="background: #8b5cf6; color: #fff; font-weight: 800; border-color: #7c3aed;" onclick="openAdminMythicSlotsModal('${escapeHtml(u.id)}', '${escapeHtml(u.name)}', ${Number(u.mythicSlots || 0)})" title="Conceder slots de personagens míticos para este usuário (Atual: ${Number(u.mythicSlots || 0)} slots)">
+              🔮 +Myt
+            </button>
             ${u.isBlockedFromSuggestions ? `
               <button class="btn-retro btn-sm" style="background: #16a34a; color: #fff; font-weight: 700;" onclick="unblockUserSuggestions('${escapeHtml(u.id)}')" title="Usuário bloqueado de enviar sugestões. Clique para desbloquear.">
-                <i class="fas fa-unlock"></i> Desbloquear
+                <i class="fas fa-unlock"></i> Desbloq.
               </button>
             ` : `
               <button class="btn-retro btn-sm" style="background: #fee2e2; border-color: #ef4444; color: #dc2626; font-weight: 700;" onclick="openBlockSuggestionsModal('${escapeHtml(u.id)}', '${escapeHtml(u.name)}')" title="Bloquear envio de sugestões">
@@ -1595,6 +1604,55 @@ async function impersonateUser(userId) {
   }
 }
 
+async function adminResetRolls(userId, userName) {
+  const displayName = userName || userId;
+  if (!confirm(`Deseja realmente resetar os rolls de "${displayName}" para o máximo?`)) return;
+
+  Api.showLoading('Aguarde... Resetando rolls...', `Restaurando rolls para o máximo de ${displayName}...`);
+  try {
+    const res = await Api.post(`/api/admin/users/${encodeURIComponent(userId)}/reset-rolls`, {}, {
+      Authorization: `Bearer ${adminToken}`,
+    });
+
+    if (res.success) {
+      Api.showToast(res.data?.message || 'Rolls resetados com sucesso para o máximo!', '🎲');
+    } else {
+      Api.showToast(res.error?.message || 'Falha ao resetar rolls.', '❌');
+    }
+  } catch (err) {
+    console.error('Erro ao resetar rolls:', err);
+    Api.showToast('Erro de comunicação ao resetar rolls.', '❌');
+  } finally {
+    Api.hideLoading();
+  }
+}
+
+async function adminResetClaimCooldowns(userId, userName) {
+  const displayName = userName || userId;
+  if (!confirm(`Deseja realmente resetar todos os cooldowns de casamento de "${displayName}"? O usuário será liberado para casar imediatamente.`)) return;
+
+  Api.showLoading('Aguarde... Resetando cooldowns...', `Limpando cooldowns de casamento de ${displayName}...`);
+  try {
+    const res = await Api.post(`/api/admin/users/${encodeURIComponent(userId)}/reset-claim-cooldowns`, {}, {
+      Authorization: `Bearer ${adminToken}`,
+    });
+
+    if (res.success) {
+      Api.showToast(res.data?.message || 'Cooldowns de casamento resetados com sucesso!', '💍');
+    } else {
+      Api.showToast(res.error?.message || 'Falha ao resetar cooldowns.', '❌');
+    }
+  } catch (err) {
+    console.error('Erro ao resetar cooldowns:', err);
+    Api.showToast('Erro de comunicação ao resetar cooldowns.', '❌');
+  } finally {
+    Api.hideLoading();
+  }
+}
+
+window.adminResetRolls = adminResetRolls;
+window.adminResetClaimCooldowns = adminResetClaimCooldowns;
+
 function openAdminMarryModal(userId, userName) {
   selectedMarryTargetUser = { id: userId, name: userName };
   const cleanNumber = (userId || '').replace('@s.whatsapp.net', '');
@@ -1642,6 +1700,63 @@ async function handleAdminMarrySubmit(e) {
     Api.hideLoading();
     btnConfirm.disabled = false;
     btnConfirm.innerHTML = '<i class="fas fa-ring"></i> Confirmar Casamento';
+  }
+}
+
+// Modal de Concessão de Slots Míticos
+function openAdminMythicSlotsModal(userId, userName, currentSlots) {
+  const modal = document.getElementById('modal-admin-mythic-slots');
+  const nameEl = document.getElementById('mythic-slots-user-name');
+  const idEl = document.getElementById('mythic-slots-user-id');
+  const countEl = document.getElementById('mythic-slots-current-count');
+  const amountInput = document.getElementById('mythic-slots-amount-input');
+  const reasonInput = document.getElementById('mythic-slots-reason-input');
+
+  if (nameEl) nameEl.textContent = userName;
+  if (idEl) idEl.value = userId;
+  if (countEl) countEl.textContent = `${currentSlots} slot(s)`;
+  if (amountInput) amountInput.value = '1';
+  if (reasonInput) reasonInput.value = '';
+
+  openModal('modal-admin-mythic-slots');
+}
+
+async function confirmAdminMythicSlots(event) {
+  if (event) event.preventDefault();
+  const idEl = document.getElementById('mythic-slots-user-id');
+  const amountInput = document.getElementById('mythic-slots-amount-input');
+  const reasonInput = document.getElementById('mythic-slots-reason-input');
+
+  const userId = idEl?.value;
+  const amount = parseInt(amountInput?.value, 10);
+  const reason = reasonInput?.value?.trim() || 'Concessão Administrativa';
+
+  if (!userId || isNaN(amount) || amount < 1) {
+    Api.showToast('Informe uma quantidade válida de slots (mínimo 1).', '❌');
+    return;
+  }
+
+  Api.showLoading('Concedendo slots...', 'Registrando slots míticos no banco de dados...');
+  try {
+    const res = await Api.post(`/api/admin/users/${encodeURIComponent(userId)}/mythic-slots`, {
+      amount,
+      reason,
+    }, {
+      Authorization: `Bearer ${adminToken}`,
+    });
+
+    if (!res.success) {
+      Api.showToast(res.error?.message || 'Falha ao conceder slots.', '❌');
+      return;
+    }
+
+    Api.showToast(`+${amount} slot(s) mítico(s) concedido(s) com sucesso!`, '🔮');
+    closeModal('modal-admin-mythic-slots');
+    loadAdminUsers();
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao conceder slots.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 

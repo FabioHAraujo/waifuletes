@@ -1,4 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { WebSessionService } from '../../services/WebSessionService.js';
 import { HaremService } from '../../services/HaremService.js';
 import { WishlistService } from '../../services/WishlistService.js';
@@ -169,7 +172,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       const user = await fastify.prisma.user.findUnique({
         where: { publicId },
-        select: { id: true, publicId: true, name: true, kakera: true, haremName: true, haremPrivate: true },
+        select: { id: true, publicId: true, name: true, kakera: true, haremName: true, haremPrivate: true, mythicSlots: true },
       });
 
       if (!user) {
@@ -237,6 +240,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             haremName: user.haremName || null,
             haremPrivate: Boolean(user.haremPrivate),
             kakera: user.kakera,
+            mythicSlots: user.mythicSlots || 0,
             expiresIn: session.expiresIn,
             isPersistent: session.isPersistent,
             unreadNotificationsCount,
@@ -278,6 +282,8 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           baseRarity: item.character.baseRarity,
           imageUrl: item.character.imageUrl,
           imageUrls: item.character.imageUrls,
+          isMythic: Boolean(item.character.isMythic),
+          mythicCustomization: item.character.mythicCustomization || null,
         },
         keys: item.keys,
         isFavorite: item.isFavorite,
@@ -2850,6 +2856,472 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           error: { code: err.code || 'COVET_ERROR', message: err.message },
         });
       }
+    },
+  });
+
+  // ========================================================
+  // ROTAS DE PERSONAGENS MÍTICOS (CRIAÇÃO, EDIÇÃO, SLOTS)
+  // ========================================================
+
+  async function processMythicPhotos(charId: string, photos: string[]): Promise<string[]> {
+    const result: string[] = [];
+    const uploadsDir = path.resolve(config.MEDIA_DIR, 'uploads', 'characters', charId);
+
+    for (let i = 0; i < Math.min(photos.length, 5); i++) {
+      const p = photos[i];
+      if (!p || typeof p !== 'string') continue;
+      const trimmed = p.trim();
+      if (trimmed.startsWith('data:image/')) {
+        const match = trimmed.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (match) {
+          const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+          const buffer = Buffer.from(match[2], 'base64');
+          await fs.mkdir(uploadsDir, { recursive: true });
+          const fileName = `${Date.now()}_${i}.${ext}`;
+          const filePath = path.join(uploadsDir, fileName);
+          await fs.writeFile(filePath, buffer);
+          result.push(`uploads/characters/${charId}/${fileName}`);
+          continue;
+        }
+      }
+      result.push(trimmed);
+    }
+    return result;
+  }
+
+  /**
+   * Consulta os slots e os personagens míticos do usuário
+   */
+  fastify.get('/api/web/user/:publicId/mythics', {
+    schema: {
+      description: 'Consulta os personagens míticos criados pelo usuário e seu saldo de slots',
+      tags: ['Míticos (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+      },
+      querystring: {
+        type: 'object',
+        required: ['token'],
+        properties: { token: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const { token } = request.query as { token: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada.' },
+        });
+      }
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, name: true, mythicSlots: true },
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+        });
+      }
+
+      const mythicCharacters = await fastify.prisma.character.findMany({
+        where: { creatorUserId: user.id, isMythic: true },
+        include: {
+          haremEntries: {
+            where: { userId: user.id },
+            select: { keys: true, pinnedPhoto: true, claimedAt: true },
+          },
+        },
+        orderBy: { addedAt: 'desc' },
+      });
+
+      const formatted = mythicCharacters.map((c) => {
+        const entry = c.haremEntries[0];
+        const pinned = entry?.pinnedPhoto || null;
+        return {
+          id: c.id,
+          name: c.name,
+          series: c.series,
+          description: c.description,
+          gender: c.gender,
+          baseRarity: c.baseRarity,
+          isMythic: true,
+          claimCount: c.claimCount,
+          pinnedPhoto: pinned,
+          keys: entry?.keys || 1,
+          claimedAt: entry?.claimedAt || c.addedAt,
+          imageUrl: characterService.getRandomImageUrl(c.id, c.imageUrls),
+          imageUrls: c.imageUrls.map((img) => characterService.formatImageUrl(c.id, img)),
+          rawImageUrls: c.imageUrls,
+          mythicCustomization: c.mythicCustomization || null,
+        };
+      });
+
+      const totalSlots = user.mythicSlots;
+      const usedSlots = formatted.length;
+      const availableSlots = Math.max(0, totalSlots - usedSlots);
+
+      return reply.send({
+        success: true,
+        data: {
+          totalSlots,
+          usedSlots,
+          availableSlots,
+          mythics: formatted,
+        },
+      });
+    },
+  });
+
+  /**
+   * Criação de um novo personagem mítico
+   */
+  fastify.post('/api/web/user/:publicId/mythics', {
+    schema: {
+      description: 'Cria um novo personagem mítico consumindo 1 slot do usuário',
+      tags: ['Míticos (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['name', 'token'],
+        properties: {
+          token: { type: 'string' },
+          name: { type: 'string', minLength: 2, maxLength: 80 },
+          series: { type: 'string', maxLength: 80 },
+          description: { type: 'string', maxLength: 1000 },
+          gender: { type: 'string', enum: ['FEMALE', 'MALE', 'OTHER'], default: 'FEMALE' },
+          photos: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+          customization: {
+            type: 'object',
+            properties: {
+              borderColor: { type: 'string' },
+              animationType: { type: 'string', enum: ['spin', 'pulse', 'shimmer', 'flame', 'none'] },
+              glowColor: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const body = request.body as {
+        token: string;
+        name: string;
+        series?: string;
+        description?: string;
+        gender?: Gender;
+        photos?: string[];
+        customization?: any;
+      };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(body.token)
+        : await webSessionService.validateUserSession(publicId, body.token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada.' },
+        });
+      }
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, name: true, mythicSlots: true },
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+        });
+      }
+
+      const currentMythicsCount = await fastify.prisma.character.count({
+        where: { creatorUserId: user.id, isMythic: true },
+      });
+
+      if (currentMythicsCount >= user.mythicSlots) {
+        return reply.status(403).send({
+          success: false,
+          error: {
+            code: 'NO_MYTHIC_SLOTS',
+            message: `Você já atingiu o limite de ${user.mythicSlots} personagem(ns) mítico(s). Apoie a Ravena (R$ 50 = 1 slot) para desbloquear mais slots!`,
+          },
+        });
+      }
+
+      const charId = `myt_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+      const rawPhotos = Array.isArray(body.photos) ? body.photos.filter(Boolean) : [];
+      const savedPhotos = await processMythicPhotos(charId, rawPhotos);
+      const finalImageUrls = savedPhotos.length > 0 ? savedPhotos : ['/media/characters/default.jpg'];
+
+      const customization = {
+        borderColor: body.customization?.borderColor || '#eab308',
+        animationType: body.customization?.animationType || 'spin',
+        glowColor: body.customization?.glowColor || '#ffd700',
+      };
+
+      // Cria Character e HaremEntry atomicamente
+      const created = await fastify.prisma.$transaction(async (tx) => {
+        const character = await tx.character.create({
+          data: {
+            id: charId,
+            name: body.name.trim(),
+            series: (body.series && body.series.trim()) || `Lenda de ${user.name}`,
+            description: body.description?.trim() || null,
+            gender: body.gender || 'FEMALE',
+            baseRarity: 'RARE',
+            isMythic: true,
+            creatorUserId: user.id,
+            claimCount: 1,
+            imageUrls: finalImageUrls,
+            mythicCustomization: customization,
+            isActive: true,
+          },
+        });
+
+        await tx.haremEntry.create({
+          data: {
+            userId: user.id,
+            characterId: charId,
+            claimedInGroup: 'MYTHIC_CREATION',
+            keys: 1,
+            pinnedPhoto: finalImageUrls[0],
+          },
+        });
+
+        return character;
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          id: created.id,
+          name: created.name,
+          series: created.series,
+          description: created.description,
+          gender: created.gender,
+          isMythic: true,
+          imageUrl: characterService.getRandomImageUrl(created.id, created.imageUrls),
+          imageUrls: created.imageUrls.map((img) => characterService.formatImageUrl(created.id, img)),
+          mythicCustomization: created.mythicCustomization,
+          message: '🔮 Seu personagem mítico foi forjado com sucesso e já habita o seu harém!',
+        },
+      });
+    },
+  });
+
+  /**
+   * Atualização de dados e customização do personagem mítico
+   */
+  fastify.put('/api/web/user/:publicId/mythics/:characterId', {
+    schema: {
+      description: 'Edita um personagem mítico pertencente ao usuário',
+      tags: ['Míticos (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'characterId'],
+        properties: {
+          publicId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string' },
+          name: { type: 'string', minLength: 2, maxLength: 80 },
+          series: { type: 'string', maxLength: 80 },
+          description: { type: 'string', maxLength: 1000 },
+          gender: { type: 'string', enum: ['FEMALE', 'MALE', 'OTHER'] },
+          photos: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+          pinnedPhoto: { type: 'string' },
+          customization: {
+            type: 'object',
+            properties: {
+              borderColor: { type: 'string' },
+              animationType: { type: 'string', enum: ['spin', 'pulse', 'shimmer', 'flame', 'none'] },
+              glowColor: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, characterId } = request.params as { publicId: string; characterId: string };
+      const body = request.body as {
+        token: string;
+        name?: string;
+        series?: string;
+        description?: string;
+        gender?: Gender;
+        photos?: string[];
+        pinnedPhoto?: string;
+        customization?: any;
+      };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(body.token)
+        : await webSessionService.validateUserSession(publicId, body.token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada.' },
+        });
+      }
+
+      const character = await fastify.prisma.character.findUnique({
+        where: { id: characterId },
+      });
+
+      if (!character || !character.isMythic || character.creatorUserId !== session.userId) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'MYTHIC_NOT_FOUND', message: 'Personagem mítico não encontrado ou você não é o criador.' },
+        });
+      }
+
+      let updatedPhotos = character.imageUrls;
+      if (Array.isArray(body.photos)) {
+        const rawPhotos = body.photos.filter(Boolean);
+        updatedPhotos = await processMythicPhotos(characterId, rawPhotos);
+      }
+
+      const dataToUpdate: any = {};
+      if (body.name?.trim()) dataToUpdate.name = body.name.trim();
+      if (body.series !== undefined) dataToUpdate.series = body.series.trim() || character.series;
+      if (body.description !== undefined) dataToUpdate.description = body.description.trim() || null;
+      if (body.gender) dataToUpdate.gender = body.gender;
+      if (updatedPhotos.length > 0) dataToUpdate.imageUrls = updatedPhotos;
+      if (body.customization) {
+        dataToUpdate.mythicCustomization = {
+          borderColor: body.customization.borderColor || (character.mythicCustomization as any)?.borderColor || '#eab308',
+          animationType: body.customization.animationType || (character.mythicCustomization as any)?.animationType || 'spin',
+          glowColor: body.customization.glowColor || (character.mythicCustomization as any)?.glowColor || '#ffd700',
+        };
+      }
+
+      const updated = await fastify.prisma.character.update({
+        where: { id: characterId },
+        data: dataToUpdate,
+      });
+
+      if (body.pinnedPhoto) {
+        await fastify.prisma.haremEntry.updateMany({
+          where: { userId: session.userId, characterId },
+          data: { pinnedPhoto: body.pinnedPhoto },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          id: updated.id,
+          name: updated.name,
+          series: updated.series,
+          description: updated.description,
+          gender: updated.gender,
+          isMythic: true,
+          imageUrl: characterService.getRandomImageUrl(updated.id, updated.imageUrls),
+          imageUrls: updated.imageUrls.map((img) => characterService.formatImageUrl(updated.id, img)),
+          mythicCustomization: updated.mythicCustomization,
+          message: '🔮 Personagem mítico atualizado com sucesso!',
+        },
+      });
+    },
+  });
+
+  /**
+   * Exclui o personagem mítico e devolve o slot livre ao criador
+   */
+  fastify.delete('/api/web/user/:publicId/mythics/:characterId', {
+    schema: {
+      description: 'Exclui um personagem mítico liberando o slot para o criador',
+      tags: ['Míticos (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'characterId'],
+        properties: {
+          publicId: { type: 'string' },
+          characterId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
+        properties: { token: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, characterId } = request.params as { publicId: string; characterId: string };
+      const { token } = request.body as { token: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão inválida ou expirada.' },
+        });
+      }
+
+      const character = await fastify.prisma.character.findUnique({
+        where: { id: characterId },
+      });
+
+      if (!character || !character.isMythic || character.creatorUserId !== session.userId) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'MYTHIC_NOT_FOUND', message: 'Personagem mítico não encontrado ou você não é o criador.' },
+        });
+      }
+
+      await fastify.prisma.$transaction(async (tx) => {
+        await tx.haremEntry.deleteMany({ where: { characterId } });
+        await tx.character.delete({ where: { id: characterId } });
+      });
+
+      const remainingMythics = await fastify.prisma.character.count({
+        where: { creatorUserId: session.userId, isMythic: true },
+      });
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { mythicSlots: true },
+      });
+
+      const totalSlots = user?.mythicSlots || 0;
+      const availableSlots = Math.max(0, totalSlots - remainingMythics);
+
+      return reply.send({
+        success: true,
+        data: {
+          characterId,
+          totalSlots,
+          usedSlots: remainingMythics,
+          availableSlots,
+          message: '🔮 Personagem mítico excluído com sucesso! Seu slot foi liberado para uma nova lenda.',
+        },
+      });
     },
   });
 };

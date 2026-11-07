@@ -117,6 +117,7 @@ export class UserService {
       name: user.name,
       platform: user.platform,
       kakera: user.kakera,
+      mythicSlots: user.mythicSlots,
       haremCount: user._count.harem,
       soulmateCount: user._count.soulmates,
       wishlistCount: user._count.wishlist,
@@ -195,5 +196,63 @@ export class UserService {
       },
       orderBy: { joinedAt: 'desc' },
     });
+  }
+
+  async addMythicSlots(userId: string, amount: number, reason?: string) {
+    if (amount <= 0) {
+      throw new Error('INVALID_AMOUNT');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { mythicSlots: { increment: amount } },
+      select: { id: true, name: true, mythicSlots: true },
+    });
+
+    const usedSlots = await this.prisma.character.count({
+      where: { creatorUserId: userId, isMythic: true },
+    });
+
+    // Registra notificação para o usuário informando sobre os novos slots
+    try {
+      await this.prisma.userNotification.create({
+        data: {
+          userId,
+          type: 'SYSTEM',
+          title: '🔮 Novo(s) Slot(s) de Mítico Liberado(s)!',
+          message: `Você recebeu +${amount} slot(s) de criação mítica${reason ? ` (${reason})` : ''}. Acesse a aba Míticos para forjar sua lenda!`,
+        },
+      });
+    } catch (_) {
+      // Ignora falhas secundárias de notificação
+    }
+
+    return {
+      userId: updatedUser.id,
+      name: updatedUser.name,
+      mythicSlots: updatedUser.mythicSlots,
+      usedSlots,
+      availableSlots: Math.max(0, updatedUser.mythicSlots - usedSlots),
+    };
+  }
+
+  async getMythicSlots(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, mythicSlots: true },
+    });
+
+    if (!user) return null;
+
+    const usedSlots = await this.prisma.character.count({
+      where: { creatorUserId: userId, isMythic: true },
+    });
+
+    return {
+      userId: user.id,
+      mythicSlots: user.mythicSlots,
+      usedSlots,
+      availableSlots: Math.max(0, user.mythicSlots - usedSlots),
+    };
   }
 }

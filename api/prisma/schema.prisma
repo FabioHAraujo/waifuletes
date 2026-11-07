@@ -48,6 +48,7 @@ model User {
   kakera      Int          @default(0)
   haremName   String?      @map("harem_name")
   haremPrivate Boolean     @default(false) @map("harem_private")
+  mythicSlots Int          @default(0) @map("mythic_slots")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -66,6 +67,7 @@ model User {
   investments   CharacterInvestment[]
   notifications UserNotification[]
   collections   UserCollection[]
+  mythicCharacters Character[]         @relation("MythicCreator")
 
   @@index([kakera(sort: Desc)])
   @@map("users")
@@ -123,10 +125,14 @@ model Character {
   likeCount       Int          @default(0)
   popularityScore Float        @default(0)
   waifuRank       Int?
+  isMythic        Boolean      @default(false) @map("is_mythic")
+  creatorUserId   String?      @map("creator_user_id")
+  mythicCustomization Json?    @map("mythic_customization")
   isActive        Boolean      @default(true)
   addedAt         DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  creatorUser    User?         @relation("MythicCreator", fields: [creatorUserId], references: [id], onDelete: SetNull)
   haremEntries   HaremEntry[]
   soulmates      Soulmate[]
   wishlists      WishlistEntry[]
@@ -141,6 +147,8 @@ model Character {
   @@index([popularityScore(sort: Desc)])
   @@index([waifuRank])
   @@index([baseRarity, claimCount(sort: Desc)])
+  @@index([isMythic])
+  @@index([creatorUserId])
   @@map("characters")
 }
 

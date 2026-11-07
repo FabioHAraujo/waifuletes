@@ -352,6 +352,43 @@ body.dark-mode button[disabled] {
   color: #1e3a8a;
 }
 
+.btn-blue:hover {
+  background: #93c5fd;
+  color: #172554;
+}
+
+.btn-emerald {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.btn-emerald:hover {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+body.dark-mode .btn-blue {
+  background: #1e3a8a !important;
+  color: #dbeafe !important;
+  border-color: #3b82f6 !important;
+}
+
+body.dark-mode .btn-blue:hover {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .btn-emerald {
+  background: #065f46 !important;
+  color: #d1fae5 !important;
+  border-color: #10b981 !important;
+}
+
+body.dark-mode .btn-emerald:hover {
+  background: #059669 !important;
+  color: #ffffff !important;
+}
+
 .btn-sm {
   padding: 4px 10px;
   font-size: 12px;
@@ -1728,6 +1765,157 @@ body.dark-mode .btn-card-report:hover {
   .waifu-card.soulmate-card .card-img-wrapper::after,
   .soulmate-bottom-badge {
     animation: none !important;
+  }
+}
+
+/* ========================================================
+   MYTHIC CARD (PERSONAGEM MÍTICO) - ULTRA PREMIUM GACHA FX
+   ======================================================== */
+.waifu-card.mythic-card {
+  position: relative;
+  border-radius: var(--radius-retro, 6px);
+  overflow: hidden;
+  border: none !important;
+  padding: 2px;
+  background: transparent !important;
+  box-shadow:
+    0 0 12px var(--mythic-glow-color, rgba(168, 85, 247, 0.5)),
+    0 0 24px var(--mythic-glow-color, rgba(168, 85, 247, 0.3)),
+    3px 3px 0px rgba(0, 0, 0, 0.4) !important;
+  isolation: isolate;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.waifu-card.mythic-card.anim-spin::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 550px;
+  height: 550px;
+  background: conic-gradient(
+    from 0deg,
+    var(--mythic-border-color, #ffd700) 0deg,
+    var(--mythic-glow-color, #c084fc) 90deg,
+    #ffffff 180deg,
+    var(--mythic-border-color, #ffd700) 270deg,
+    var(--mythic-glow-color, #c084fc) 360deg
+  );
+  animation: soulmate-border-spin 4s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.waifu-card.mythic-card.anim-pulse {
+  animation: mythic-neon-pulse 2.5s ease-in-out infinite alternate !important;
+  border: 2px solid var(--mythic-border-color, #ffd700) !important;
+}
+
+.waifu-card.mythic-card.anim-shimmer {
+  border: 2px solid var(--mythic-border-color, #ffd700) !important;
+}
+
+.waifu-card.mythic-card.anim-flame {
+  border: 2px solid var(--mythic-border-color, #ffd700) !important;
+  animation: mythic-flame-pulse 3s ease-in-out infinite alternate !important;
+}
+
+.waifu-card.mythic-card.anim-none {
+  border: 2px solid var(--mythic-border-color, #ffd700) !important;
+}
+
+.waifu-card.mythic-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.waifu-card.mythic-card .card-img-wrapper {
+  border-radius: calc(var(--radius-retro, 6px) - 2px) calc(var(--radius-retro, 6px) - 2px) 0 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.waifu-card.mythic-card .card-info {
+  background: var(--bg-card);
+  border-radius: 0 0 calc(var(--radius-retro, 6px) - 2px) calc(var(--radius-retro, 6px) - 2px);
+  text-align: center;
+}
+
+.waifu-card.mythic-card .card-info .card-name {
+  text-align: center;
+  font-weight: 800;
+}
+
+.waifu-card.mythic-card .card-info .card-series {
+  text-align: center;
+}
+
+.waifu-card.mythic-card .card-img-wrapper img {
+  animation: soulmate-img-pulse 3s ease-in-out infinite alternate !important;
+  will-change: transform;
+}
+
+.waifu-card.mythic-card .card-img-wrapper::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 220%;
+  height: 220%;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 42%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 58%,
+    transparent 100%
+  );
+  animation: soulmate-holo-sweep 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: overlay;
+}
+
+.mythic-bottom-badge {
+  display: inline-block;
+  margin: 4px auto 6px auto;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #facc15 100%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
+@keyframes mythic-neon-pulse {
+  0% {
+    box-shadow:
+      0 0 8px var(--mythic-glow-color, rgba(168, 85, 247, 0.4)),
+      3px 3px 0px rgba(0, 0, 0, 0.4);
+  }
+  100% {
+    box-shadow:
+      0 0 20px var(--mythic-glow-color, rgba(168, 85, 247, 0.8)),
+      0 0 35px var(--mythic-glow-color, rgba(168, 85, 247, 0.4)),
+      3px 3px 0px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@keyframes mythic-flame-pulse {
+  0% {
+    filter: drop-shadow(0 0 4px var(--mythic-glow-color, #a855f7));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px var(--mythic-border-color, #ffd700));
+  }
+  100% {
+    filter: drop-shadow(0 0 4px var(--mythic-glow-color, #a855f7));
   }
 }
 

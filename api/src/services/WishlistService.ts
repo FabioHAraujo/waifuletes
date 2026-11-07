@@ -113,6 +113,16 @@ export class WishlistService {
       };
     }
 
+    if (character.isMythic) {
+      return {
+        success: false,
+        error: {
+          code: 'CANNOT_WISHLIST_MYTHIC',
+          message: 'Personagens Míticos pertencem exclusivamente aos seus criadores e não podem ser adicionados à Wishlist.',
+        },
+      };
+    }
+
     // 2. Verificar limite máximo da wishlist
     const currentCount = await this.prisma.wishlistEntry.count({
       where: { userId },

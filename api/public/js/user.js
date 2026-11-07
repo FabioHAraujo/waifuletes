@@ -437,6 +437,8 @@ function setupEventListeners() {
         loadMarketTab();
       } else if (targetId === 'tab-notifications') {
         loadUserNotifications();
+      } else if (targetId === 'tab-mythics') {
+        loadUserMythics();
       }
     });
   });
@@ -990,6 +992,7 @@ async function loadUserData() {
       renderPrivateHarem(harem);
       renderPrivateWishlist(userSessionData.wishlist || []);
       loadUserSuggestions();
+      loadUserMythics();
       updateMarketPendingBadge();
     } else {
       document.getElementById('btn-session-auth')?.classList.add('hidden');
@@ -1220,13 +1223,23 @@ function initCardSlideshow(card, imgEl, imageUrls, isPinned) {
 function createPrivateHaremCard(entry, options = {}) {
   const char = entry.character;
   const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
-  const isSoulmate = Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
+  const isMythic = Boolean(char.isMythic);
+  const isSoulmate = !isMythic && Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
   const card = document.createElement('div');
-  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}${isSoulmate ? ' soulmate-card' : ''}`;
-  card.id = `harem-card-${char.id}`;
-  if (!isSoulmate) {
-    card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+  
+  if (isMythic) {
+    const cust = char.mythicCustomization || {};
+    const animType = cust.animationType || 'spin';
+    card.className = `waifu-card mythic-card anim-${animType}`;
+    card.style.setProperty('--mythic-border-color', cust.borderColor || '#ffd700');
+    card.style.setProperty('--mythic-glow-color', cust.glowColor || '#c084fc');
+  } else {
+    card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}${isSoulmate ? ' soulmate-card' : ''}`;
+    if (!isSoulmate) {
+      card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+    }
   }
+  card.id = `harem-card-${char.id}`;
 
   const unseenCovets = Number(entry.unseenCovetsCount || 0);
 
@@ -1251,7 +1264,24 @@ function createPrivateHaremCard(entry, options = {}) {
       ${rarity.emoji} ${rarity.label}
     </div>`;
 
-  if (isSoulmate) {
+  if (isMythic) {
+    card.innerHTML = `
+      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+      </div>
+      <div class="card-info">
+        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
+        <div class="mythic-bottom-badge" onclick="openWaifuPreview('${char.id}')" title="🔮 Personagem Mítico">🔮 Mítico</div>
+        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+        <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          ${colBtnHtml}
+          <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openCardOptionsModal('${char.id}')">
+            ⚙️ Opções
+          </button>
+        </div>
+      </div>
+    `;
+  } else if (isSoulmate) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
         <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
@@ -1312,6 +1342,30 @@ function openCardOptionsModal(charId) {
   if (nameEl) nameEl.textContent = char.name;
   if (seriesEl) seriesEl.textContent = char.series || 'Sem série';
   if (imgEl) imgEl.src = char.imageUrl || '/media/characters/default.jpg';
+
+  if (char.isMythic) {
+    if (listEl) {
+      listEl.innerHTML = `
+        <button class="btn-retro btn-sm" style="width: 100%; background: #ec4899; color: white; border-color: #db2777;" onclick="closeModal('modal-card-options'); toggleFavorite('${char.id}')">
+          💖 ${entry.isFavorite ? 'Desfavoritar' : 'Favoritar'}
+        </button>
+        <button class="btn-retro btn-sm" style="width: 100%; border-color: #3b82f6; color: #3b82f6; font-weight: 800;" onclick="closeModal('modal-card-options'); openAssignCollectionModal('${char.id}', '${escapeAttr(char.name)}', '${char.imageUrl || '/media/characters/default.jpg'}', '${entry.collectionId || ''}')">
+          📁 ${entry.collection ? `Mudar de Pasta (${escapeHtml(entry.collection.name)})` : 'Mover para Coleção'}
+        </button>
+        <button class="btn-retro btn-sm btn-purple" style="width: 100%; font-weight: 800;" onclick="closeModal('modal-card-options'); openChoosePhotoModal('${char.id}')">
+          📷 Escolher Foto Fixa
+        </button>
+        <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="closeModal('modal-card-options'); openEditMythicModalById('${char.id}')">
+          🔮 Editar Criação Mítica
+        </button>
+        <button class="btn-retro btn-sm btn-danger" style="width: 100%; font-weight: 800;" onclick="closeModal('modal-card-options'); confirmDeleteMythic('${char.id}', '${escapeAttr(char.name)}')">
+          🗑️ Excluir Mítico & Liberar Slot
+        </button>
+      `;
+    }
+    openModal('modal-card-options');
+    return;
+  }
 
   const unseenCovets = Number(entry.unseenCovetsCount || 0);
   const totalCovets = Number(entry.totalCovetsCount || 0);
@@ -1910,14 +1964,23 @@ function renderPrivateWishlist(wishlist) {
 function createPublicHaremCard(entry) {
   const char = entry.character;
   const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
-  const isSoulmate = Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
+  const isMythic = Boolean(char.isMythic);
+  const isSoulmate = !isMythic && Boolean(entry.isSoulmate || char.isSoulmate || (entry.keys && entry.keys >= 10));
 
   const card = document.createElement('div');
-  card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}${isSoulmate ? ' soulmate-card' : ''}`;
-  card.id = `public-harem-card-${char.id}`;
-  if (!isSoulmate) {
-    card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+  if (isMythic) {
+    const cust = char.mythicCustomization || {};
+    const animType = cust.animationType || 'spin';
+    card.className = `waifu-card mythic-card anim-${animType}`;
+    card.style.setProperty('--mythic-border-color', cust.borderColor || '#ffd700');
+    card.style.setProperty('--mythic-glow-color', cust.glowColor || '#c084fc');
+  } else {
+    card.className = `waifu-card rarity-${(char.baseRarity || 'COMMON').toLowerCase()}${isSoulmate ? ' soulmate-card' : ''}`;
+    if (!isSoulmate) {
+      card.style.borderColor = (char.baseRarity || 'COMMON') === 'COMMON' ? '#000000' : rarity.color;
+    }
   }
+  card.id = `public-harem-card-${char.id}`;
 
   const auth = getActiveAuthUser();
   const isWish = auth.wishlistSet.has(char.id);
@@ -1929,7 +1992,18 @@ function createPublicHaremCard(entry) {
       ${rarity.emoji} ${rarity.label}
     </div>`;
 
-  if (isSoulmate) {
+  if (isMythic) {
+    card.innerHTML = `
+      <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
+        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+      </div>
+      <div class="card-info">
+        <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
+        <div class="mythic-bottom-badge" onclick="openWaifuPreview('${char.id}')" title="🔮 Personagem Mítico">🔮 Mítico</div>
+        <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+      </div>
+    `;
+  } else if (isSoulmate) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
         <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
@@ -3920,6 +3994,13 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
   const cTags = Array.isArray(fullChar?.tags) ? fullChar.tags : [];
   const cOwner = fullChar?.owner || null;
   const isClaimed = Boolean(fullChar?.isClaimed || cOwner);
+  const isMythic = Boolean(fullChar?.isMythic || fullChar?.rarity === 'MYTHIC');
+
+  // Ajusta botão de Sugerir no preview (desativa para Míticos)
+  const btnSuggest = document.getElementById('btn-preview-suggest');
+  if (btnSuggest) {
+    btnSuggest.style.display = isMythic ? 'none' : '';
+  }
 
   // Lista de imagens
   let images = [];
@@ -4001,21 +4082,26 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
     btnLike.onclick = (e) => registerCardLike(charId, e);
   }
 
-  // Botão de Wishlist
+  // Botão de Wishlist (oculta para Míticos)
   const wishesCountEl = document.getElementById('waifu-preview-wishes-count');
   if (wishesCountEl) wishesCountEl.textContent = cWishes;
   const btnWish = document.getElementById('btn-preview-wish');
   if (btnWish) {
-    const auth = getActiveAuthUser();
-    const isAlreadyWish = auth.wishlistSet.has(charId);
-    if (isAlreadyWish) {
-      btnWish.className = 'btn-retro btn-sm btn-wish-active';
-      btnWish.innerHTML = `<i class="fas fa-check"></i> <span id="waifu-preview-wishes-count">${cWishes}</span> Na Wishlist`;
+    if (isMythic) {
+      btnWish.style.display = 'none';
     } else {
-      btnWish.className = 'btn-retro btn-sm btn-gold';
-      btnWish.innerHTML = `<i class="fas fa-star"></i> <span id="waifu-preview-wishes-count">${cWishes}</span> Wishlist`;
+      btnWish.style.display = '';
+      const auth = getActiveAuthUser();
+      const isAlreadyWish = auth.wishlistSet.has(charId);
+      if (isAlreadyWish) {
+        btnWish.className = 'btn-retro btn-sm btn-wish-active';
+        btnWish.innerHTML = `<i class="fas fa-check"></i> <span id="waifu-preview-wishes-count">${cWishes}</span> Na Wishlist`;
+      } else {
+        btnWish.className = 'btn-retro btn-sm btn-gold';
+        btnWish.innerHTML = `<i class="fas fa-star"></i> <span id="waifu-preview-wishes-count">${cWishes}</span> Wishlist`;
+      }
+      btnWish.onclick = (e) => toggleWishlist(charId, btnWish, e);
     }
-    btnWish.onclick = (e) => toggleWishlist(charId, btnWish, e);
   }
 
   // Tags
@@ -4060,7 +4146,47 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
     );
 
     if (isOwner) {
-      if (isMarriedToMe) {
+      if (isMythic) {
+        if (isMarriedToMe) {
+          // Favoritar
+          const isFav = (userSessionData?.harem || []).some(h => (h.character?.id || h.characterId) === charId && h.isFavorite);
+          const favBtn = document.createElement('button');
+          favBtn.className = 'btn-retro btn-sm';
+          favBtn.style.cssText = 'width: 100%; background: #ec4899; color: white; border-color: #db2777; font-weight: 800;';
+          favBtn.innerHTML = `💖 ${isFav ? 'Desfavoritar' : 'Favoritar'}`;
+          favBtn.onclick = () => { closeModal('modal-waifu-preview'); toggleFavorite(charId); };
+          actionsEl.appendChild(favBtn);
+
+          // Editar Criação
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn-retro btn-sm btn-gold';
+          editBtn.style.cssText = 'width: 100%; font-weight: 800;';
+          editBtn.innerHTML = '🔮 Editar Criação Mítica';
+          editBtn.onclick = () => { closeModal('modal-waifu-preview'); openEditMythicModalById(charId); };
+          actionsEl.appendChild(editBtn);
+
+          // Escolher Foto Fixa
+          const photoBtn = document.createElement('button');
+          photoBtn.className = 'btn-retro btn-sm btn-purple';
+          photoBtn.style.cssText = 'width: 100%; font-weight: 800;';
+          photoBtn.innerHTML = '📷 Escolher Foto Fixa';
+          photoBtn.onclick = () => { closeModal('modal-waifu-preview'); openChoosePhotoModal(charId); };
+          actionsEl.appendChild(photoBtn);
+
+          // Excluir Mítico & Liberar Slot
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn-retro btn-sm btn-danger';
+          delBtn.style.cssText = 'width: 100%; font-weight: 800;';
+          delBtn.innerHTML = '🗑️ Excluir Mítico & Liberar Slot';
+          delBtn.onclick = () => { closeModal('modal-waifu-preview'); confirmDeleteMythic(charId, cName); };
+          actionsEl.appendChild(delBtn);
+        } else {
+          const badgeNotice = document.createElement('div');
+          badgeNotice.style.cssText = 'background: rgba(168, 85, 247, 0.15); border: 1.5px solid #a855f7; border-radius: 6px; padding: 10px; text-align: center; color: #a855f7; font-weight: 800; font-size: 13px;';
+          badgeNotice.innerHTML = `🔮 Criação Mítica Eterna de <strong>${escapeHtml(cOwner?.name || 'Apoiador')}</strong>`;
+          actionsEl.appendChild(badgeNotice);
+        }
+      } else if (isMarriedToMe) {
         // Favoritar
         const isFav = (userSessionData?.harem || []).some(h => (h.character?.id || h.characterId) === charId && h.isFavorite);
         const favBtn = document.createElement('button');
@@ -5478,6 +5604,390 @@ async function loadRankings() {
     console.error('Erro ao carregar rankings no painel do usuário:', err);
     tbodyZinthos.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados.</td></tr>`;
     tbodyWaifus.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados.</td></tr>`;
+  }
+}
+
+// ========================================================
+// ABA: PERSONAGENS MÍTICOS (CRIAÇÃO, EDIÇÃO, SLOTS, PREVIEW)
+// ========================================================
+
+let userMythicsList = [];
+let userMythicSlotsData = { totalSlots: 0, usedSlots: 0, availableSlots: 0 };
+let mythicPhotosState = []; // Array de strings (URLs ou DataURLs base64)
+
+async function loadUserMythics() {
+  if (!userSessionToken || !userPublicId) return;
+
+  const grid = document.getElementById('mythics-grid');
+  const countBadge = document.getElementById('mythics-count');
+  const totalSlotsBadge = document.getElementById('mythics-total-slots');
+  const usedSlotsEl = document.getElementById('mythic-slots-used');
+  const totalSlotsEl = document.getElementById('mythic-slots-total');
+  const btnCreate = document.getElementById('btn-open-create-mythic');
+
+  if (grid) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 32px; color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Carregando seus personagens míticos...</div>';
+  }
+
+  try {
+    const res = await Api.get(`/api/web/user/${encodeURIComponent(userPublicId)}/mythics?token=${encodeURIComponent(userSessionToken)}`);
+
+    if (!res.success) {
+      if (grid) grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: #ef4444;">${escapeHtml(res.error?.message || 'Erro ao carregar míticos.')}</div>`;
+      return;
+    }
+
+    userMythicSlotsData = res.data;
+    userMythicsList = res.data.mythics || [];
+
+    // Atualiza contadores
+    if (countBadge) countBadge.textContent = userMythicSlotsData.usedSlots;
+    if (totalSlotsBadge) totalSlotsBadge.textContent = userMythicSlotsData.totalSlots;
+    if (usedSlotsEl) usedSlotsEl.textContent = userMythicSlotsData.usedSlots;
+    if (totalSlotsEl) totalSlotsEl.textContent = userMythicSlotsData.totalSlots;
+
+    if (btnCreate) {
+      if (userMythicSlotsData.availableSlots > 0) {
+        btnCreate.disabled = false;
+        btnCreate.classList.remove('disabled');
+        btnCreate.title = `Você tem ${userMythicSlotsData.availableSlots} slot(s) livre(s)!`;
+      } else {
+        btnCreate.disabled = true;
+        btnCreate.classList.add('disabled');
+        btnCreate.title = 'Todos os seus slots estão ocupados. Exclua um mítico ou doe para a Ravena (R$ 50) para liberar slots!';
+      }
+    }
+
+    if (userMythicsList.length === 0) {
+      if (grid) {
+        grid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 48px 20px; background: var(--bg-card); border: var(--border-retro); border-radius: 8px;">
+            <div style="font-size: 42px; margin-bottom: 12px;">🔮</div>
+            <h3 style="margin: 0 0 8px 0; font-size: 17px; font-weight: 800;">Nenhum Personagem Mítico Ainda</h3>
+            <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--text-muted); max-width: 450px; margin-left: auto; margin-right: auto;">
+              ${userMythicSlotsData.availableSlots > 0
+                ? `Você possui <strong>${userMythicSlotsData.availableSlots} slot(s) livre(s)</strong>! Clique em "Forjar Novo Mítico" acima para criar sua própria lenda no jogo.`
+                : 'Você ainda não possui slots de mítico disponíveis. Faça um apoio/doação de <strong>R$ 50</strong> para a Ravena para desbloquear seu primeiro slot!'
+              }
+            </p>
+            ${userMythicSlotsData.availableSlots > 0 ? `
+              <button class="btn-retro btn-sm btn-gold" onclick="openCreateMythicModal()" style="font-weight: 800;">
+                <i class="fas fa-plus"></i> Forjar Meu Primeiro Mítico
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }
+      return;
+    }
+
+    if (grid) {
+      grid.innerHTML = '';
+      userMythicsList.forEach((char) => {
+        grid.appendChild(createMythicCard(char));
+      });
+    }
+  } catch (err) {
+    console.error('Erro ao carregar míticos:', err);
+    if (grid) grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: #ef4444;">Erro de comunicação ao carregar míticos.</div>';
+  }
+}
+
+function createMythicCard(char) {
+  const card = document.createElement('div');
+  const cust = char.mythicCustomization || {};
+  const animType = cust.animationType || 'spin';
+
+  card.className = `waifu-card mythic-card anim-${animType}`;
+  card.id = `mythic-card-${char.id}`;
+  card.style.setProperty('--mythic-border-color', cust.borderColor || '#ffd700');
+  card.style.setProperty('--mythic-glow-color', cust.glowColor || '#c084fc');
+
+  card.innerHTML = `
+    <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes">
+      <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+    </div>
+    <div class="card-info">
+      <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
+      <div class="mythic-bottom-badge" onclick="openWaifuPreview('${char.id}')" title="🔮 Personagem Mítico">🔮 Mítico</div>
+      <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
+      <div class="card-actions" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+        <button class="btn-retro btn-sm btn-gold" style="width: 100%; font-weight: 800;" onclick="openEditMythicModalById('${char.id}')">
+          <i class="fas fa-edit"></i> Editar
+        </button>
+        <button class="btn-retro btn-sm btn-purple" style="width: 100%; font-weight: 800;" onclick="openChoosePhotoModal('${char.id}')">
+          <i class="fas fa-camera"></i> Foto Fixa
+        </button>
+        <button class="btn-retro btn-sm btn-danger" style="width: 100%; font-weight: 800;" onclick="confirmDeleteMythic('${char.id}', '${escapeAttr(char.name)}')">
+          <i class="fas fa-trash-alt"></i> Excluir (Liberar Slot)
+        </button>
+      </div>
+    </div>
+  `;
+
+  const imgEl = card.querySelector('.card-img-wrapper img');
+  if (imgEl && char.imageUrls && char.imageUrls.length > 1) {
+    initCardSlideshow(card, imgEl, char.imageUrls, Boolean(char.pinnedPhoto));
+  }
+
+  return card;
+}
+
+function openCreateMythicModal() {
+  if (userMythicSlotsData.availableSlots <= 0) {
+    Api.showToast('Você não possui slots livres. Exclua um mítico ou doe para a Ravena para obter mais slots.', '⚠️');
+    return;
+  }
+
+  document.getElementById('mythic-modal-title').textContent = '🔮 Forjar Personagem Mítico';
+  document.getElementById('mythic-edit-char-id').value = '';
+  document.getElementById('mythic-input-name').value = '';
+  document.getElementById('mythic-input-series').value = '';
+  document.getElementById('mythic-input-desc').value = '';
+  document.getElementById('mythic-input-gender').value = 'FEMALE';
+  document.getElementById('mythic-color-border').value = '#ffd700';
+  document.getElementById('mythic-color-glow').value = '#c084fc';
+  document.getElementById('mythic-select-animation').value = 'spin';
+  document.getElementById('btn-save-mythic').innerHTML = '<i class="fas fa-magic"></i> Forjar Lenda Mítica';
+
+  mythicPhotosState = [];
+  renderMythicPhotoThumbnails();
+  updateMythicPreview();
+  openModal('modal-mythic-edit');
+}
+
+function openEditMythicModalById(charId) {
+  const char = userMythicsList.find(m => m.id === charId);
+  if (!char) {
+    const haremEntry = haremEntryCache.get(charId);
+    if (haremEntry && haremEntry.character) {
+      openEditMythicModal(haremEntry.character);
+      return;
+    }
+    Api.showToast('Personagem não encontrado.', '❌');
+    return;
+  }
+  openEditMythicModal(char);
+}
+
+function openEditMythicModal(char) {
+  document.getElementById('mythic-modal-title').textContent = '🔮 Editar Personagem Mítico';
+  document.getElementById('mythic-edit-char-id').value = char.id;
+  document.getElementById('mythic-input-name').value = char.name || '';
+  document.getElementById('mythic-input-series').value = char.series || '';
+  document.getElementById('mythic-input-desc').value = char.description || '';
+  document.getElementById('mythic-input-gender').value = char.gender || 'FEMALE';
+
+  const cust = char.mythicCustomization || {};
+  document.getElementById('mythic-color-border').value = cust.borderColor || '#ffd700';
+  document.getElementById('mythic-color-glow').value = cust.glowColor || '#c084fc';
+  document.getElementById('mythic-select-animation').value = cust.animationType || 'spin';
+  document.getElementById('btn-save-mythic').innerHTML = '<i class="fas fa-save"></i> Salvar Alterações';
+
+  mythicPhotosState = Array.isArray(char.rawImageUrls)
+    ? [...char.rawImageUrls]
+    : Array.isArray(char.imageUrls) ? [...char.imageUrls] : [];
+
+  renderMythicPhotoThumbnails();
+  updateMythicPreview();
+  openModal('modal-mythic-edit');
+}
+
+function renderMythicPhotoThumbnails() {
+  const container = document.getElementById('mythic-photos-thumbnails');
+  const countEl = document.getElementById('mythic-photos-count');
+  if (countEl) countEl.textContent = mythicPhotosState.length;
+  if (!container) return;
+
+  container.innerHTML = '';
+  if (mythicPhotosState.length === 0) {
+    container.innerHTML = '<span style="grid-column: 1/-1; font-size: 11px; color: var(--text-muted); font-style: italic; align-self: center;">Nenhuma foto adicionada ainda (máximo 5).</span>';
+    return;
+  }
+
+  mythicPhotosState.forEach((src, idx) => {
+    const thumb = document.createElement('div');
+    thumb.style.cssText = 'position: relative; width: 100%; aspect-ratio: 1/1; border: var(--border-retro); border-radius: 4px; overflow: hidden; background: #000;';
+    thumb.innerHTML = `
+      <img src="${src}" style="width: 100%; height: 100%; object-fit: cover;">
+      <button type="button" onclick="removeMythicPhoto(${idx})" style="position: absolute; top: 2px; right: 2px; background: rgba(220, 38, 38, 0.85); color: #fff; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Remover foto">&times;</button>
+      ${idx === 0 ? '<span style="position: absolute; bottom: 2px; left: 2px; background: #8b5cf6; color: #fff; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 2px;">Capa</span>' : ''}
+    `;
+    container.appendChild(thumb);
+  });
+}
+
+function handleMythicFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (mythicPhotosState.length >= 5) {
+    Api.showToast('Limite de 5 fotos atingido por personagem.', '⚠️');
+    event.target.value = '';
+    return;
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    Api.showToast('A imagem deve ter no máximo 8MB.', '⚠️');
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target?.result;
+    if (dataUrl) {
+      mythicPhotosState.push(String(dataUrl));
+      renderMythicPhotoThumbnails();
+      updateMythicPreview();
+    }
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function addMythicPhotoUrl() {
+  const input = document.getElementById('mythic-url-input');
+  const url = input?.value?.trim();
+  if (!url) return;
+
+  if (mythicPhotosState.length >= 5) {
+    Api.showToast('Limite de 5 fotos atingido por personagem.', '⚠️');
+    return;
+  }
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    Api.showToast('Por favor, insira uma URL válida iniciando com http:// ou https://', '⚠️');
+    return;
+  }
+
+  mythicPhotosState.push(url);
+  input.value = '';
+  renderMythicPhotoThumbnails();
+  updateMythicPreview();
+}
+
+function removeMythicPhoto(index) {
+  mythicPhotosState.splice(index, 1);
+  renderMythicPhotoThumbnails();
+  updateMythicPreview();
+}
+
+function applyMythicPreset(type, value) {
+  if (type === 'border') {
+    const input = document.getElementById('mythic-color-border');
+    if (input) input.value = value;
+  } else if (type === 'glow') {
+    const input = document.getElementById('mythic-color-glow');
+    if (input) input.value = value;
+  }
+  updateMythicPreview();
+}
+
+function updateMythicPreview() {
+  const container = document.getElementById('mythic-preview-card-container');
+  if (!container) return;
+
+  const name = document.getElementById('mythic-input-name')?.value?.trim() || 'Nome da Lenda';
+  const series = document.getElementById('mythic-input-series')?.value?.trim() || 'Obra / Universo';
+  const borderColor = document.getElementById('mythic-color-border')?.value || '#ffd700';
+  const glowColor = document.getElementById('mythic-color-glow')?.value || '#c084fc';
+  const animType = document.getElementById('mythic-select-animation')?.value || 'spin';
+  const photo = mythicPhotosState[0] || '/media/characters/default.jpg';
+
+  container.innerHTML = `
+    <div class="waifu-card mythic-card anim-${animType}" style="--mythic-border-color: ${borderColor}; --mythic-glow-color: ${glowColor}; width: 100%;">
+      <div class="card-img-wrapper" style="height: 240px;">
+        <img src="${photo}" alt="${escapeHtml(name)}" onerror="handleImgError(this)" style="width: 100%; height: 100%; object-fit: cover;">
+      </div>
+      <div class="card-info" style="padding: 10px;">
+        <div class="card-name" style="font-weight: 800; font-size: 14px;">${escapeHtml(name)}</div>
+        <div class="mythic-bottom-badge" style="font-size: 10px; margin: 3px auto 5px auto;">🔮 Mítico</div>
+        <div class="card-series" style="font-size: 11px;">${escapeHtml(series)}</div>
+      </div>
+    </div>
+  `;
+}
+
+async function saveMythicCharacter() {
+  const charId = document.getElementById('mythic-edit-char-id')?.value;
+  const name = document.getElementById('mythic-input-name')?.value?.trim();
+  const series = document.getElementById('mythic-input-series')?.value?.trim();
+  const description = document.getElementById('mythic-input-desc')?.value?.trim();
+  const gender = document.getElementById('mythic-input-gender')?.value || 'FEMALE';
+  const borderColor = document.getElementById('mythic-color-border')?.value || '#ffd700';
+  const glowColor = document.getElementById('mythic-color-glow')?.value || '#c084fc';
+  const animationType = document.getElementById('mythic-select-animation')?.value || 'spin';
+
+  if (!name || name.length < 2) {
+    Api.showToast('Informe um nome com pelo menos 2 caracteres.', '⚠️');
+    return;
+  }
+
+  const payload = {
+    token: userSessionToken,
+    name,
+    series: series || undefined,
+    description: description || undefined,
+    gender,
+    photos: mythicPhotosState,
+    customization: {
+      borderColor,
+      glowColor,
+      animationType,
+    },
+  };
+
+  const isEditing = Boolean(charId);
+  Api.showLoading(isEditing ? 'Salvando alterações...' : 'Forjando sua lenda...', 'Gravando dados do personagem mítico no servidor...');
+
+  try {
+    const url = isEditing
+      ? `/api/web/user/${encodeURIComponent(userPublicId)}/mythics/${encodeURIComponent(charId)}`
+      : `/api/web/user/${encodeURIComponent(userPublicId)}/mythics`;
+
+    const res = isEditing
+      ? await Api.put(url, payload)
+      : await Api.post(url, payload);
+
+    if (!res.success) {
+      Api.showToast(res.error?.message || 'Falha ao salvar mítico.', '❌');
+      return;
+    }
+
+    Api.showToast(isEditing ? 'Lenda atualizada com sucesso!' : '🔮 Personagem Mítico forjado com sucesso!', '✨');
+    closeModal('modal-mythic-edit');
+    loadUserMythics();
+    loadUserData();
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao salvar mítico.', '❌');
+  } finally {
+    Api.hideLoading();
+  }
+}
+
+async function confirmDeleteMythic(charId, charName) {
+  const confirmMsg = `Tem certeza que deseja excluir o mítico "${charName}"?\n\nEsta ação apagará permanentemente o personagem do jogo e liberará o slot para você criar uma nova lenda.`;
+  if (!confirm(confirmMsg)) return;
+
+  Api.showLoading('Excluindo mítico...', 'Removendo personagem e liberando seu slot...');
+  try {
+    const res = await Api.delete(`/api/web/user/${encodeURIComponent(userPublicId)}/mythics/${encodeURIComponent(charId)}`, {
+      token: userSessionToken,
+    });
+
+    if (!res.success) {
+      Api.showToast(res.error?.message || 'Falha ao excluir mítico.', '❌');
+      return;
+    }
+
+    Api.showToast('🔮 Mítico excluído com sucesso! Seu slot foi liberado.', '✅');
+    loadUserMythics();
+    loadUserData();
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao excluir mítico.', '❌');
+  } finally {
+    Api.hideLoading();
   }
 }
 

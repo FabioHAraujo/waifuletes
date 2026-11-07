@@ -21,12 +21,23 @@ export class HaremService {
     const skip = limit > 0 ? (page - 1) * limit : undefined;
     const take = limit > 0 ? limit : undefined;
 
-    let orderBy: any = [{ isFavorite: 'desc' }, { keys: 'desc' }, { character: { baseRarity: 'desc' } }, { character: { claimCount: 'desc' } }];
+    let orderBy: any = [
+      { character: { isMythic: 'desc' } },
+      { isFavorite: 'desc' },
+      { keys: 'desc' },
+      { character: { baseRarity: 'desc' } },
+      { character: { claimCount: 'desc' } },
+    ];
 
     if (sort === 'date') {
-      orderBy = [{ isFavorite: 'desc' }, { claimedAt: 'desc' }];
+      orderBy = [{ character: { isMythic: 'desc' } }, { isFavorite: 'desc' }, { claimedAt: 'desc' }];
     } else if (sort === 'rarity') {
-      orderBy = [{ isFavorite: 'desc' }, { character: { baseRarity: 'desc' } }, { keys: 'desc' }];
+      orderBy = [
+        { character: { isMythic: 'desc' } },
+        { isFavorite: 'desc' },
+        { character: { baseRarity: 'desc' } },
+        { keys: 'desc' },
+      ];
     }
 
     const where: any = { userId };

@@ -201,6 +201,9 @@ export class DivorceService {
     }
 
     const { character, keys } = haremEntry;
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_DIVORCE_MYTHIC', 'Personagens Míticos são criações perpétuas e não podem ser divorciados no jogo tradicional.');
+    }
     const soulmateRecord = await this.prisma.soulmate.findUnique({
       where: {
         userId_characterId: {
@@ -278,6 +281,9 @@ export class DivorceService {
     }
 
     const { character, keys } = haremEntry;
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_DIVORCE_MYTHIC', 'Personagens Míticos são criações perpétuas e não podem ser divorciados no jogo tradicional.');
+    }
 
     // 2. Verificar se o personagem é Soulmate (10+ chaves ou na tabela soulmates)
     const soulmateRecord = await this.prisma.soulmate.findUnique({

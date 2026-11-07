@@ -226,6 +226,10 @@ export class SuggestionService {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.', 404);
     }
 
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_SUGGEST_MYTHIC', 'Personagens Míticos são criações sagradas e exclusivas de seus criadores. Sugestões e denúncias não são permitidas.', 400);
+    }
+
     if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
       throw new DomainError('REASON_REQUIRED', 'É obrigatório informar uma justificativa clara (mínimo de 5 caracteres) para a mudança de raridade.', 400);
     }
@@ -341,6 +345,10 @@ export class SuggestionService {
     const character = await this.characterService.findCharacter(characterId);
     if (!character) {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.', 404);
+    }
+
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_SUGGEST_MYTHIC', 'Personagens Míticos são criações sagradas e exclusivas de seus criadores. Sugestões e denúncias não são permitidas.', 400);
     }
 
     if (action === 'DELETE') {
@@ -461,6 +469,10 @@ export class SuggestionService {
     const character = await this.characterService.findCharacter(characterId);
     if (!character) {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.', 404);
+    }
+
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_SUGGEST_MYTHIC', 'Personagens Míticos são criações sagradas e exclusivas de seus criadores. Sugestões e denúncias não são permitidas.', 400);
     }
 
     if (!data.reason || typeof data.reason !== 'string' || data.reason.trim().length < 5) {
@@ -713,6 +725,10 @@ export class SuggestionService {
     const character = await this.characterService.findCharacter(characterId);
     if (!character) {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.', 404);
+    }
+
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_SUGGEST_MYTHIC', 'Personagens Míticos são criações sagradas e exclusivas de seus criadores. Sugestões e denúncias não são permitidas.', 400);
     }
 
     let userName = explicitUserName || 'Anônimo na Web';

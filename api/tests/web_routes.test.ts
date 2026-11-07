@@ -969,4 +969,44 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
     expect(getAdminCharJson.data.baseRarity).toBe('EPIC');
     expect(getAdminCharJson.data.isActive).toBe(true);
   });
+
+  it('POST /api/admin/users/:userId/reset-rolls deve resetar os rolls para o valor máximo', async () => {
+    if (!adminToken) return;
+
+    // 1. Sem token deve falhar (401)
+    const unauthRes = await fetch(`${BASE_URL}/api/admin/users/${testUserId}/reset-rolls`, {
+      method: 'POST',
+    });
+    expect(unauthRes.status).toBe(401);
+
+    // 2. Com admin token deve resetar os rolls
+    const res = await fetch(`${BASE_URL}/api/admin/users/${testUserId}/reset-rolls`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.rolls.availableRolls).toBe(json.data.rolls.maxRolls);
+  });
+
+  it('POST /api/admin/users/:userId/reset-claim-cooldowns deve resetar todos os cooldowns de casamento do usuário', async () => {
+    if (!adminToken) return;
+
+    // 1. Sem token deve falhar (401)
+    const unauthRes = await fetch(`${BASE_URL}/api/admin/users/${testUserId}/reset-claim-cooldowns`, {
+      method: 'POST',
+    });
+    expect(unauthRes.status).toBe(401);
+
+    // 2. Com admin token deve resetar cooldowns
+    const res = await fetch(`${BASE_URL}/api/admin/users/${testUserId}/reset-claim-cooldowns`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.userId).toBe(testUserId);
+  });
 });

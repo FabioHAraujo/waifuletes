@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel de Administração • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261105-antilegendary">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261106-admin-rolls-cds">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -387,6 +387,46 @@
     </div>
   </div>
 
+  <!-- Modal de Concessão de Slots Míticos -->
+  <div class="modal-overlay hidden" id="modal-admin-mythic-slots">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <span class="modal-title">🔮 Conceder Slots Míticos</span>
+        <button class="modal-close" onclick="closeModal('modal-admin-mythic-slots')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 12px; font-size: 14px;">
+          Conceder slots de criação de personagens míticos para <strong id="mythic-slots-user-name">...</strong>.
+        </p>
+        <form id="admin-mythic-slots-form" onsubmit="confirmAdminMythicSlots(event)">
+          <input type="hidden" id="mythic-slots-user-id">
+          
+          <div style="background: #f5f3ff; border: 2px solid #8b5cf6; border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: #5b21b6;">
+            <div>Slots Atuais: <strong id="mythic-slots-current-count">0</strong></div>
+            <small style="display: block; margin-top: 4px; color: #6d28d9;">Cada slot permite criar 1 personagem mítico eterno no jogo com fotos, animações e borda personalizada.</small>
+          </div>
+
+          <div style="margin-bottom: 14px;">
+            <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">Quantidade de Slots a Adicionar:</label>
+            <input type="number" id="mythic-slots-amount-input" class="retro-input" min="1" max="100" value="1" required style="padding-left: 12px;">
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">Motivo / Observação:</label>
+            <input type="text" id="mythic-slots-reason-input" class="retro-input" placeholder="Ex: Doação PIX R$ 50 ou Bônus Especial" style="padding-left: 12px;">
+          </div>
+
+          <div class="modal-footer" style="padding: 12px 0 0 0; background: transparent; display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-admin-mythic-slots')">Cancelar</button>
+            <button type="submit" class="btn-retro btn-sm" style="background: #8b5cf6; color: #fff; font-weight: 800; border-color: #7c3aed;">
+              <i class="fas fa-magic"></i> Confirmar Slots
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Overlay de Loading Retrô -->
   <div id="retro-loading-overlay" class="retro-loading-overlay hidden">
     <div class="retro-loading-box">
@@ -401,6 +441,6 @@
 
   <script src="/vendor/cropper.min.js"></script>
   <script src="/js/api.js?v=20261105-adminzinthos"></script>
-  <script src="/js/admin.js?v=20261106-legendary-already"></script>
+  <script src="/js/admin.js?v=20261106-admin-rolls-cds"></script>
 </body>
 </html>

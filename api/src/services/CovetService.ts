@@ -25,6 +25,10 @@ export class CovetService {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.');
     }
 
+    if (character.isMythic) {
+      throw new DomainError('CANNOT_COVET_MYTHIC', 'Personagens Míticos pertencem exclusivamente aos seus criadores e não podem ser cobiçados.');
+    }
+
     // Verifica se o personagem está casado
     const haremEntry = await this.prisma.haremEntry.findFirst({
       where: { characterId: character.id },

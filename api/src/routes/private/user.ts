@@ -338,4 +338,79 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
       });
     },
   });
+
+  fastify.post('/user/:userId/mythic-slots', {
+    preHandler: verifyApiKey,
+    schema: {
+      description: 'Adiciona slots de personagens míticos para o usuário (concedido via doações/Ravena-AI)',
+      tags: ['Usuários (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: { userId: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['amount'],
+        additionalProperties: false,
+        properties: {
+          amount: { type: 'integer', minimum: 1 },
+          reason: { type: 'string' },
+          donateValue: { type: 'number' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const { amount, reason } = request.body as { amount: number; reason?: string; donateValue?: number };
+
+      try {
+        const result = await userService.addMythicSlots(userId, amount, reason);
+        return reply.send({
+          success: true,
+          data: result,
+        });
+      } catch (err: any) {
+        if (err.message === 'INVALID_AMOUNT') {
+          return reply.status(400).send({
+            success: false,
+            error: { code: 'INVALID_AMOUNT', message: 'A quantidade de slots deve ser maior que zero.' },
+          });
+        }
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+        });
+      }
+    },
+  });
+
+  fastify.get('/user/:userId/mythic-slots', {
+    preHandler: verifyApiKey,
+    schema: {
+      description: 'Consulta o saldo de slots míticos de um usuário',
+      tags: ['Usuários (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: { userId: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      const result = await userService.getMythicSlots(userId);
+
+      if (!result) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'Usuário não encontrado.' },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    },
+  });
 };
