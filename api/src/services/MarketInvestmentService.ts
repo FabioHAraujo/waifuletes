@@ -14,7 +14,7 @@ export const RARITY_DAYS: Record<Rarity, number> = {
 };
 
 export const BASE_MONEY_SUPPLY = 4000000; // M0 = 4M Zinthos
-export const INFLATION_ALPHA = 0.5;
+export const INFLATION_ALPHA = 0.25; // Reduzido de 0.5 para 0.25 (metade da taxa de inflação, ~49%)
 
 export const SCARCITY_BETA: Record<Rarity, number> = {
   COMMON: 1.0,
