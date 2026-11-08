@@ -110,4 +110,118 @@ describe('🛍️ Wishlist nos Classificados & Badge À Venda', () => {
     expect(items[1].isForSale).toBe(false);
     expect(items[1].character.isForSale).toBe(false);
   });
+
+  it('WishlistService.getWishlist deve sinalizar isMarriedToSelf corretamente', async () => {
+    const mockPrisma: any = {
+      wishlistEntry: {
+        findMany: async () => [
+          {
+            id: 'wish_self',
+            userId: 'my_user_id',
+            isStarWish: false,
+            addedAt: new Date(),
+            character: {
+              id: 'char_self',
+              name: 'Asuna',
+              series: 'SAO',
+              baseRarity: 'LEGENDARY',
+              imageUrls: ['asuna.jpg'],
+              _count: { wishlists: 10 },
+              marketListings: [],
+              haremEntries: [{ user: { id: 'my_user_id', name: 'MyUser', publicId: 'my_pub' } }],
+            },
+          },
+          {
+            id: 'wish_other',
+            userId: 'my_user_id',
+            isStarWish: false,
+            addedAt: new Date(),
+            character: {
+              id: 'char_other',
+              name: 'Shinobu',
+              series: 'Monogatari',
+              baseRarity: 'EPIC',
+              imageUrls: ['shinobu.jpg'],
+              _count: { wishlists: 12 },
+              marketListings: [],
+              haremEntries: [{ user: { id: 'other_user_id', name: 'OtherUser', publicId: 'other_pub' } }],
+            },
+          },
+        ],
+      },
+    };
+
+    const mockCharService: any = {
+      getRandomImageUrl: (_id: string, urls: string[]) => urls[0],
+      formatImageUrl: (_id: string, img: string) => img,
+    };
+
+    const wishlistService = new WishlistService(mockPrisma, mockCharService);
+    const items = await wishlistService.getWishlist('my_user_id');
+
+    expect(items).toHaveLength(2);
+    expect(items[0].isMarried).toBe(true);
+    expect(items[0].isMarriedToSelf).toBe(true);
+    expect(items[0].character.isMarriedToSelf).toBe(true);
+
+    expect(items[1].isMarried).toBe(true);
+    expect(items[1].isMarriedToSelf).toBe(false);
+    expect(items[1].character.isMarriedToSelf).toBe(false);
+  });
+
+  it('WishlistService.clearMarried com onlySelf=true deve filtrar apenas casadas com o próprio usuário', async () => {
+    let capturedWhere: any = null;
+    let deletedWhere: any = null;
+
+    const mockPrisma: any = {
+      wishlistEntry: {
+        findMany: async (args: any) => {
+          capturedWhere = args.where;
+          return [
+            {
+              id: 'wish_entry_1',
+              character: { id: 'char_1', name: 'Rem' },
+            },
+          ];
+        },
+        deleteMany: async (args: any) => {
+          deletedWhere = args.where;
+          return { count: 1 };
+        },
+      },
+    };
+
+    const wishlistService = new WishlistService(mockPrisma, null as any);
+
+    // 1. Teste com onlySelf = true
+    const resultSelf = await wishlistService.clearMarried('user_123', true);
+    expect(capturedWhere).toEqual({
+      userId: 'user_123',
+      character: {
+        haremEntries: {
+          some: { userId: 'user_123' },
+        },
+      },
+    });
+    expect(deletedWhere).toEqual({
+      id: { in: ['wish_entry_1'] },
+    });
+    expect(resultSelf.success).toBe(true);
+    expect(resultSelf.data.removedCount).toBe(1);
+    expect(resultSelf.data.message).toContain('com você');
+
+    // 2. Teste com onlySelf = false (todas as casadas)
+    const resultAll = await wishlistService.clearMarried('user_123', false);
+    expect(capturedWhere).toEqual({
+      userId: 'user_123',
+      character: {
+        haremEntries: {
+          some: {},
+        },
+      },
+    });
+    expect(resultAll.success).toBe(true);
+    expect(resultAll.data.removedCount).toBe(1);
+    expect(resultAll.data.message).not.toContain('com você');
+  });
 });

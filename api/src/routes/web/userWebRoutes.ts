@@ -1429,11 +1429,11 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
-   * Remove todas as personagens casadas da wishlist do usuário via sessão web
+   * Remove todas as personagens casadas (ou apenas as casadas com o próprio usuário) da wishlist via sessão web
    */
   fastify.delete('/api/web/user/:publicId/wishlist/married', {
     schema: {
-      description: 'Remove todas as personagens que já estão casadas da lista de desejos do usuário',
+      description: 'Remove personagens que já estão casadas da lista de desejos do usuário',
       tags: ['Usuário (Web)'],
       params: {
         type: 'object',
@@ -1443,12 +1443,15 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
       querystring: {
         type: 'object',
         required: ['token'],
-        properties: { token: { type: 'string' } },
+        properties: {
+          token: { type: 'string' },
+          onlySelf: { type: 'string' },
+        },
       },
     },
     handler: async (request, reply) => {
       const { publicId } = request.params as { publicId: string };
-      const { token } = request.query as { token: string };
+      const { token, onlySelf } = request.query as { token: string; onlySelf?: string | boolean };
 
       const session = publicId === 'token-session'
         ? await webSessionService.validateTokenOnly(token)
@@ -1460,7 +1463,8 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const result = await wishlistService.clearMarried(session.userId);
+      const isOnlySelf = onlySelf === 'true' || onlySelf === true || onlySelf === '1';
+      const result = await wishlistService.clearMarried(session.userId, isOnlySelf);
       return reply.send(result);
     },
   });

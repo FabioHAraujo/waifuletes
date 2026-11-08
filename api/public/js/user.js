@@ -47,6 +47,7 @@ let haremFilterState = {
 
 let wishlistFilterState = {
   search: '',
+  onlyMarried: false,
   page: 1,
   pageSize: 50,
 };
@@ -666,7 +667,26 @@ function setupEventListeners() {
     btnSubmitImg.addEventListener('click', typeof submitImageSuggestion !== 'undefined' ? submitImageSuggestion : submitCroppedImage);
   }
 
-  // Limpar Wishlist (Remover Casadas)
+  // Limpar Wishlist (Apenas Casadas Comigo)
+  const btnClearWishlistSelf = document.getElementById('btn-clear-wishlist-self');
+  if (btnClearWishlistSelf) {
+    btnClearWishlistSelf.addEventListener('click', async () => {
+      if (!confirm('Deseja remover da sua Wishlist apenas as personagens que já são casadas com você?')) return;
+      try {
+        const res = await Api.delete(`/api/web/user/${userPublicId}/wishlist/married?token=${encodeURIComponent(userSessionToken)}&onlySelf=true`);
+        if (res.success) {
+          Api.showToast(res.data?.message || 'Wishlist limpa com sucesso!', '🧹');
+          loadUserData();
+        } else {
+          Api.showToast(res.error?.message || 'Falha ao limpar wishlist.', '❌');
+        }
+      } catch (err) {
+        Api.showToast('Erro de comunicação ao limpar wishlist.', '❌');
+      }
+    });
+  }
+
+  // Limpar Wishlist (Todas as Casadas)
   const btnClearWishlist = document.getElementById('btn-clear-wishlist');
   if (btnClearWishlist) {
     btnClearWishlist.addEventListener('click', async () => {
@@ -766,6 +786,15 @@ function setupEventListeners() {
       if (wishlistSearchInput) wishlistSearchInput.value = '';
       btnClearWishlistSearch.classList.add('hidden');
       wishlistFilterState.search = '';
+      wishlistFilterState.page = 1;
+      renderPrivateWishlist(userSessionData?.wishlist || []);
+    });
+  }
+
+  const wishlistFilterMarriedOnly = document.getElementById('wishlist-filter-married-only');
+  if (wishlistFilterMarriedOnly) {
+    wishlistFilterMarriedOnly.addEventListener('change', () => {
+      wishlistFilterState.onlyMarried = Boolean(wishlistFilterMarriedOnly.checked);
       wishlistFilterState.page = 1;
       renderPrivateWishlist(userSessionData?.wishlist || []);
     });
@@ -2126,10 +2155,32 @@ function renderPrivateWishlist(wishlist) {
   }
 
   const searchText = (wishlistFilterState.search || '').trim();
+  const onlyMarried = Boolean(wishlistFilterState.onlyMarried);
   const filtered = wishlist.filter(entry => {
     const char = entry.character;
     if (!char) return false;
+    const isMarried = Boolean(entry.isMarried || char.isMarried);
+    if (onlyMarried && !isMarried) return false;
     return matchesTextFilter(searchText, char.name, char.series, char.id);
+  });
+
+  // Ordenação: Personagens casadas com o próprio usuário vêm PRIMEIRO!
+  filtered.sort((a, b) => {
+    const aChar = a.character || {};
+    const bChar = b.character || {};
+    const aSelf = Boolean(a.isMarriedToSelf || aChar.isMarriedToSelf || (a.marriedToPublicId && a.marriedToPublicId === userSessionData?.publicId));
+    const bSelf = Boolean(b.isMarriedToSelf || bChar.isMarriedToSelf || (b.marriedToPublicId && b.marriedToPublicId === userSessionData?.publicId));
+    if (aSelf && !bSelf) return -1;
+    if (!aSelf && bSelf) return 1;
+
+    if (onlyMarried) {
+      const aMarried = Boolean(a.isMarried || aChar.isMarried);
+      const bMarried = Boolean(b.isMarried || bChar.isMarried);
+      if (aMarried && !bMarried) return -1;
+      if (!aMarried && bMarried) return 1;
+    }
+
+    return 0;
   });
 
   const totalFiltered = filtered.length;
@@ -2142,12 +2193,20 @@ function renderPrivateWishlist(wishlist) {
 
   grid.innerHTML = '';
   if (pagedItems.length === 0) {
-    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted); font-weight: bold;">Nenhum personagem na wishlist encontrado para "${escapeHtml(searchText)}"</div>`;
+    const emptyMsg = onlyMarried
+      ? 'Nenhuma personagem casada encontrada na sua wishlist.'
+      : `Nenhum personagem na wishlist encontrado para "${escapeHtml(searchText)}"`;
+    grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted); font-weight: bold;">${emptyMsg}</div>`;
   } else {
     pagedItems.forEach(entry => {
       const char = entry.character;
       const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
       const isMarried = Boolean(entry.isMarried || char.isMarried);
+      const isMarriedToSelf = Boolean(
+        entry.isMarriedToSelf ||
+        char.isMarriedToSelf ||
+        (entry.marriedToPublicId && entry.marriedToPublicId === userSessionData?.publicId)
+      );
       const spouse = entry.marriedTo || char.marriedTo;
       const isForSale = Boolean(
         entry.isForSale ||
@@ -2157,7 +2216,10 @@ function renderPrivateWishlist(wishlist) {
       );
 
       const card = document.createElement('div');
-      if (isMarried) {
+      if (isMarriedToSelf) {
+        card.className = 'waifu-card is-married-self-wishlist';
+        card.style.borderColor = '#10b981';
+      } else if (isMarried) {
         card.className = 'waifu-card is-married-wishlist';
         card.style.borderColor = '#ef4444';
       } else {
@@ -2167,7 +2229,13 @@ function renderPrivateWishlist(wishlist) {
       card.id = `wish-card-${char.id}`;
 
       let marriedBadgeHtml = '';
-      if (isMarried) {
+      if (isMarriedToSelf) {
+        marriedBadgeHtml = `
+          <div class="badge-married-alert" style="background: rgba(16, 185, 129, 0.95); border-color: #059669; color: #ffffff; font-weight: 800;" title="Casada com você!">
+            💍 Casada com você
+          </div>
+        `;
+      } else if (isMarried) {
         marriedBadgeHtml = `
           <div class="badge-married-alert" title="Casada(o) com ${escapeHtml(spouse || 'outro jogador')}">
             💍 Casada ${spouse ? `(${escapeHtml(spouse)})` : ''}
@@ -2704,32 +2772,86 @@ let currentBatchTargetColId = null;
 let currentBatchTargetColName = '';
 let batchSelectedCharIds = new Set();
 let batchAvailableHaremEntries = [];
+let batchCollectionFilterMode = 'outside'; // 'outside' | 'inside' | 'all'
+
+function getBatchCandidateHaremEntries() {
+  const harem = userSessionData?.harem || [];
+  // Exclui personagens míticos e personagens que já estão na coleção de destino
+  return harem.filter(e => {
+    if (e.character?.isMythic || String(e.character?.rarity || '').toUpperCase() === 'MYTHIC') return false;
+    if (e.collectionId && e.collectionId === currentBatchTargetColId) return false;
+    return true;
+  });
+}
 
 function openBatchAddCharactersModal(colId, colName) {
   currentBatchTargetColId = colId;
   currentBatchTargetColName = colName;
   batchSelectedCharIds.clear();
+  batchCollectionFilterMode = 'outside';
 
   const titleEl = document.getElementById('batch-add-modal-title');
   if (titleEl) {
     titleEl.textContent = `📁 Adicionar Waifus: "${colName}"`;
   }
 
-  const harem = userSessionData?.harem || [];
-  // Filtra waifus que NÃO estão em nenhuma coleção e NÃO são míticas (pertencem ao Harém Geral)
-  batchAvailableHaremEntries = harem.filter(e => !e.collectionId && !e.character?.isMythic && String(e.character?.rarity || '').toUpperCase() !== 'MYTHIC');
+  // Reseta botões do toggle para o padrão "Apenas fora de coleção"
+  document.querySelectorAll('.batch-filter-btn').forEach(b => {
+    const isOutside = b.dataset.batchfilter === 'outside';
+    b.classList.toggle('active', isOutside);
+    b.classList.toggle('btn-gold', isOutside);
+  });
 
-  if (batchAvailableHaremEntries.length === 0) {
-    Api.showToast('Todos os seus personagens já pertencem a alguma pasta!', 'ℹ️');
+  const candidates = getBatchCandidateHaremEntries();
+  if (candidates.length === 0) {
+    Api.showToast('Você não possui outros personagens para adicionar a esta pasta!', 'ℹ️');
     return;
   }
 
   const searchInput = document.getElementById('batch-add-search-input');
   if (searchInput) searchInput.value = '';
 
+  filterBatchAddCharacters();
+  openModal('modal-batch-add-collection');
+}
+
+function setBatchAddFilter(mode, btn) {
+  batchCollectionFilterMode = mode;
+  document.querySelectorAll('.batch-filter-btn').forEach(b => {
+    b.classList.remove('active');
+    b.classList.remove('btn-gold');
+  });
+  if (btn) {
+    btn.classList.add('active');
+    btn.classList.add('btn-gold');
+  }
+  filterBatchAddCharacters();
+}
+
+function getBatchFilteredEntries() {
+  const candidates = getBatchCandidateHaremEntries();
+  const searchInput = document.getElementById('batch-add-search-input');
+  const term = (searchInput?.value || '').toLowerCase().trim();
+
+  return candidates.filter(entry => {
+    // Filtro pelo modo do toggle
+    if (batchCollectionFilterMode === 'outside' && entry.collectionId) return false;
+    if (batchCollectionFilterMode === 'inside' && !entry.collectionId) return false;
+
+    // Filtro de busca de texto
+    if (term) {
+      const name = (entry.character?.name || '').toLowerCase();
+      const series = (entry.character?.series || '').toLowerCase();
+      if (!name.includes(term) && !series.includes(term)) return false;
+    }
+    return true;
+  });
+}
+
+function filterBatchAddCharacters() {
+  batchAvailableHaremEntries = getBatchFilteredEntries();
   renderBatchAddCharactersList(batchAvailableHaremEntries);
   updateBatchAddCounters();
-  openModal('modal-batch-add-collection');
 }
 
 function renderBatchAddCharactersList(entries) {
@@ -2737,7 +2859,13 @@ function renderBatchAddCharactersList(entries) {
   if (!container) return;
 
   if (entries.length === 0) {
-    container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">Nenhum personagem encontrado.</div>';
+    let msg = 'Nenhum personagem encontrado.';
+    if (batchCollectionFilterMode === 'outside') {
+      msg = 'Nenhum personagem fora de coleções encontrado.';
+    } else if (batchCollectionFilterMode === 'inside') {
+      msg = 'Nenhum personagem em outras coleções encontrado.';
+    }
+    container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">${msg}</div>`;
     return;
   }
 
@@ -2747,6 +2875,12 @@ function renderBatchAddCharactersList(entries) {
     const rarityClass = (char.baseRarity || 'COMMON').toLowerCase();
     const rarityLabel = (RARITY_CONFIG[char.baseRarity]?.label) || RARITY_LABELS[char.baseRarity] || char.baseRarity;
     const imgUrl = char.imageUrl || `/media/characters/${char.id}.jpg`;
+
+    let currentFolderHtml = '';
+    if (entry.collectionId) {
+      const colName = entry.collection?.name || (userSessionData?.collections?.find(c => c.id === entry.collectionId)?.name) || 'Outra pasta';
+      currentFolderHtml = `<div style="font-size: 10px; color: #f59e0b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Atualmente na pasta: ${escapeHtml(colName)}">📁 ${escapeHtml(colName)}</div>`;
+    }
 
     return `
       <label class="batch-char-card ${isChecked ? 'selected' : ''}" style="display: flex; flex-direction: column; background: var(--bg-card); border: 2px solid ${isChecked ? 'var(--color-primary, #ec4899)' : 'var(--border-retro)'}; border-radius: 6px; padding: 6px; cursor: pointer; user-select: none; transition: all 0.15s ease;">
@@ -2761,6 +2895,7 @@ function renderBatchAddCharactersList(entries) {
         <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(char.series || '')}">
           ${escapeHtml(char.series || '-')}
         </div>
+        ${currentFolderHtml}
       </label>
     `;
   }).join('');
@@ -2782,29 +2917,9 @@ function toggleBatchCharSelection(charId, isSelected) {
   }
 }
 
-function filterBatchAddCharacters() {
-  const searchInput = document.getElementById('batch-add-search-input');
-  const term = (searchInput?.value || '').toLowerCase().trim();
-
-  const filtered = batchAvailableHaremEntries.filter(entry => {
-    const name = (entry.character.name || '').toLowerCase();
-    const series = (entry.character.series || '').toLowerCase();
-    return name.includes(term) || series.includes(term);
-  });
-
-  renderBatchAddCharactersList(filtered);
-}
-
 function toggleSelectAllBatchAdd() {
-  const searchInput = document.getElementById('batch-add-search-input');
-  const term = (searchInput?.value || '').toLowerCase().trim();
-
-  const visibleEntries = batchAvailableHaremEntries.filter(entry => {
-    if (!term) return true;
-    const name = (entry.character.name || '').toLowerCase();
-    const series = (entry.character.series || '').toLowerCase();
-    return name.includes(term) || series.includes(term);
-  });
+  const visibleEntries = batchAvailableHaremEntries;
+  if (!visibleEntries || visibleEntries.length === 0) return;
 
   const allVisibleSelected = visibleEntries.every(e => batchSelectedCharIds.has(e.character.id));
 
@@ -2832,7 +2947,8 @@ function updateBatchAddCounters() {
 
   const btnSelectAll = document.getElementById('btn-batch-select-all');
   if (btnSelectAll && batchAvailableHaremEntries.length > 0) {
-    btnSelectAll.textContent = count === batchAvailableHaremEntries.length ? 'Desmarcar Todos' : 'Selecionar Todos';
+    const allVisible = batchAvailableHaremEntries.every(e => batchSelectedCharIds.has(e.character.id));
+    btnSelectAll.textContent = allVisible ? 'Desmarcar Todos' : 'Selecionar Todos';
   }
 }
 

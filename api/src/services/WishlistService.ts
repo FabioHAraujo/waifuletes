@@ -39,6 +39,7 @@ export class WishlistService {
       const isMarried = Boolean(haremEntry);
       const marriedTo = haremEntry?.user?.name || null;
       const marriedToPublicId = haremEntry?.user?.publicId || null;
+      const isMarriedToSelf = Boolean(haremEntry && haremEntry.user?.id === userId);
       const isForSale = Boolean(entry.character.marketListings && entry.character.marketListings.length > 0);
 
       const { haremEntries, _count, marketListings, ...charRest } = entry.character;
@@ -50,6 +51,7 @@ export class WishlistService {
         isMarried,
         marriedTo,
         marriedToPublicId,
+        isMarriedToSelf,
         isForSale,
         character: {
           ...charRest,
@@ -59,19 +61,20 @@ export class WishlistService {
           isMarried,
           marriedTo,
           marriedToPublicId,
+          isMarriedToSelf,
           isForSale,
         },
       };
     });
   }
 
-  async clearMarried(userId: string) {
+  async clearMarried(userId: string, onlySelf = false) {
     const marriedEntries = await this.prisma.wishlistEntry.findMany({
       where: {
         userId,
         character: {
           haremEntries: {
-            some: {},
+            some: onlySelf ? { userId } : {},
           },
         },
       },
@@ -88,7 +91,9 @@ export class WishlistService {
         data: {
           removedCount: 0,
           removedCharacters: [],
-          message: 'Nenhuma personagem casada foi encontrada na sua Wishlist.',
+          message: onlySelf
+            ? 'Nenhuma personagem casada com você foi encontrada na sua Wishlist.'
+            : 'Nenhuma personagem casada foi encontrada na sua Wishlist.',
         },
       };
     }
@@ -107,7 +112,7 @@ export class WishlistService {
       data: {
         removedCount: idsToDelete.length,
         removedCharacters,
-        message: `${idsToDelete.length} personagem(ns) casada(s) foram removida(s) da sua Wishlist com sucesso!`,
+        message: `${idsToDelete.length} personagem(ns) casada(s)${onlySelf ? ' com você' : ''} foram removida(s) da sua Wishlist com sucesso!`,
       },
     };
   }

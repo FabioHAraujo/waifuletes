@@ -364,21 +364,32 @@
               <input type="text" id="wishlist-search-input" class="retro-input" placeholder="Buscar na wishlist por personagem ou série...">
               <button id="btn-clear-wishlist-search" class="btn-retro btn-sm hidden" style="padding: 4px 8px; margin-right: 4px;" title="Limpar busca">&times;</button>
             </div>
+            <div class="filters-row" style="margin-top: 10px; justify-content: center; display: flex; gap: 10px;">
+              <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; cursor: pointer; user-select: none; background: var(--bg-card); padding: 5px 12px; border: var(--border-retro); border-radius: 6px; box-shadow: 1px 1px 0 #2d241e;">
+                <input type="checkbox" id="wishlist-filter-married-only" style="width: 16px; height: 16px; cursor: pointer; accent-color: #ef4444;">
+                <span>💍 Apenas casadas</span>
+              </label>
+            </div>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; background: var(--bg-card); padding: 12px 16px; border: var(--border-retro); border-radius: var(--radius-retro); box-shadow: var(--shadow-retro-sm);">
             <div>
               <span style="font-weight: 800; font-size: 15px;">🌟 Lista de Desejos</span>
               <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                Personagens que já foram casados são realçados com <b>borda vermelha</b>.
+                Personagens casadas com você recebem <b>borda verde</b> e prioridade no topo; casadas com outros têm <b>borda vermelha</b>.
               </p>
               <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
                 Chance para as personagens da wishlist atualmente em <b id="wishlist-bonus-val" style="color: #10b981; font-weight: 800;">+0%</b>
               </p>
             </div>
-            <button class="btn-retro btn-sm btn-danger" id="btn-clear-wishlist">
-              <i class="fas fa-broom"></i> Limpar Wishlist (Remover Casadas)
-            </button>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn-retro btn-sm btn-danger" id="btn-clear-wishlist-self" style="background: #e11d48; border-color: #9f1239;" title="Remove da Wishlist apenas as personagens que já estão casadas com você">
+                <i class="fas fa-broom"></i> Limpar Wishlist (Casadas Comigo)
+              </button>
+              <button class="btn-retro btn-sm btn-danger" id="btn-clear-wishlist" title="Remove da Wishlist todas as personagens casadas (com você ou outros)">
+                <i class="fas fa-broom"></i> Limpar Wishlist (Todas Casadas)
+              </button>
+            </div>
           </div>
           <div id="wishlist-grid" class="waifu-grid"></div>
 
@@ -1503,6 +1514,19 @@
         <button class="modal-close" onclick="closeModal('modal-batch-add-collection')">&times;</button>
       </div>
       <div class="modal-body" style="padding: 14px; flex: 1; overflow-y: auto;">
+        <!-- Toggle de Filtro de Coleção -->
+        <div class="batch-filter-toggle-group" style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
+          <button type="button" class="btn-retro btn-sm batch-filter-btn btn-gold active" data-batchfilter="outside" onclick="setBatchAddFilter('outside', this)">
+            Apenas fora de coleção
+          </button>
+          <button type="button" class="btn-retro btn-sm batch-filter-btn" data-batchfilter="inside" onclick="setBatchAddFilter('inside', this)">
+            Apenas em coleção
+          </button>
+          <button type="button" class="btn-retro btn-sm batch-filter-btn" data-batchfilter="all" onclick="setBatchAddFilter('all', this)">
+            Mostrar todas
+          </button>
+        </div>
+
         <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
           <input type="text" id="batch-add-search-input" class="retro-input" placeholder="Filtrar por nome ou anime..." style="flex: 1; min-width: 180px;" oninput="filterBatchAddCharacters()">
           <button type="button" class="btn-retro btn-sm" id="btn-batch-select-all" onclick="toggleSelectAllBatchAdd()">Selecionar Todos</button>

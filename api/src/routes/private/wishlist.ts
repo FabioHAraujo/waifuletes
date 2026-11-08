@@ -101,10 +101,18 @@ export const privateWishlistRoutes: FastifyPluginAsync = async (fastify) => {
           userId: { type: 'string' },
         },
       },
+      querystring: {
+        type: 'object',
+        properties: {
+          onlySelf: { type: 'string' },
+        },
+      },
     },
     handler: async (request, reply) => {
       const { userId } = request.params as { userId: string };
-      const result = await wishlistService.clearMarried(userId);
+      const { onlySelf } = (request.query || {}) as { onlySelf?: string | boolean };
+      const isOnlySelf = onlySelf === 'true' || onlySelf === true || onlySelf === '1';
+      const result = await wishlistService.clearMarried(userId, isOnlySelf);
       return reply.send(result);
     },
   });
@@ -120,10 +128,18 @@ export const privateWishlistRoutes: FastifyPluginAsync = async (fastify) => {
           userId: { type: 'string' },
         },
       },
+      querystring: {
+        type: 'object',
+        properties: {
+          onlySelf: { type: 'string' },
+        },
+      },
     },
     handler: async (request, reply) => {
       const { userId } = request.params as { userId: string };
-      const result = await wishlistService.clearMarried(userId);
+      const { onlySelf } = (request.query || {}) as { onlySelf?: string | boolean };
+      const isOnlySelf = onlySelf === 'true' || onlySelf === true || onlySelf === '1';
+      const result = await wishlistService.clearMarried(userId, isOnlySelf);
       return reply.send(result);
     },
   });
