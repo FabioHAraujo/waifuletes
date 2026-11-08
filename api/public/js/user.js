@@ -521,7 +521,7 @@ function setupEventListeners() {
       tab.classList.add('active');
 
       const targetId = tab.dataset.subtab;
-      document.querySelectorAll('.subtab-content').forEach(c => c.classList.add('hidden'));
+      document.querySelectorAll('#modal-suggest .subtab-content').forEach(c => c.classList.add('hidden'));
       const activeContent = document.getElementById(targetId);
       if (activeContent) activeContent.classList.remove('hidden');
     });
@@ -892,7 +892,7 @@ function setupEventListeners() {
     btnOpenSuggestChar.addEventListener('click', () => {
       document.getElementById('form-new-character').reset();
       document.getElementById('new-char-preview-container').classList.add('hidden');
-      document.getElementById('modal-suggest-character').classList.remove('hidden');
+      openModal('modal-suggest-character');
     });
   }
 
@@ -4199,6 +4199,18 @@ function closeModal(id) {
   const hasOpenModals = Boolean(document.querySelector('.modal-overlay:not(.hidden)'));
   if (!hasOpenModals) {
     document.body.classList.remove('modal-open');
+  }
+
+  // Restaura a subaba ativa do painel visível caso tenha sido afetada
+  const activeTabContent = document.querySelector('#private-panel > .tab-content:not(.hidden)');
+  if (activeTabContent) {
+    const activeSubBtn = activeTabContent.querySelector('.retro-subtab.active');
+    if (activeSubBtn && activeSubBtn.dataset.subtab) {
+      const activeSubContent = document.getElementById(activeSubBtn.dataset.subtab);
+      if (activeSubContent && activeSubContent.classList.contains('hidden')) {
+        activeSubContent.classList.remove('hidden');
+      }
+    }
   }
 }
 
