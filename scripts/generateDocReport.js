@@ -1,11 +1,7 @@
 import { PrismaClient } from '../api/node_modules/@prisma/client/default.js';
 import fs from 'fs';
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: { url: 'postgresql://waifuletes:e868c1cc2a267a7ddd2226ec7bedf59b0bd747c364af22e7@127.0.0.1:5433/waifuletes' }
-  }
-});
+const prisma = new PrismaClient();
 
 async function run() {
   const txs = await prisma.kakeraTransaction.findMany({
@@ -37,7 +33,12 @@ async function run() {
   md += '## 1. Visão Geral das Operações Realizadas\n\n';
   md += '1. **Sincronização com o Mudae (Top 80k):** Consulta a 4.000 páginas da API oficial do Mudae, atualizando a posição e tags de 68.238 personagens.\n';
   md += '2. **Deduplicação Inteligente com Soft-Delete:** 1.839 personagens duplicados ou com nomes invertidos/grafias em inglês foram desativados (`isActive = false`), mantendo a integridade para restaurações futuras.\n';
-  md += '3. **Indenização de Jogadores (5x):** 133 casamentos em cópias inferiores foram desfeitos com pagamento de 5x o valor oficial do divórcio (total de **162.855 Zinthos** injetados aos jogadores).\n';
+  md += '3. **Indenização de Jogadores (5x Base Harém):** 133 casamentos em cópias inferiores foram desfeitos com pagamento de 5x o valor oficial do divórcio calculado com base na economia real do harém (total de **6.400.000 Zinthos** creditados aos 66 jogadores afetados).\n';
+  md += '   - **Lendário:** 135.000 Zinthos base ➔ 675.000 Zinthos (5x)\n';
+  md += '   - **Épico:** 45.000 Zinthos base ➔ 225.000 Zinthos (5x)\n';
+  md += '   - **Raro:** 9.000 Zinthos base ➔ 45.000 Zinthos (5x)\n';
+  md += '   - **Incomum:** 4.000 Zinthos base ➔ 20.000 Zinthos (5x)\n';
+  md += '   - **Comum:** 1.000 Zinthos base ➔ 5.000 Zinthos (5x)\n';
   md += '4. **Reorganização de Raridades (2% / 10% / 20% / 28% / 40%):** Redistribuição por cascata top-down baseada no rank atualizado, sem nenhum rebaixamento (50.292 personagens subiram de classe, sendo 5.281 waifus casadas em haréns).\n\n';
 
   md += '---\n\n';
@@ -91,8 +92,9 @@ async function run() {
     md += `| ${i + 1} | ${pName} | ${cName} | ${cSeries} | ${cRarity} | ${keys} | ${baseVal} 💜 | **${refund5x} 💜** | ${reason} |\n`;
   });
 
-  fs.writeFileSync('docs/reorganizacao-raridades-e-deduplicacao.md', md, 'utf-8');
-  console.log('Documento docs/reorganizacao-raridades-e-deduplicacao.md gerado com sucesso!');
+  const docPath = '/home/moothz/waifuletes/docs/reorganizacao-raridades-e-deduplicacao.md';
+  fs.writeFileSync(docPath, md, 'utf-8');
+  console.log(`Documento ${docPath} gerado com sucesso!`);
   await prisma.$disconnect();
 }
 run();

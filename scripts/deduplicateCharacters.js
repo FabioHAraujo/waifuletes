@@ -34,26 +34,17 @@ const RARITY_ORDER = {
 };
 
 const RARITY_DIVORCE_VALUES = {
-  COMMON: 50,
-  UNCOMMON: 150,
-  RARE: 350,
-  EPIC: 700,
-  LEGENDARY: 1500,
-};
-
-const RARITY_KEY_DIVORCE_BONUS = {
-  COMMON: 500,
-  UNCOMMON: 2000,
-  RARE: 5000,
-  EPIC: 25000,
-  LEGENDARY: 75000,
+  COMMON: 1000,
+  UNCOMMON: 4000,
+  RARE: 9000,
+  EPIC: 45000,
+  LEGENDARY: 135000,
 };
 
 function calculateDivorceRefund(rarity, keys = 1) {
-  const base = RARITY_DIVORCE_VALUES[rarity] || 50;
-  const keyBonus = Math.max(0, keys - 1) * (RARITY_KEY_DIVORCE_BONUS[rarity] || 500);
-  const raw = base + keyBonus;
-  return { netKakera: Math.floor(raw * 0.95) }; // 5% taxa
+  const base = RARITY_DIVORCE_VALUES[rarity] || 1000;
+  const raw = base * Math.max(1, keys);
+  return { netKakera: raw };
 }
 
 function normalizeNameTokens(str) {
