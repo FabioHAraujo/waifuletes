@@ -183,7 +183,7 @@ async function run() {
 
   console.log('📦 Carregando catálogo ativo e relacionamentos...');
   const characters = await prisma.character.findMany({
-    where: { isActive: true },
+    where: { isActive: true, isMythic: false },
     select: {
       id: true,
       name: true,

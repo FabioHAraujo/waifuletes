@@ -111,19 +111,33 @@ export class UserService {
 
     if (!user) return null;
 
-    // Busca personagens míticos que habitam o harém do usuário
-    const mythicEntries = await this.prisma.haremEntry.findMany({
-      where: {
-        userId: user.id,
-        character: { isMythic: true },
-      },
-      include: {
-        character: true,
-      },
-      orderBy: { claimedAt: 'desc' },
-    });
+    // Busca personagens míticos que habitam o harém do usuário ou criados por ele
+    const [mythicEntries, createdMythics] = await Promise.all([
+      this.prisma.haremEntry.findMany({
+        where: {
+          userId: user.id,
+          character: { isMythic: true },
+        },
+        include: {
+          character: true,
+        },
+        orderBy: { claimedAt: 'desc' },
+      }),
+      this.prisma.character.findMany({
+        where: {
+          creatorUserId: user.id,
+          isMythic: true,
+          isActive: true,
+        },
+        orderBy: { addedAt: 'desc' },
+      }),
+    ]);
 
-    const mythicCharacters = mythicEntries.map((e) => e.character);
+    const seenMythicIds = new Set(mythicEntries.map((e) => e.character.id));
+    const mythicCharacters = [
+      ...mythicEntries.map((e) => e.character),
+      ...createdMythics.filter((c) => !seenMythicIds.has(c.id)),
+    ];
     const mythicCount = mythicCharacters.length;
 
     // Calcula soulmates reais: registros na tabela soulmates + haremEntries com chaves >= 10 (excluindo míticos)
