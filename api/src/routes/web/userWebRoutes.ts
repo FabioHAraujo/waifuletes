@@ -657,7 +657,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
         const contentType = response.headers.get('content-type') || 'image/jpeg';
         reply.header('Content-Type', contentType);
-        reply.header('Cache-Control', 'public, max-age=3600');
+        reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
 
         const arrayBuffer = await response.arrayBuffer();
         return reply.send(Buffer.from(arrayBuffer));

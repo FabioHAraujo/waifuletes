@@ -117,3 +117,9 @@ waifuletes/
 - **Remover Usuários e Grupos de Teste:** Usuários criados em testes (ex: `test_*`, `another_user_*`, `seed_*`, `roll_tester_*`) e seus grupos DEVEM ser excluídos ao final de cada suíte (`afterAll`), utilizando os helpers de limpeza (`cleanupUser`, `cleanupTestDatabase`).
 - **Apagar Sugestões de Teste:** Sugestões enviadas para validar criação, alteração ou debounce DEVEM ser excluídas do banco e ter eventuais mensagens de Telegram canceladas no encerramento do teste.
 - **Global Teardown:** A configuração do Vitest (`vitest.config.ts`) possui `globalTeardown` configurado para varrer e expurgar quaisquer resíduos residuais via `POST /admin/cleanup-test-data` caso algum teste seja abortado ou sofra falha crítica antes do `afterAll`.
+
+---
+
+## ⚡ 8. Cachebuster Obrigatório para Frontend (CSS & JS)
+- **Sempre atualizar o Cachebuster nas páginas HTML:** Sempre que qualquer arquivo estático de frontend em `api/public/` (especialmente `css/retro-theme.css`, `js/user.js`, `js/api.js`, etc.) for alterado, é **obrigatório** atualizar o parâmetro de versão (`?v=YYYYMMDD-<topico>`) nas tags `<link rel="stylesheet">` e `<script src="...">` de todos os arquivos HTML que referenciam os arquivos modificados (`user.html`, `catalogo.html`, `character.html`, `admin.html`, `index.html`).
+- **Prevenção de Cache Stale:** Navegadores e proxies realizam cache agressivo de arquivos estáticos. Sem atualizar o cachebuster nos HTMLs, usuários e testadores continuarão carregando versões antigas em cache, resultando em falhas visuais ou comportamentos inconsistentes.

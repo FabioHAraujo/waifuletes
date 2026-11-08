@@ -1922,6 +1922,11 @@ body.dark-mode .btn-card-report:hover {
   position: relative;
 }
 
+/* Personagens Míticos: apenas a foto limpa no card, sem badges sobrepostas */
+.waifu-card.mythic-card .card-img-wrapper [class*="badge-"] {
+  display: none !important;
+}
+
 .waifu-card.mythic-card .card-info {
   background: var(--bg-card);
   border-radius: 0 0 calc(var(--radius-retro, 6px) - 2px) calc(var(--radius-retro, 6px) - 2px);

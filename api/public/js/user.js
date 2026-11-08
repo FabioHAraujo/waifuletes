@@ -1502,7 +1502,6 @@ function createPrivateHaremCard(entry, options = {}) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
         <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
-        <div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -1694,9 +1693,10 @@ async function openChoosePhotoModal(charId) {
 
     if (marriageContainer) {
       if (data.marriage?.exists) {
+        const marriageImgUrl = data.marriage.url ? `${data.marriage.url}${data.marriage.url.includes('?') ? '&' : '?'}t=${Date.now()}` : '';
         marriageContainer.innerHTML = `
           <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
-            <img src="${data.marriage.url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 6px; border: 2.5px solid ${data.marriage.isPinned ? '#ec4899' : 'var(--border-retro)'}; box-shadow: var(--shadow-retro-sm);" onerror="handleImgError(this)">
+            <img src="${marriageImgUrl}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 6px; border: 2.5px solid ${data.marriage.isPinned ? '#ec4899' : 'var(--border-retro)'}; box-shadow: var(--shadow-retro-sm);" onerror="handleImgError(this)">
             <div style="flex: 1; min-width: 160px;">
               <div style="font-weight: 800; font-size: 13px; color: #ec4899;">Foto Oficial do Casal 💍</div>
               <p style="font-size: 11px; color: var(--text-muted); margin: 3px 0 8px 0;">
@@ -2378,7 +2378,6 @@ function createPublicHaremCard(entry) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
         <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
-        <div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -3209,16 +3208,18 @@ async function loadCatalogCharacters() {
       card.innerHTML = `
         <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
           <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-          ${topBadgeHtml}
-          ${isMarried ? `<div class="badge-married ${spousePublicId ? 'badge-married-link' : ''}" title="${marriedTooltip}">💍</div>` : ''}
+          ${!isMythic ? topBadgeHtml : ''}
+          ${!isMythic && isMarried ? `<div class="badge-married ${spousePublicId ? 'badge-married-link' : ''}" title="${marriedTooltip}">💍</div>` : ''}
           ${!isMythic ? `
             <div class="badge-wishes" data-char-id="${char.id}" title="${wishlistCount} pessoa(s) adicionaram à wishlist. Clique para alternar Wishlist" onclick="event.stopPropagation(); toggleWishlist('${char.id}', null, event)">
               <span>✨</span> <span>${wishlistCount}</span>
             </div>
           ` : ''}
-          <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
-            <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
-          </div>
+          ${!isMythic ? `
+            <div class="badge-likes" data-char-id="${char.id}" title="Curtido ${char.likeCount || 0} vez(es). Clique para curtir!" onclick="event.stopPropagation(); registerCardLike('${char.id}', event)">
+              <span>❤️</span> <span class="likes-count">${char.likeCount || 0}</span>
+            </div>
+          ` : ''}
         </div>
         <div class="card-info">
           <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeHtml(char.name)}">${escapeHtml(char.name)}</div>
@@ -4622,16 +4623,22 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
   // Tags
   const tagsEl = document.getElementById('waifu-preview-tags');
   if (tagsEl) {
-    tagsEl.innerHTML = '';
-    if (cTags && cTags.length > 0) {
-      cTags.forEach(tag => {
-        const tagSpan = document.createElement('span');
-        tagSpan.className = 'badge-tag';
-        tagSpan.textContent = `#${tag}`;
-        tagsEl.appendChild(tagSpan);
-      });
+    if (isMythic) {
+      tagsEl.innerHTML = '';
+      tagsEl.style.display = 'none';
     } else {
-      tagsEl.innerHTML = '<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Nenhuma tag cadastrada</span>';
+      tagsEl.style.display = 'flex';
+      tagsEl.innerHTML = '';
+      if (cTags && cTags.length > 0) {
+        cTags.forEach(tag => {
+          const tagSpan = document.createElement('span');
+          tagSpan.className = 'badge-tag';
+          tagSpan.textContent = `#${tag}`;
+          tagsEl.appendChild(tagSpan);
+        });
+      } else {
+        tagsEl.innerHTML = '<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Nenhuma tag cadastrada</span>';
+      }
     }
   }
 
@@ -6510,7 +6517,6 @@ function createMythicCard(char) {
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes">
       <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
-      <div class="badge-rarity" style="background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);" title="Raridade: 🔮 Mítico">🔮 MÍTICO</div>
     </div>
     <div class="card-info">
       <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>

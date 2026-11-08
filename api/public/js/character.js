@@ -208,17 +208,23 @@ const CharacterPage = {
     // Tags
     const tagsEl = document.getElementById('char-tags');
     if (tagsEl) {
-      tagsEl.innerHTML = '';
-      if (cTags.length > 0) {
-        cTags.forEach((t) => {
-          const span = document.createElement('span');
-          span.className = 'char-badge-tag';
-          span.style.cssText = 'background: rgba(255,255,255,0.1); color: var(--text-muted); font-size: 11px;';
-          span.textContent = `#${t}`;
-          tagsEl.appendChild(span);
-        });
+      if (isMythic) {
+        tagsEl.innerHTML = '';
+        tagsEl.style.display = 'none';
       } else {
-        tagsEl.innerHTML = '<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Nenhuma tag cadastrada</span>';
+        tagsEl.style.display = 'flex';
+        tagsEl.innerHTML = '';
+        if (cTags.length > 0) {
+          cTags.forEach((t) => {
+            const span = document.createElement('span');
+            span.className = 'char-badge-tag';
+            span.style.cssText = 'background: rgba(255,255,255,0.1); color: var(--text-muted); font-size: 11px;';
+            span.textContent = `#${t}`;
+            tagsEl.appendChild(span);
+          });
+        } else {
+          tagsEl.innerHTML = '<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Nenhuma tag cadastrada</span>';
+        }
       }
     }
 
