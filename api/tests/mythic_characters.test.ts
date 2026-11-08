@@ -164,6 +164,82 @@ describe('🔮 Sistema de Personagens Míticos — Waifuletes API', () => {
       const marketService = new MarketService(mockPrisma, mockCharacterService);
       await expect(marketService.createListing('user_creator', 'myt_arthur', 'Busco outra waifu')).rejects.toThrow(DomainError);
     });
+
+    it('deve impedir fazer oferta contendo personagem mítico nos classificados', async () => {
+      mockPrisma.marketListing.findUnique = vi.fn().mockResolvedValue({
+        id: 'list_1',
+        userId: 'user_seller',
+        status: 'ACTIVE',
+        character: { id: 'char_regular', name: 'Regular Waifu' },
+      });
+      mockPrisma.marketOffer = {
+        findFirst: vi.fn().mockResolvedValue(null),
+      };
+      mockPrisma.haremEntry.findMany = vi.fn().mockResolvedValue([
+        {
+          userId: 'user_buyer',
+          characterId: 'myt_arthur',
+          character: {
+            id: 'myt_arthur',
+            name: 'Arthur Pendragon',
+            isMythic: true,
+          },
+        },
+      ]);
+
+      const marketService = new MarketService(mockPrisma, mockCharacterService);
+      await expect(
+        marketService.createOffer('user_buyer', 'list_1', {
+          offeredItems: { waifuIds: ['myt_arthur'] },
+        })
+      ).rejects.toThrow(DomainError);
+    });
+
+    it('deve impedir aceitar oferta se contiver personagem mítico', async () => {
+      mockPrisma.marketOffer = {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'off_1',
+          sellerId: 'user_seller',
+          buyerId: 'user_buyer',
+          status: 'PENDING',
+          offeredItems: { waifuIds: ['myt_arthur'] },
+          listing: {
+            id: 'list_1',
+            userId: 'user_seller',
+            characterId: 'char_regular',
+            status: 'ACTIVE',
+            character: { id: 'char_regular', name: 'Regular Waifu', isMythic: false },
+          },
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      };
+      mockPrisma.haremEntry.findFirst = vi.fn().mockResolvedValue({
+        userId: 'user_seller',
+        characterId: 'char_regular',
+      });
+      mockPrisma.haremEntry.findMany = vi.fn().mockResolvedValue([
+        {
+          userId: 'user_buyer',
+          characterId: 'myt_arthur',
+          character: {
+            id: 'myt_arthur',
+            name: 'Arthur Pendragon',
+            isMythic: true,
+          },
+        },
+      ]);
+
+      const marketService = new MarketService(mockPrisma, mockCharacterService);
+      const res = await marketService.acceptOffer('user_seller', 'off_1');
+      expect(res.success).toBe(false);
+      expect(res.cancelled).toBe(true);
+      expect(mockPrisma.marketOffer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'off_1' },
+          data: expect.objectContaining({ status: 'CANCELLED' }),
+        })
+      );
+    });
   });
 
   describe('4. Bloqueio de Sugestões e Denúncias para Míticos', () => {

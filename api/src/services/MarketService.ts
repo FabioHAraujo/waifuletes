@@ -69,7 +69,7 @@ export class MarketService {
       throw new DomainError('NOT_IN_HAREM', 'Você não possui este personagem no seu harém.');
     }
 
-    if (haremEntry.character.isMythic) {
+    if (haremEntry.character.isMythic || (haremEntry.character as any).baseRarity === 'MYTHIC') {
       throw new DomainError('CANNOT_LIST_MYTHIC', 'Personagens Míticos pertencem exclusivamente ao seu criador e não podem ser anunciados nos classificados.');
     }
 
@@ -510,14 +510,19 @@ export class MarketService {
       throw new DomainError('ALREADY_OFFERED', 'Você já possui uma oferta pendente neste anúncio.');
     }
 
-    // Se ofertou waifus, valida se o comprador tem todas elas no harém
+    // Se ofertou waifus, valida se o comprador tem todas elas no harém e não são míticas
     const waifuIds = data.offeredItems?.waifuIds || [];
     if (waifuIds.length > 0) {
       const owned = await this.prisma.haremEntry.findMany({
         where: { userId: buyerId, characterId: { in: waifuIds } },
+        include: { character: true },
       });
       if (owned.length !== waifuIds.length) {
         throw new DomainError('MISSING_WAIFUS', 'Você não possui todos os personagens ofertados no seu harém.');
+      }
+      const hasMythic = owned.some((o) => o.character.isMythic || (o.character as any).baseRarity === 'MYTHIC');
+      if (hasMythic) {
+        throw new DomainError('CANNOT_OFFER_MYTHIC', 'Personagens Míticos pertencem exclusivamente ao seu criador e não podem ser ofertados em negociações.');
       }
     }
 
@@ -653,6 +658,21 @@ export class MarketService {
       throw new DomainError('LISTING_NOT_ACTIVE', 'O anúncio não está mais ativo.');
     }
 
+    if (listing.character.isMythic || (listing.character as any).baseRarity === 'MYTHIC') {
+      await this.prisma.marketListing.update({
+        where: { id: listing.id },
+        data: { status: ListingStatus.CANCELLED },
+      });
+      await this.prisma.marketOffer.update({
+        where: { id: offer.id },
+        data: {
+          status: OfferStatus.CANCELLED,
+          cancelReason: 'Personagens Míticos não podem ser negociados nos classificados.',
+        },
+      });
+      throw new DomainError('CANNOT_TRADE_MYTHIC', 'Personagens Míticos pertencem exclusivamente ao seu criador e não podem ser negociados nos classificados.');
+    }
+
     // 1. Valida se o Vendedor ainda possui o personagem anunciado
     const sellerHarem = await this.prisma.haremEntry.findFirst({
       where: { userId: sellerId, characterId: listing.characterId },
@@ -680,6 +700,7 @@ export class MarketService {
     if (waifuIds.length > 0) {
       const buyerEntries = await this.prisma.haremEntry.findMany({
         where: { userId: offer.buyerId, characterId: { in: waifuIds } },
+        include: { character: true },
       });
 
       if (buyerEntries.length !== waifuIds.length) {
@@ -697,6 +718,24 @@ export class MarketService {
           success: false,
           cancelled: true,
           reason: 'Não foi possível aceitar a oferta: o usuário não possui mais os personagens oferecidos. A oferta foi cancelada automaticamente.',
+        };
+      }
+
+      const hasMythic = buyerEntries.some((o) => o.character.isMythic || (o.character as any).baseRarity === 'MYTHIC');
+      if (hasMythic) {
+        await this.prisma.marketOffer.update({
+          where: { id: offer.id },
+          data: {
+            status: OfferStatus.CANCELLED,
+            cancelReason: 'Proposta contém personagens Míticos, que não podem ser negociados.',
+            notifiedBuyer: false,
+            buyerNotifiedStatus: 'CANCELLED',
+          },
+        });
+        return {
+          success: false,
+          cancelled: true,
+          reason: 'Não foi possível aceitar a oferta: personagens Míticos pertencem exclusivamente ao seu criador e não podem ser negociados nos classificados. A oferta foi cancelada automaticamente.',
         };
       }
     }

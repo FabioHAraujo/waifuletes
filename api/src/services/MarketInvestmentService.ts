@@ -218,6 +218,10 @@ export class MarketInvestmentService {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.');
     }
 
+    if (character.isMythic || (character as any).baseRarity === 'MYTHIC') {
+      throw new DomainError('CANNOT_INVEST_MYTHIC', 'Personagens Míticos pertencem exclusivamente ao seu criador e não possuem cotação de mercado.');
+    }
+
     const macro = await this.getMacroStats();
     const rarityInfo = macro.rarityStats[character.baseRarity];
 
@@ -325,6 +329,10 @@ export class MarketInvestmentService {
     const character = await this.characterService.findCharacter(params.characterIdOrSlug);
     if (!character) {
       throw new DomainError('CHARACTER_NOT_FOUND', 'Personagem não encontrado.');
+    }
+
+    if (character.isMythic || (character as any).baseRarity === 'MYTHIC') {
+      throw new DomainError('CANNOT_INVEST_MYTHIC', 'Personagens Míticos pertencem exclusivamente ao seu criador e não aceitam investimentos.');
     }
 
     // 1. Personagem já está casado?

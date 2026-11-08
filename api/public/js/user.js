@@ -1531,7 +1531,7 @@ function openCardOptionsModal(charId) {
   if (seriesEl) seriesEl.textContent = char.series || 'Sem série';
   if (imgEl) imgEl.src = char.imageUrl || '/media/characters/default.jpg';
 
-  if (char.isMythic) {
+  if (char.isMythic || char.baseRarity === 'MYTHIC' || char.rarity === 'MYTHIC') {
     if (listEl) {
       listEl.innerHTML = `
         <button class="btn-retro btn-sm" style="width: 100%; background: #ec4899; color: white; border-color: #db2777;" onclick="closeModal('modal-card-options'); toggleFavorite('${char.id}')">
@@ -4883,6 +4883,12 @@ function navigateToHash(hash) {
 }
 
 function openSellModal(characterId, characterName, imageUrl, series) {
+  const entry = haremEntryCache?.get(characterId);
+  const char = entry?.character;
+  if (char && (char.isMythic || char.baseRarity === 'MYTHIC' || char.rarity === 'MYTHIC')) {
+    Api.showToast('Personagens Míticos pertencem exclusivamente ao criador e não podem ser anunciados nos classificados.', '⚠️');
+    return;
+  }
   activeSellCharacter = { id: characterId, name: characterName };
   document.getElementById('sell-modal-char-name').textContent = characterName;
   document.getElementById('sell-modal-char-series').textContent = series || 'Sem série';
@@ -5389,9 +5395,12 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
     balanceEl.textContent = Number(buyerData?.kakera || 0).toLocaleString('pt-BR');
   }
 
-  // 1. Popula Waifus disponíveis do harém do comprador
+  // 1. Popula Waifus disponíveis do harém do comprador (exceto Míticos)
   const waifusList = document.getElementById('offer-waifus-list');
-  const harem = buyerData?.harem || [];
+  const harem = (buyerData?.harem || []).filter(item => {
+    const c = item.character;
+    return !c?.isMythic && c?.rarity !== 'MYTHIC' && c?.baseRarity !== 'MYTHIC';
+  });
   if (harem.length === 0) {
     waifusList.innerHTML = '<div style="grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); padding: 8px;">Você não possui waifus no harém para oferecer.</div>';
   } else {
