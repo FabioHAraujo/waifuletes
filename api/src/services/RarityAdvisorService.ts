@@ -89,7 +89,7 @@ export class RarityAdvisorService {
 
   /**
    * Avalia a sugestão de raridade usando o modelo Hyperion Gemma 4 12B com ferramenta de busca web
-   * e regras oficiais de Rank do Mudae (Top 1000 = Lendário, 1001-3000 = Épico, 3001-10000 = Raro)
+   * e regras oficiais de Rank do Mudae (1-4466 = Lendário [2%], 4467-20701 = Épico [10%], 20702-62128 = Raro [20%], 62129-76135 = Incomum [28%], Acima de 76135 = Comum [40%])
    */
   async evaluateRaritySuggestion(data: SuggestionNotifyData, redis?: Redis): Promise<RarityAdvisorEvaluation | null> {
     if (!this.url || !this.model) {
@@ -107,14 +107,16 @@ export class RarityAdvisorService {
 
     let rankInfo = 'Não informado no banco de dados local (pesquise na web se necessário)';
     if (mudaeRank && mudaeRank > 0) {
-      if (mudaeRank <= 1000) {
-        rankInfo = `#${mudaeRank} (Top 1000 ➔ Regra Oficial: LENDÁRIO)`;
-      } else if (mudaeRank <= 3000) {
-        rankInfo = `#${mudaeRank} (1001 a 3000 ➔ Regra Oficial: ÉPICO)`;
-      } else if (mudaeRank <= 10000) {
-        rankInfo = `#${mudaeRank} (3001 a 10000 ➔ Regra Oficial: RARO)`;
+      if (mudaeRank <= 4466) {
+        rankInfo = `#${mudaeRank} (Top ~4.466 ➔ Regra Oficial: LENDÁRIO)`;
+      } else if (mudaeRank <= 20701) {
+        rankInfo = `#${mudaeRank} (4.467 a 20.701 ➔ Regra Oficial: ÉPICO)`;
+      } else if (mudaeRank <= 62128) {
+        rankInfo = `#${mudaeRank} (20.702 a 62.128 ➔ Regra Oficial: RARO)`;
+      } else if (mudaeRank <= 76135) {
+        rankInfo = `#${mudaeRank} (62.129 a 76.135 ➔ Regra Oficial: INCOMUM)`;
       } else {
-        rankInfo = `#${mudaeRank} (Acima de 10000 ➔ Regra Oficial: Incomum ou Comum)`;
+        rankInfo = `#${mudaeRank} (Acima de 76.135 ➔ Regra Oficial: COMUM)`;
       }
     }
 
@@ -122,21 +124,22 @@ export class RarityAdvisorService {
 
 TABELA OFICIAL DE RARIDADES E DIRETRIZES DE RANK MUDAE:
 - LEGENDARY (🟡 Lendário): O topo absoluto da cultura pop/anime/jogos mundiais, figuras lendárias históricas com fandom global massivo.
-  👉 REGRA DE OURO MUDAE: Personagens no TOP 1000 do Mudae (Rank 1 a 1000) SÃO OBRIGATORIAMENTE LENDÁRIOS.
+  👉 REGRA DE OURO MUDAE: Personagens no TOP 4.466 do Mudae (Rank 1 a 4466) SÃO OBRIGATORIAMENTE LENDÁRIOS (2% do catálogo).
 - EPIC (🟣 Épico): Protagonistas muito famosos, ícones consagrados, líderes de grandes obras populares.
-  👉 REGRA DE OURO MUDAE: Personagens com Rank Mudae entre 1001 e 3000 SÃO OBRIGATORIAMENTE ÉPICOS.
+  👉 REGRA DE OURO MUDAE: Personagens com Rank Mudae entre 4467 e 20701 SÃO OBRIGATORIAMENTE ÉPICOS (10% do catálogo).
 - RARE (🔵 Raro): Protagonistas de obras menores/médias ou personagens principais de suporte em obras populares.
-  👉 REGRA DE OURO MUDAE: Personagens com Rank Mudae entre 3001 e 10000 SÃO OBRIGATORIAMENTE RAROS.
-- UNCOMMON (🟢 Incomum): Personagens secundários/coadjuvantes conhecidos em suas obras (Rank Mudae > 10000 ou sem rank de destaque).
-- COMMON (⚪ Comum): Figurantes, personagens de fundo, NPCs irrelevantes ou obras ultra-obscuras.
+  👉 REGRA DE OURO MUDAE: Personagens com Rank Mudae entre 20702 e 62128 SÃO OBRIGATORIAMENTE RAROS (20% do catálogo).
+- UNCOMMON (🟢 Incomum): Personagens secundários/coadjuvantes conhecidos em suas obras (Rank Mudae 62129 a 76135).
+- COMMON (⚪ Comum): Figurantes, personagens de fundo, NPCs irrelevantes ou obras ultra-obscuras (Rank > 76135).
 
 SUA MISSÃO:
 1. CONSIDERE O RANK DO MUDAE DO PERSONAGEM:
    - Se o Rank Mudae estiver informado no chamado, aplique com rigor as faixas oficiais:
-     • Top 1000 (1 a 1000): Recomende LEGENDARY.
-     • 1001 a 3000: Recomende EPIC.
-     • 3001 a 10000: Recomende RARE.
-     • Acima de 10000: Recomende UNCOMMON ou COMMON de acordo com a relevância.
+     • 1 a 4466: Recomende LEGENDARY.
+     • 4467 a 20701: Recomende EPIC.
+     • 20702 a 62128: Recomende RARE.
+     • 62129 a 76135: Recomende UNCOMMON.
+     • Acima de 76135: Recomende COMMON.
    - Se o rank não estiver informado no banco de dados local, você PODE e DEVE usar a ferramenta web_search pesquisando pelo personagem e seu rank/popularidade no bot Mudae (ex: "[Nome] mudae rank" ou "[Nome] [série] mudae") ou sua fama geral.
 2. CHECAGEM FACTUAL DE ALEGAÇÕES (FATO VS EXAGERO/MENTIRA):
    - Pesquise a verdadeira relevância do personagem, protagonismo, popularidade e biografia.
@@ -146,7 +149,7 @@ ${isMarried ? '3. ⚠️ ATENÇÃO CRÍTICA: O usuário que fez o pedido é CASA
 🤖 <b>Parecer da IA (Gemma 4 12B)</b>:
 
 🎯 <b>Veredito:</b> [PROCEDENTE | EXAGERO | FALSO/MENTIRA]
-🏆 <b>Rank Mudae:</b> [Ex: #842 (Top 1000 -> Lendário) | #1850 (1001-3000 -> Épico) | #6200 (3001-10000 -> Raro) | Acima de 10000 / Não encontrado (Incomum/Comum)]
+🏆 <b>Rank Mudae:</b> [Ex: #842 (Top 4.466 -> Lendário) | #12500 (4.467-20.701 -> Épico) | #35000 (20.702-62.128 -> Raro) | #70000 (62.129-76.135 -> Incomum) | Acima de 76.135 / Não encontrado (Comum)]
 🔍 <b>Fatos Apurados:</b> (1 a 2 frases factuais sobre quem realmente é o personagem e seu papel na obra)
 ⚖️ <b>Checagem da Alegação:</b> (Análise se o motivo do usuário confere ou se está distorcido/falso)
 💡 <b>Raridade Recomendada:</b> [COMMON | UNCOMMON | RARE | EPIC | LEGENDARY] (breve explicação alinhada ao rank do Mudae e à relevância)`;

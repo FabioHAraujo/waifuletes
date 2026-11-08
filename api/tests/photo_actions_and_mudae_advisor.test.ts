@@ -444,13 +444,13 @@ describe('🤖 Prompt de IA e Classificação por Rank Mudae no RarityAdvisorSer
 
       // Verifica se o systemPrompt recebido pelo LLM contém as regras do Mudae
       const systemMsg = capturedBody.messages.find((m: any) => m.role === 'system');
-      expect(systemMsg.content).toContain('Top 1000 (1 a 1000): Recomende LEGENDARY');
-      expect(systemMsg.content).toContain('1001 a 3000: Recomende EPIC');
-      expect(systemMsg.content).toContain('3001 a 10000: Recomende RARE');
+      expect(systemMsg.content).toContain('1 a 4466: Recomende LEGENDARY');
+      expect(systemMsg.content).toContain('4467 a 20701: Recomende EPIC');
+      expect(systemMsg.content).toContain('20702 a 62128: Recomende RARE');
 
       // Verifica se o userPrompt identifica o rank e a regra oficial
       const userMsg = capturedBody.messages.find((m: any) => m.role === 'user');
-      expect(userMsg.content).toContain('#450 (Top 1000 ➔ Regra Oficial: LENDÁRIO)');
+      expect(userMsg.content).toContain('#450 (Top ~4.466 ➔ Regra Oficial: LENDÁRIO)');
 
       // Verifica se salvou o parecer e o prompt no Redis para o /admin exibir
       expect(mockRedis.set).toHaveBeenCalledWith(
@@ -470,7 +470,7 @@ describe('🤖 Prompt de IA e Classificação por Rank Mudae no RarityAdvisorSer
     }
   });
 
-  it('deve formatar corretamente as faixas de Rank Mudae para 1001..3000 (Épico) e 3001..10000 (Raro)', async () => {
+  it('deve formatar corretamente as faixas de Rank Mudae para 4467..20701 (Épico) e 20702..62128 (Raro)', async () => {
     const advisor = new RarityAdvisorService();
 
     let capturedBodies: any[] = [];
@@ -490,7 +490,7 @@ describe('🤖 Prompt de IA e Classificação por Rank Mudae no RarityAdvisorSer
     });
 
     try {
-      // Teste Épico: Rank 1800
+      // Teste Épico: Rank 5000
       await advisor.evaluateRaritySuggestion({
         id: 'sug_test_epic',
         type: 'RARITY',
@@ -499,11 +499,11 @@ describe('🤖 Prompt de IA e Classificação por Rank Mudae no RarityAdvisorSer
           name: 'Rimuru Tempest',
           series: 'Slime',
           baseRarity: 'RARE',
-          rank: 1800,
+          rank: 5000,
         },
       });
 
-      // Teste Raro: Rank 6500
+      // Teste Raro: Rank 25000
       await advisor.evaluateRaritySuggestion({
         id: 'sug_test_rare',
         type: 'RARITY',
@@ -512,15 +512,15 @@ describe('🤖 Prompt de IA e Classificação por Rank Mudae no RarityAdvisorSer
           name: 'Maple',
           series: 'Bofuri',
           baseRarity: 'COMMON',
-          rank: 6500,
+          rank: 25000,
         },
       });
 
       const userMsgEpic = capturedBodies[0].messages.find((m: any) => m.role === 'user');
-      expect(userMsgEpic.content).toContain('#1800 (1001 a 3000 ➔ Regra Oficial: ÉPICO)');
+      expect(userMsgEpic.content).toContain('#5000 (4.467 a 20.701 ➔ Regra Oficial: ÉPICO)');
 
       const userMsgRare = capturedBodies[1].messages.find((m: any) => m.role === 'user');
-      expect(userMsgRare.content).toContain('#6500 (3001 a 10000 ➔ Regra Oficial: RARO)');
+      expect(userMsgRare.content).toContain('#25000 (20.702 a 62.128 ➔ Regra Oficial: RARO)');
     } finally {
       globalThis.fetch = originalFetch;
     }
