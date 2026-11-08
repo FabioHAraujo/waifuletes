@@ -8,6 +8,7 @@ export interface UserRollsState {
   secondsToNext: number;
   fullRechargeSeconds: number;
   fullRechargeAt: Date;
+  regenSeconds: number;
 }
 
 export interface DailyCycleInfo {
@@ -162,12 +163,26 @@ export class CooldownService {
     return config.ROLL_MAX_BASE + bonus + extra;
   }
 
+  getUserRegenSeconds(maxRolls: number): number {
+    const extraRolls = Math.max(0, maxRolls - config.ROLL_MAX_BASE);
+    const factorPerMille =
+      config.ROLL_REGEN_ACCEL_FACTOR !== undefined && config.ROLL_REGEN_ACCEL_FACTOR !== null
+        ? Number(config.ROLL_REGEN_ACCEL_FACTOR)
+        : 20;
+    const factor = factorPerMille / 1000;
+    if (extraRolls <= 0 || factor <= 0) {
+      return config.ROLL_REGEN_SECONDS;
+    }
+    const accelRegen = config.ROLL_REGEN_SECONDS / (1 + factor * extraRolls);
+    return Math.max(1, Math.round(accelRegen));
+  }
+
   async getUserRolls(userId: string, extraMaxRolls: number = 0): Promise<UserRollsState> {
     const maxRolls = this.getUserMaxRolls(userId, extraMaxRolls);
+    const regenSeconds = this.getUserRegenSeconds(maxRolls);
     const key = this.userRollsKey(userId);
     const raw = await this.redis.get(key);
     const now = Date.now();
-    const regenSeconds = config.ROLL_REGEN_SECONDS; // 300s (5 min)
 
     let rolls = maxRolls;
     let lastUpdate = now;
@@ -218,6 +233,7 @@ export class CooldownService {
       secondsToNext,
       fullRechargeSeconds,
       fullRechargeAt,
+      regenSeconds,
     };
   }
 
@@ -226,6 +242,7 @@ export class CooldownService {
     extraMaxRolls: number = 0
   ): Promise<{ success: boolean; rollsState: UserRollsState }> {
     const maxRolls = this.getUserMaxRolls(userId, extraMaxRolls);
+    const regenSeconds = this.getUserRegenSeconds(maxRolls);
     const now = Date.now();
     const ttlSeconds = 30 * 24 * 3600;
 
@@ -235,7 +252,7 @@ export class CooldownService {
       1,
       this.userRollsKey(userId),
       now.toString(),
-      config.ROLL_REGEN_SECONDS.toString(),
+      regenSeconds.toString(),
       maxRolls.toString(),
       ttlSeconds.toString()
     )) as [number, number, number, number, number];
@@ -251,6 +268,7 @@ export class CooldownService {
         secondsToNext,
         fullRechargeSeconds,
         fullRechargeAt: new Date(now + fullRechargeSeconds * 1000),
+        regenSeconds,
       },
     };
   }
@@ -278,6 +296,7 @@ export class CooldownService {
       maxRolls: rollsState.maxRolls,
       fullRechargeSeconds: rollsState.fullRechargeSeconds,
       fullRechargeAt: rollsState.fullRechargeAt,
+      regenSeconds: rollsState.regenSeconds,
     };
   }
 

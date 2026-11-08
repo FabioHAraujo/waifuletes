@@ -36,6 +36,7 @@ const envSchema = z.object({
 
   ROLL_MAX_BASE: z.coerce.number().default(9),
   ROLL_REGEN_SECONDS: z.coerce.number().default(300), // 5 min
+  ROLL_REGEN_ACCEL_FACTOR: z.coerce.number().default(20), // Dividido por 1000 (20 = 0.020)
 
   SOULMATE_KEYS_REQUIRED: z.coerce.number().default(10),
   WISHLIST_MAX_ITEMS: z.coerce.number().default(1000).transform((val) => Math.max(val, 1000)),

@@ -614,6 +614,7 @@ export class RollService {
           nextRollSeconds: rollsState.secondsToNext,
           fullRechargeSeconds: rollsState.fullRechargeSeconds,
           fullRechargeAt: rollsState.fullRechargeAt,
+          regenSeconds: rollsState.regenSeconds,
         },
       };
     } catch (err: any) {
