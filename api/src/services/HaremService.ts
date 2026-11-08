@@ -342,15 +342,52 @@ export class HaremService {
   }
 
   async getSoulmates(userId: string) {
-    const soulmates = await this.prisma.soulmate.findMany({
-      where: { userId },
-      include: {
-        character: true,
-      },
-      orderBy: { becameSoulmateAt: 'desc' },
-    });
+    const cleanUserId = userId.includes('@') ? userId.split('@')[0].split(':')[0] : userId;
 
-    return soulmates.map((s) => ({
+    const [soulmates, highKeyEntries] = await Promise.all([
+      this.prisma.soulmate.findMany({
+        where: { userId: cleanUserId },
+        include: {
+          character: true,
+        },
+        orderBy: { becameSoulmateAt: 'desc' },
+      }),
+      this.prisma.haremEntry.findMany({
+        where: {
+          userId: cleanUserId,
+          keys: { gte: 10 },
+          character: { isMythic: false },
+        },
+        include: {
+          character: true,
+        },
+        orderBy: { keys: 'desc' },
+      }),
+    ]);
+
+    const seenCharIds = new Set(soulmates.map((s) => s.character.id));
+    const mergedSoulmates = [...soulmates];
+
+    for (const entry of highKeyEntries) {
+      if (!seenCharIds.has(entry.character.id)) {
+        seenCharIds.add(entry.character.id);
+        mergedSoulmates.push({
+          id: entry.id,
+          userId: cleanUserId,
+          characterId: entry.character.id,
+          becameSoulmateAt: entry.claimedAt,
+          alias: null,
+          note: entry.note,
+          customBorder: null,
+          pinnedPhoto: entry.pinnedPhoto,
+          createdAt: entry.claimedAt,
+          updatedAt: entry.claimedAt,
+          character: entry.character,
+        } as any);
+      }
+    }
+
+    return mergedSoulmates.map((s) => ({
       id: s.id,
       becameSoulmateAt: s.becameSoulmateAt,
       alias: s.alias,

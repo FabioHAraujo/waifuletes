@@ -85,8 +85,12 @@ export class UserService {
   }
 
   async getUserProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    const cleanUserId = userId.includes('@') ? userId.split('@')[0].split(':')[0] : userId;
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ id: cleanUserId }, { id: userId }],
+      },
       include: {
         _count: {
           select: {
@@ -107,7 +111,63 @@ export class UserService {
 
     if (!user) return null;
 
-    const favoriteCharacters = user.harem.map((h) => h.character);
+    // Busca personagens míticos que habitam o harém do usuário
+    const mythicEntries = await this.prisma.haremEntry.findMany({
+      where: {
+        userId: user.id,
+        character: { isMythic: true },
+      },
+      include: {
+        character: true,
+      },
+      orderBy: { claimedAt: 'desc' },
+    });
+
+    const mythicCharacters = mythicEntries.map((e) => e.character);
+    const mythicCount = mythicCharacters.length;
+
+    // Calcula soulmates reais: registros na tabela soulmates + haremEntries com chaves >= 10 (excluindo míticos)
+    const [soulmateRecords, highKeyEntries] = await Promise.all([
+      this.prisma.soulmate.findMany({
+        where: { userId: user.id },
+        select: { characterId: true },
+      }),
+      this.prisma.haremEntry.findMany({
+        where: {
+          userId: user.id,
+          keys: { gte: config.SOULMATE_KEYS_REQUIRED ?? 10 },
+          character: { isMythic: false },
+        },
+        select: { characterId: true },
+      }),
+    ]);
+
+    const distinctSoulmateIds = new Set([
+      ...soulmateRecords.map((s) => s.characterId),
+      ...highKeyEntries.map((h) => h.characterId),
+    ]);
+    const soulmateCount = distinctSoulmateIds.size;
+
+    // Sincroniza em background na tabela soulmates caso haja personagens com 10+ chaves ainda não registrados
+    const missingSoulmateCharIds = highKeyEntries
+      .map((h) => h.characterId)
+      .filter((charId) => !soulmateRecords.some((s) => s.characterId === charId));
+
+    if (missingSoulmateCharIds.length > 0) {
+      this.prisma.soulmate
+        .createMany({
+          data: missingSoulmateCharIds.map((charId) => ({
+            userId: user.id,
+            characterId: charId,
+          })),
+          skipDuplicates: true,
+        })
+        .catch(() => {});
+    }
+
+    const favoriteCharacters = user.harem
+      .filter((h) => !h.character.isMythic)
+      .map((h) => h.character);
     const favoriteCharacter = favoriteCharacters[0] ?? null;
 
     return {
@@ -118,8 +178,10 @@ export class UserService {
       platform: user.platform,
       kakera: user.kakera,
       mythicSlots: user.mythicSlots,
+      mythicCount,
+      mythicCharacters,
       haremCount: user._count.harem,
-      soulmateCount: user._count.soulmates,
+      soulmateCount,
       wishlistCount: user._count.wishlist,
       favoriteCharacter,
       favoriteCharacters,
