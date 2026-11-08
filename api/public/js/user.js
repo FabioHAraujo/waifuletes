@@ -542,15 +542,28 @@ function setupEventListeners() {
   }
 
   const catalogGenderPills = document.querySelectorAll('#catalog-gender-pills .retro-pill');
+  const catalogGenderSelect = document.getElementById('catalog-gender-select');
   catalogGenderPills.forEach(pill => {
     pill.addEventListener('click', () => {
       catalogGenderPills.forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
       catalogState.gender = pill.dataset.gender || '';
+      if (catalogGenderSelect) catalogGenderSelect.value = catalogState.gender;
       catalogState.page = 1;
       loadCatalogCharacters();
     });
   });
+
+  if (catalogGenderSelect) {
+    catalogGenderSelect.addEventListener('change', () => {
+      catalogState.gender = catalogGenderSelect.value || '';
+      catalogGenderPills.forEach(p => {
+        p.classList.toggle('active', (p.dataset.gender || '') === catalogState.gender);
+      });
+      catalogState.page = 1;
+      loadCatalogCharacters();
+    });
+  }
 
   const catalogMaritalPills = document.querySelectorAll('#catalog-marital-pills .retro-pill');
   catalogMaritalPills.forEach(pill => {
@@ -1074,7 +1087,8 @@ async function loadUserData() {
 
     if (!res.success) {
       document.getElementById('user-title').textContent = 'Usuário não encontrado';
-      document.getElementById('user-subtitle').textContent = res.error?.message || 'Link inválido ou expirado.';
+      const subEl = document.getElementById('user-subtitle');
+      if (subEl) subEl.textContent = res.error?.message || 'Link inválido ou expirado.';
 
       let errContainer = document.getElementById('user-error-container');
       if (!errContainer) {
@@ -1123,7 +1137,8 @@ async function loadUserData() {
 
     const harem = userSessionData.harem || [];
     const totalHaremCount = userSessionData.totalHarem !== undefined ? userSessionData.totalHarem : harem.length;
-    document.getElementById('user-subtitle').textContent = `${totalHaremCount} personagens colecionados no harém`;
+    const subEl = document.getElementById('user-subtitle');
+    if (subEl) subEl.textContent = `${totalHaremCount} personagens colecionados no harém`;
 
     const zinthos = Number(userSessionData.kakera || 0).toLocaleString('pt-BR');
     const zinthosEl = document.getElementById('user-zinthos');
@@ -1224,7 +1239,8 @@ async function loadUserData() {
         if (noticeEl) {
           noticeEl.textContent = userSessionData.message || `O usuário ${userSessionData.name} decidiu privar seu harém.`;
         }
-        document.getElementById('user-subtitle').textContent = 'Harém Privado';
+        const subEl = document.getElementById('user-subtitle');
+        if (subEl) subEl.textContent = 'Harém Privado';
         return;
       } else {
         document.getElementById('public-private-harem-notice')?.classList.add('hidden');
@@ -1266,7 +1282,8 @@ async function loadUserData() {
   } catch (err) {
     console.error('Erro ao carregar dados do usuário:', err);
     document.getElementById('user-title').textContent = 'Erro ao carregar dados';
-    document.getElementById('user-subtitle').textContent = err?.message || 'Tente recarregar a página.';
+    const subEl = document.getElementById('user-subtitle');
+    if (subEl) subEl.textContent = err?.message || 'Tente recarregar a página.';
 
     let errContainer = document.getElementById('user-error-container');
     if (!errContainer) {
@@ -3367,7 +3384,8 @@ async function executeDivorce() {
     if (haremCountEl) haremCountEl.textContent = newCount;
     const haremCountSub = document.getElementById('harem-count-sub');
     if (haremCountSub) haremCountSub.textContent = newCount;
-    document.getElementById('user-subtitle').textContent = `${newCount} personagens colecionados no harém`;
+    const subEl = document.getElementById('user-subtitle');
+    if (subEl) subEl.textContent = `${newCount} personagens colecionados no harém`;
   } catch (err) {
     Api.showToast('Erro de comunicação ao divorciar.', '❌');
   } finally {
@@ -4164,7 +4182,10 @@ async function submitImageSuggestion() {
 // Helpers de Modal
 function openModal(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.remove('hidden');
+  if (el) {
+    el.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+  }
 }
 
 function closeModal(id) {
@@ -4173,6 +4194,11 @@ function closeModal(id) {
   }
   const el = document.getElementById(id);
   if (el) el.classList.add('hidden');
+
+  const hasOpenModals = Boolean(document.querySelector('.modal-overlay:not(.hidden)'));
+  if (!hasOpenModals) {
+    document.body.classList.remove('modal-open');
+  }
 }
 
 function escapeHtml(str) {
@@ -5525,11 +5551,14 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
       const k = item.keys || 1;
       const sm = k >= 10;
       return `
-        <label style="border: var(--border-retro); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; cursor: pointer; background: var(--bg-card); font-size: 11px; text-align: center;">
-          <img src="${getCharImg(char)}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-bottom: 4px;" onerror="handleImgError(this)">
-          <span style="font-weight: 700; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(char.name)}</span>
-          <span style="font-size: 10px; color: ${sm ? '#ec4899' : '#f59e0b'}; font-weight: 800; margin-top: 2px;">${sm ? '💖' : '🔑'} ${k}</span>
-          <input type="checkbox" name="offer-waifu-cb" value="${char.id}" style="margin-top: 4px;">
+        <label class="offer-waifu-card" title="${escapeHtml(char.name)} (${sm ? '💖' : '🔑'} ${k})">
+          <img src="${getCharImg(char)}" class="offer-waifu-img" onerror="handleImgError(this)" loading="lazy">
+          <input type="checkbox" name="offer-waifu-cb" value="${char.id}" style="display: none;" onchange="this.closest('.offer-waifu-card').classList.toggle('is-selected', this.checked)">
+          <div class="offer-waifu-overlay">
+            <span class="offer-waifu-name">${escapeHtml(char.name)}</span>
+            <span class="offer-waifu-keys" style="color: ${sm ? '#f472b6' : '#fde047'};">${sm ? '💖' : '🔑'}${k}</span>
+          </div>
+          <div class="offer-waifu-check">✓</div>
         </label>
       `;
     }).join('');
@@ -6326,7 +6355,7 @@ async function loadRankings() {
     // 1. Ranking por Zinthos
     const topRich = resUsers?.data?.topRich || [];
     if (topRich.length === 0) {
-      tbodyZinthos.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px;">Nenhum registro ainda.</td></tr>`;
+      tbodyZinthos.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 20px;">Nenhum registro ainda.</td></tr>`;
     } else {
       tbodyZinthos.innerHTML = topRich
         .map((u, i) => {
@@ -6339,8 +6368,7 @@ async function loadRankings() {
 
           return `
             <tr>
-              <td style="text-align: center; font-weight: 800;">${medal}</td>
-              <td>${nameHtml}</td>
+              <td><span style="display:inline-block; min-width: 26px; font-weight: 800; margin-right: 4px;">${medal}</span> ${nameHtml}</td>
               <td style="text-align: right; font-weight: 700; color: #9333ea;">${zinthos}</td>
               <td style="text-align: center;">${haremCount}</td>
             </tr>
@@ -6352,7 +6380,7 @@ async function loadRankings() {
     // 2. Ranking por Waifus (Harém)
     const topHarem = resHarem?.data?.topHarem || [];
     if (topHarem.length === 0) {
-      tbodyWaifus.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px;">Nenhum registro ainda.</td></tr>`;
+      tbodyWaifus.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 20px;">Nenhum registro ainda.</td></tr>`;
     } else {
       tbodyWaifus.innerHTML = topHarem
         .map((u, i) => {
@@ -6365,8 +6393,7 @@ async function loadRankings() {
 
           return `
             <tr>
-              <td style="text-align: center; font-weight: 800;">${medal}</td>
-              <td>${nameHtml}</td>
+              <td><span style="display:inline-block; min-width: 26px; font-weight: 800; margin-right: 4px;">${medal}</span> ${nameHtml}</td>
               <td style="text-align: center; font-weight: 700; color: #e11d48;">${totalMarriages} 💍</td>
               <td style="text-align: right; font-weight: 700;">${points} pts</td>
             </tr>
@@ -6378,8 +6405,8 @@ async function loadRankings() {
     userRankingsLoaded = true;
   } catch (err) {
     console.error('Erro ao carregar rankings no painel do usuário:', err);
-    tbodyZinthos.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados.</td></tr>`;
-    tbodyWaifus.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados.</td></tr>`;
+    tbodyZinthos.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados.</td></tr>`;
+    tbodyWaifus.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados.</td></tr>`;
   }
 }
 
