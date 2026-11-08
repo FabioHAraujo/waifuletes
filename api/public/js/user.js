@@ -5044,7 +5044,10 @@ async function cancelMyListing(listingId) {
   }
 }
 
+let currentOffersMap = new Map();
+
 async function openViewOffersModal(listingId, characterName) {
+  currentOffersMap.clear();
   const container = document.getElementById('offers-list-container');
   const title = document.getElementById('view-offers-char-title');
   title.textContent = `Propostas para: ${characterName}`;
@@ -5107,6 +5110,13 @@ async function openViewOffersModal(listingId, characterName) {
         itemsHtml = parts.join('<div style="margin-top: 4px;"></div>') || '<span style="color: var(--text-muted);">Nenhum item especificado</span>';
       }
 
+      currentOffersMap.set(offer.id, {
+        offer,
+        listingId,
+        characterName,
+        itemsHtml,
+      });
+
       let statusBadge = `<span class="badge-tag" style="background: #eab308; color: #000;">Pendente</span>`;
       if (offer.status === 'ACCEPTED') statusBadge = `<span class="badge-tag" style="background: #22c55e; color: #fff;">Aceita 🎉</span>`;
       if (offer.status === 'REJECTED') statusBadge = `<span class="badge-tag" style="background: #64748b; color: #fff;">Negada</span>`;
@@ -5130,7 +5140,7 @@ async function openViewOffersModal(listingId, characterName) {
         ${offer.cancelReason ? `<div style="font-size: 12px; color: var(--accent-red); font-weight: bold; margin-bottom: 8px;">Motivo do cancelamento: ${escapeHtml(offer.cancelReason)}</div>` : ''}
         ${isPending ? `
           <div style="display: flex; gap: 8px; margin-top: 10px;">
-            <button class="btn-retro btn-sm btn-gold" style="flex: 1;" onclick="acceptMarketOffer('${offer.id}', '${listingId}', '${escapeHtml(characterName)}')">
+            <button class="btn-retro btn-sm btn-gold" style="flex: 1;" onclick="promptAcceptMarketOffer('${offer.id}')">
               <i class="fas fa-check"></i> Aceitar Oferta
             </button>
             <button class="btn-retro btn-sm btn-danger" style="flex: 1;" onclick="rejectMarketOffer('${offer.id}', '${listingId}', '${escapeHtml(characterName)}')">
@@ -5146,8 +5156,33 @@ async function openViewOffersModal(listingId, characterName) {
   }
 }
 
-async function acceptMarketOffer(offerId, listingId, characterName) {
-  if (!confirm('Deseja aceitar esta oferta? Os itens e personagens serão transferidos imediatamente.')) return;
+function promptAcceptMarketOffer(offerId) {
+  const data = currentOffersMap.get(offerId);
+  if (!data) return;
+  const { offer, listingId, characterName, itemsHtml } = data;
+  const buyerName = offer.buyer?.name || 'Jogador Anônimo';
+
+  const charNameEl = document.getElementById('confirm-offer-char-name');
+  if (charNameEl) charNameEl.textContent = characterName;
+
+  const buyerNameEl = document.getElementById('confirm-offer-buyer-name');
+  if (buyerNameEl) buyerNameEl.textContent = buyerName;
+
+  const itemsSummaryEl = document.getElementById('confirm-offer-items-summary');
+  if (itemsSummaryEl) itemsSummaryEl.innerHTML = itemsHtml;
+
+  const btnConfirm = document.getElementById('btn-confirm-accept-offer');
+  if (btnConfirm) {
+    btnConfirm.onclick = () => {
+      closeModal('modal-confirm-accept-offer');
+      executeAcceptMarketOffer(offerId, listingId, characterName);
+    };
+  }
+
+  openModal('modal-confirm-accept-offer');
+}
+
+async function executeAcceptMarketOffer(offerId, listingId, characterName) {
   try {
     const res = await Api.post(`/api/web/user/${encodeURIComponent(userPublicId)}/market/offers/${encodeURIComponent(offerId)}/accept`, {
       token: userSessionToken,
@@ -5168,6 +5203,14 @@ async function acceptMarketOffer(offerId, listingId, characterName) {
     }
   } catch (err) {
     Api.showToast('Erro de comunicação ao aceitar oferta.', '❌');
+  }
+}
+
+function acceptMarketOffer(offerId, listingId, characterName) {
+  if (currentOffersMap.has(offerId)) {
+    promptAcceptMarketOffer(offerId);
+  } else {
+    executeAcceptMarketOffer(offerId, listingId, characterName);
   }
 }
 
@@ -6645,9 +6688,7 @@ async function confirmDeleteMythic(charId, charName) {
 
   Api.showLoading('Excluindo mítico...', 'Removendo personagem e liberando seu slot...');
   try {
-    const res = await Api.delete(`/api/web/user/${encodeURIComponent(userPublicId)}/mythics/${encodeURIComponent(charId)}`, {
-      token: userSessionToken,
-    });
+    const res = await Api.delete(`/api/web/user/${encodeURIComponent(userPublicId)}/mythics/${encodeURIComponent(charId)}?token=${encodeURIComponent(userSessionToken)}`);
 
     if (!res.success) {
       Api.showToast(res.error?.message || 'Falha ao excluir mítico.', '❌');

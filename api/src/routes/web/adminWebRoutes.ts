@@ -10,6 +10,7 @@ import { CharacterService } from '../../services/CharacterService.js';
 import { CooldownService } from '../../services/CooldownService.js';
 import { MarryService } from '../../services/MarryService.js';
 import { UserService } from '../../services/UserService.js';
+import { MarketService } from '../../services/MarketService.js';
 import { Prisma, Rarity, Gender, SuggestionStatus, SuggestionType } from '@prisma/client';
 
 export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
@@ -17,6 +18,7 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
   const characterService = new CharacterService(fastify.prisma, fastify.redis);
   const suggestionService = new SuggestionService(fastify.prisma, fastify.redis, characterService);
   const userService = new UserService(fastify.prisma, fastify.redis);
+  const marketService = new MarketService(fastify.prisma, characterService);
 
   /**
    * Middleware para checar autenticação de administrador
@@ -1160,6 +1162,247 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
           error: { code: 'ADMIN_GRANT_FAILED', message: err.message || 'Falha ao conceder slots míticos.' },
         });
       }
+    },
+  });
+
+  /**
+   * Listagem administrativa de negociações/transações dos Classificados
+   */
+  fastify.get('/api/admin/market/trades', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Lista todas as transações feitas nos classificados com paginação e busca',
+      tags: ['Admin (Web)'],
+      querystring: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          search: { type: 'string' },
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const query = request.query as { search?: string; page?: number; limit?: number };
+      const result = await marketService.listAdminTrades(query);
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    },
+  });
+
+  /**
+   * Reverte manualmente uma negociação realizada nos Classificados
+   */
+  fastify.post('/api/admin/market/trades/:offerId/revert', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Reverte uma transação aceita nos Classificados, devolvendo os personagens e itens para os donos originais',
+      tags: ['Admin (Web)'],
+      params: {
+        type: 'object',
+        required: ['offerId'],
+        additionalProperties: false,
+        properties: { offerId: { type: 'string' } },
+      },
+    },
+    handler: async (request, reply) => {
+      const { offerId } = request.params as { offerId: string };
+      const result = await marketService.revertOffer(offerId);
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    },
+  });
+
+  /**
+   * Deletar usuário e liberar casamentos associados (Painel Admin)
+   */
+  fastify.delete('/api/admin/users/:userId', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Remove um usuário e todas as suas dependências (casamentos, sugestões, etc), liberando os personagens casados',
+      tags: ['Admin (Web)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: {
+          userId: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          harem: { select: { characterId: true } },
+        },
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: `Usuário '${userId}' não encontrado.` },
+        });
+      }
+
+      const characterIds = user.harem.map((h) => h.characterId);
+
+      await fastify.prisma.$transaction(async (tx) => {
+        if (characterIds.length > 0) {
+          await tx.$executeRaw`
+            UPDATE characters
+            SET "claimCount" = GREATEST(0, "claimCount" - 1)
+            WHERE id = ANY(${characterIds})
+          `;
+        }
+
+        await tx.haremEntry.deleteMany({ where: { userId } });
+        await tx.soulmate.deleteMany({ where: { userId } });
+        await tx.wishlistEntry.deleteMany({ where: { userId } });
+        await tx.characterSuggestion.deleteMany({ where: { userId } });
+        await tx.userNotification.deleteMany({ where: { userId } });
+        await tx.userCollection.deleteMany({ where: { userId } });
+        await tx.characterInvestment.deleteMany({ where: { userId } });
+        await tx.kakeraTransaction.deleteMany({ where: { userId } });
+        await tx.userGroup.deleteMany({ where: { userId } });
+        await tx.user.delete({ where: { id: userId } });
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          userId,
+          freedCharactersCount: characterIds.length,
+          message: `Usuário '${userId}' removido com sucesso e ${characterIds.length} casamento(s) desfeito(s).`,
+        },
+      });
+    },
+  });
+
+  /**
+   * Limpeza geral de dados de teste (Painel Admin)
+   */
+  fastify.post('/api/admin/cleanup-test-data', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Remove em lote todos os dados de testes automatizados (usuários teste, sugestões teste, grupos teste) e desfaz casamentos de teste',
+      tags: ['Admin (Web)'],
+    },
+    handler: async (_request, reply) => {
+      const testUsers = await fastify.prisma.user.findMany({
+        where: {
+          AND: [
+            { id: { not: 'test-user-1' } },
+            {
+              OR: [
+                {
+                  name: {
+                    in: [
+                      'Test User',
+                      'Roll Tester',
+                      'Outro Jogador Teste',
+                      'Daily Tester',
+                      'Tester',
+                      'Concurrent Tester',
+                      'Jogador Harem Teste',
+                      'RollTester',
+                      'test_validation_user',
+                      'Seed Init User',
+                      'Jogador Web Teste',
+                      'Jogador Teste Já Lendário',
+                      'Jogador Novas Features',
+                      'Jogador Teste',
+                      'Jogador Teste Casamentos',
+                    ],
+                  },
+                },
+                { id: { startsWith: 'test_' } },
+                { id: { startsWith: 'another_user_' } },
+                { id: { startsWith: 'seed_' } },
+                { id: { startsWith: 'roll_tester_' } },
+              ],
+            },
+          ],
+        },
+        select: {
+          id: true,
+          harem: { select: { characterId: true } },
+        },
+      });
+
+      const testUserIds = testUsers.map((u) => u.id);
+      const characterIds = Array.from(new Set(testUsers.flatMap((u) => u.harem.map((h) => h.characterId))));
+
+      let freedMarriages = 0;
+      let deletedUsers = 0;
+      let deletedSuggestions = 0;
+      let deletedGroups = 0;
+
+      await fastify.prisma.$transaction(async (tx) => {
+        if (characterIds.length > 0) {
+          await tx.$executeRaw`
+            UPDATE characters
+            SET "claimCount" = GREATEST(0, "claimCount" - 1)
+            WHERE id = ANY(${characterIds})
+          `;
+        }
+
+        if (testUserIds.length > 0) {
+          const haremRes = await tx.haremEntry.deleteMany({ where: { userId: { in: testUserIds } } });
+          freedMarriages = haremRes.count;
+
+          await tx.soulmate.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.wishlistEntry.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.userNotification.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.userCollection.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.characterInvestment.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.kakeraTransaction.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.userGroup.deleteMany({ where: { userId: { in: testUserIds } } });
+          const userRes = await tx.user.deleteMany({ where: { id: { in: testUserIds } } });
+          deletedUsers = userRes.count;
+        }
+
+        const suggRes = await tx.characterSuggestion.deleteMany({
+          where: {
+            OR: [
+              ...(testUserIds.length > 0 ? [{ userId: { in: testUserIds } }] : []),
+              { reason: { contains: 'debounce', mode: 'insensitive' } },
+              { suggestedName: { contains: 'debounce', mode: 'insensitive' } },
+              { reason: { contains: 'Sugestão para validar', mode: 'insensitive' } },
+              { reason: { contains: 'Sugestão de teste', mode: 'insensitive' } },
+            ],
+          },
+        });
+        deletedSuggestions = suggRes.count;
+
+        const grpRes = await tx.group.deleteMany({
+          where: {
+            OR: [
+              { id: { startsWith: 'test_' } },
+              { id: { startsWith: 'group_roll_tester_' } },
+              { id: 'test-group-1' },
+            ],
+          },
+        });
+        deletedGroups = grpRes.count;
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          deletedUsers,
+          freedMarriages,
+          deletedSuggestions,
+          deletedGroups,
+          message: `Limpeza concluída: ${deletedUsers} usuários removidos, ${freedMarriages} casamentos desfeitos, ${deletedSuggestions} sugestões e ${deletedGroups} grupos de teste apagados.`,
+        },
+      });
     },
   });
 };

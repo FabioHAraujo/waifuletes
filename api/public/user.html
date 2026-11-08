@@ -1122,6 +1122,41 @@
     </div>
   </div>
 
+  <!-- Modal de Confirmação para Aceitar Oferta -->
+  <div class="modal-overlay hidden" id="modal-confirm-accept-offer" style="z-index: 10020;">
+    <div class="modal-box" style="max-width: min(520px, 90vw);">
+      <div class="modal-header">
+        <span class="modal-title">🤝 Confirmar Negociação</span>
+        <button class="modal-close" onclick="closeModal('modal-confirm-accept-offer')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--text-main);">
+          Você tem certeza que deseja aceitar esta oferta para <span id="confirm-offer-char-name" style="color: #f59e0b;">...</span>?
+        </p>
+
+        <div style="background: var(--bg-card); border: var(--border-retro); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">
+            <i class="fas fa-user"></i> Proponente: <span id="confirm-offer-buyer-name" style="color: var(--accent-blue);">...</span>
+          </div>
+          <div style="font-size: 13px;">
+            <strong style="display: block; margin-bottom: 4px;">Itens que você receberá:</strong>
+            <div id="confirm-offer-items-summary" style="padding-left: 4px;"></div>
+          </div>
+        </div>
+
+        <div style="background: var(--bg-retro-accent); border: var(--border-retro); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.4;">
+          ⚠️ <strong>Atenção:</strong> Ao aceitar, o seu personagem será transferido imediatamente para o outro jogador e você receberá os itens ofertados. Esta troca é <strong>irreversível</strong> pelo jogo!
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-confirm-accept-offer')">Cancelar</button>
+        <button type="button" class="btn-retro btn-sm btn-gold" id="btn-confirm-accept-offer" style="font-weight: 800;">
+          <i class="fas fa-check"></i> Sim, Aceitar Oferta
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de Interessados no Harém (Cobiçar) -->
   <div class="modal-overlay hidden" id="modal-harem-covets">
     <div class="modal-box" style="max-width: min(700px, 80vw); max-height: 80vh;">
@@ -1724,6 +1759,6 @@
 
   <script src="/vendor/cropper.min.js"></script>
   <script src="/js/api.js?v=20261107-harem-layout-opt"></script>
-  <script src="/js/user.js?v=20261107-market-wishlist"></script>
+  <script src="/js/user.js?v=20261107-mythic-delete-fix"></script>
 </body>
 </html>

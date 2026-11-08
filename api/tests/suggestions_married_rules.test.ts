@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import dotenv from 'dotenv';
 import path from 'path';
+import { cleanupUser, forceDivorce, cleanupTestDatabase } from './helpers/testCleanup.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
@@ -100,6 +101,15 @@ describe('💍 Regras de Sugestão de Raridade para Personagens Casados', () => 
         headers: { Authorization: `Bearer ${adminToken}` },
       }).catch(() => {});
     }
+
+    // Desfaz o casamento do teste para não deixar o personagem preso
+    if (marriedCharId) {
+      await forceDivorce(BASE_URL, API_KEY, testUserId, marriedCharId);
+    }
+
+    // Remove o usuário de teste e limpa quaisquer resíduos
+    await cleanupUser(BASE_URL, API_KEY, testUserId);
+    await cleanupTestDatabase(BASE_URL, API_KEY);
   });
 
   it('GET /characters/:id deve retornar flag wasEverMarried correta', async () => {

@@ -1027,4 +1027,354 @@ export class MarketService {
 
     return null;
   }
+
+  /**
+   * Listagem administrativa de todas as transações/negociações dos Classificados
+   */
+  async listAdminTrades(options: {
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, Number(options.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
+    const skip = (page - 1) * limit;
+    const search = options.search?.trim();
+
+    const where: any = {
+      OR: [
+        { status: OfferStatus.ACCEPTED },
+        { cancelReason: { contains: 'Revertida' } },
+      ],
+    };
+
+    if (search) {
+      where.AND = [
+        {
+          OR: [
+            { listing: { character: { name: { contains: search, mode: 'insensitive' } } } },
+            { listing: { character: { series: { contains: search, mode: 'insensitive' } } } },
+            { listing: { character: { id: { contains: search, mode: 'insensitive' } } } },
+            { seller: { name: { contains: search, mode: 'insensitive' } } },
+            { seller: { id: { contains: search } } },
+            { buyer: { name: { contains: search, mode: 'insensitive' } } },
+            { buyer: { id: { contains: search } } },
+          ],
+        },
+      ];
+    }
+
+    const [total, offers] = await Promise.all([
+      this.prisma.marketOffer.count({ where }),
+      this.prisma.marketOffer.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          listing: {
+            include: {
+              character: true,
+            },
+          },
+          seller: {
+            select: { id: true, name: true, publicId: true, platform: true },
+          },
+          buyer: {
+            select: { id: true, name: true, publicId: true, platform: true },
+          },
+        },
+      }),
+    ]);
+
+    const allOfferedWaifuIds = Array.from(
+      new Set(
+        offers.flatMap((o) => {
+          const offered = (o.offeredItems || {}) as any;
+          return Array.isArray(offered.waifuIds) ? offered.waifuIds : [];
+        })
+      )
+    );
+
+    const waifuMap = new Map<string, any>();
+    if (allOfferedWaifuIds.length > 0) {
+      const waifus = await this.prisma.character.findMany({
+        where: { id: { in: allOfferedWaifuIds } },
+      });
+      for (const w of waifus) {
+        waifuMap.set(w.id, this.formatCharacter(w));
+      }
+    }
+
+    const formattedTrades = offers.map((offer) => {
+      const offered = (offer.offeredItems || {}) as any;
+      const waifuIds: string[] = Array.isArray(offered.waifuIds) ? offered.waifuIds : [];
+      const offeredWaifus = waifuIds.map((id) => waifuMap.get(id) || { id, name: id });
+
+      return {
+        id: offer.id,
+        listingId: offer.listingId,
+        status: offer.status,
+        cancelReason: offer.cancelReason,
+        isReverted: offer.status === OfferStatus.CANCELLED && Boolean(offer.cancelReason?.includes('Revertida')),
+        createdAt: offer.createdAt,
+        updatedAt: offer.updatedAt,
+        seller: offer.seller,
+        buyer: offer.buyer,
+        character: this.formatCharacter(offer.listing.character),
+        listingInterest: offer.listing.interest,
+        offeredItems: {
+          ...offered,
+          offeredWaifus,
+        },
+      };
+    });
+
+    return {
+      trades: formattedTrades,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  /**
+   * Reverte manualmente uma oferta aceita nos classificados (Painel Administrativo)
+   */
+  async revertOffer(offerId: string) {
+    const offer = await this.prisma.marketOffer.findUnique({
+      where: { id: offerId },
+      include: {
+        listing: { include: { character: true, user: { select: { id: true, name: true, publicId: true } } } },
+        buyer: true,
+        seller: true,
+      },
+    });
+
+    if (!offer) {
+      throw new DomainError('NOT_FOUND', 'Oferta de negociação não encontrada.');
+    }
+
+    if (offer.status !== OfferStatus.ACCEPTED) {
+      if (offer.cancelReason?.includes('Revertida')) {
+        throw new DomainError('ALREADY_REVERTED', 'Esta negociação já foi revertida anteriormente.');
+      }
+      throw new DomainError('INVALID_STATUS', 'Apenas negociações com status CONCLUÍDA (Aceitas) podem ser revertidas.');
+    }
+
+    const listing = offer.listing;
+    const charId = listing.characterId;
+
+    // 1. Valida se o Comprador ainda possui o personagem anunciado no harém
+    const buyerHarem = await this.prisma.haremEntry.findFirst({
+      where: { characterId: charId },
+    });
+
+    if (!buyerHarem || buyerHarem.userId !== offer.buyerId) {
+      throw new DomainError(
+        'INVALID_STATE',
+        `Não é possível reverter: o comprador (${offer.buyer.name}) já não possui mais o personagem ${listing.character.name} no harém (já trocou ou divorciou).`
+      );
+    }
+
+    // 2. Valida se o Vendedor ainda possui as Waifus ofertadas
+    const offered = (offer.offeredItems || {}) as any;
+    const waifuIds: string[] = Array.isArray(offered.waifuIds) ? offered.waifuIds : [];
+
+    if (waifuIds.length > 0) {
+      const sellerEntries = await this.prisma.haremEntry.findMany({
+        where: { characterId: { in: waifuIds } },
+      });
+      const missingWaifus = waifuIds.filter((id) => !sellerEntries.some((e) => e.characterId === id && e.userId === offer.sellerId));
+      if (missingWaifus.length > 0) {
+        throw new DomainError(
+          'INVALID_STATE',
+          `Não é possível reverter: o vendedor (${offer.seller.name}) já não possui mais todos os personagens recebidos na troca (${missingWaifus.join(', ')}).`
+        );
+      }
+    }
+
+    // 3. Valida se o Vendedor possui saldo suficiente de Zinthos para devolução
+    const offeredZinthos = Number(offered.zinthos) || 0;
+    if (offeredZinthos > 0) {
+      const seller = await this.prisma.user.findUnique({
+        where: { id: offer.sellerId },
+        select: { kakera: true },
+      });
+      if (!seller || seller.kakera < offeredZinthos) {
+        throw new DomainError(
+          'INSUFFICIENT_FUNDS',
+          `Não é possível reverter: o vendedor (${offer.seller.name}) possui apenas ${seller?.kakera || 0} Zinthos, mas precisa devolver ${offeredZinthos} Zinthos.`
+        );
+      }
+    }
+
+    // 4. Se houver itens externos (Pesca e Fazenda), transfere de volta via Ravena
+    const fishes = Array.isArray(offered.fishes) ? offered.fishes : [];
+    const buffs = Array.isArray(offered.fishingBuffs) ? offered.fishingBuffs : [];
+    const farmItems = Array.isArray(offered.farmItems) ? offered.farmItems : [];
+
+    const hasExternalItems = fishes.length > 0 || buffs.length > 0 || farmItems.length > 0;
+    if (hasExternalItems) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const transferRes = await fetch(`${config.RAVENA_API_URL}/api/market/transfer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fromUserId: offer.sellerId,
+            toUserId: offer.buyerId,
+            fishes,
+            buffs,
+            farmItems,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        const transferData = (await transferRes.json().catch(() => ({}))) as any;
+        if (!transferRes.ok || !transferData || !transferData.success) {
+          const reasonMsg = transferData?.reason || `Falha na transferência inversa (HTTP ${transferRes.status})`;
+          throw new DomainError('EXTERNAL_TRANSFER_FAILED', `Falha ao devolver itens externos na Ravena: ${reasonMsg}`);
+        }
+      } catch (err: any) {
+        if (err instanceof DomainError) throw err;
+        throw new DomainError('EXTERNAL_TRANSFER_FAILED', `Falha na devolução de itens na Ravena: ${err?.message || 'Erro de conexão'}`);
+      }
+    }
+
+    // 5. Executa a reversão atômica no banco de dados
+    await this.prisma.$transaction(async (tx) => {
+      // Devolve o personagem anunciado para o vendedor original
+      await tx.haremEntry.update({
+        where: { characterId: charId },
+        data: {
+          userId: offer.sellerId,
+          collectionId: null,
+          isFavorite: false,
+        },
+      });
+
+      await tx.characterCovet.updateMany({
+        where: { characterId: charId },
+        data: { ownerId: offer.sellerId },
+      });
+
+      // Devolve as waifus ofertadas para o comprador
+      for (const wId of waifuIds) {
+        await tx.haremEntry.update({
+          where: { characterId: wId },
+          data: {
+            userId: offer.buyerId,
+            collectionId: null,
+            isFavorite: false,
+          },
+        });
+
+        await tx.characterCovet.updateMany({
+          where: { characterId: wId },
+          data: { ownerId: offer.buyerId },
+        });
+      }
+
+      // Estorna Zinthos
+      if (offeredZinthos > 0) {
+        await tx.user.update({
+          where: { id: offer.sellerId },
+          data: { kakera: { decrement: offeredZinthos } },
+        });
+        await tx.user.update({
+          where: { id: offer.buyerId },
+          data: { kakera: { increment: offeredZinthos } },
+        });
+        await tx.kakeraTransaction.createMany({
+          data: [
+            {
+              userId: offer.sellerId,
+              amount: -offeredZinthos,
+              reason: KakeraReason.MARKET_TRADE,
+              metadata: { type: 'market_offer_reverted_admin', listingId: listing.id, offerId: offer.id, buyerId: offer.buyerId },
+            },
+            {
+              userId: offer.buyerId,
+              amount: offeredZinthos,
+              reason: KakeraReason.MARKET_TRADE,
+              metadata: { type: 'market_offer_reverted_admin', listingId: listing.id, offerId: offer.id, sellerId: offer.sellerId },
+            },
+          ],
+        });
+      }
+
+      // Atualiza status da oferta para CANCELLED com motivo explícito
+      await tx.marketOffer.update({
+        where: { id: offer.id },
+        data: {
+          status: OfferStatus.CANCELLED,
+          cancelReason: 'Revertida pelo administrador.',
+          notifiedBuyer: false,
+          buyerNotifiedStatus: 'CANCELLED',
+        },
+      });
+
+      // Restaura o anúncio para ACTIVE
+      await tx.marketListing.update({
+        where: { id: listing.id },
+        data: { status: ListingStatus.ACTIVE },
+      });
+
+      // Restaura ofertas pendentes que haviam sido canceladas automaticamente
+      await tx.marketOffer.updateMany({
+        where: {
+          listingId: listing.id,
+          cancelReason: 'Outra oferta foi aceita pelo vendedor.',
+        },
+        data: {
+          status: OfferStatus.PENDING,
+          cancelReason: null,
+          notifiedBuyer: false,
+          buyerNotifiedStatus: null,
+        },
+      });
+    });
+
+    // Notifica vendedor e comprador
+    this.notificationService
+      .notifyMarketEvent(
+        offer.sellerId,
+        'SYSTEM',
+        `🔄 Negociação de ${listing.character.name} revertida`,
+        `A negociação de ${listing.character.name} foi revertida pela administração. O personagem retornou ao seu harém.`,
+        {
+          listingId: listing.id,
+          characterId: charId,
+          characterName: listing.character.name,
+          offerId: offer.id,
+        }
+      )
+      .catch(() => {});
+
+    this.notificationService
+      .notifyMarketEvent(
+        offer.buyerId,
+        'SYSTEM',
+        `🔄 Negociação de ${listing.character.name} revertida`,
+        `A negociação de ${listing.character.name} foi revertida pela administração. Seus itens e Zinthos retornaram ao seu saldo.`,
+        {
+          listingId: listing.id,
+          characterId: charId,
+          characterName: listing.character.name,
+          offerId: offer.id,
+        }
+      )
+      .catch(() => {});
+
+    return {
+      success: true,
+      message: `Negociação revertida com sucesso! ${listing.character.name} retornou ao harém de ${offer.seller.name}.`,
+    };
+  }
 }

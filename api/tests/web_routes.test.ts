@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import dotenv from 'dotenv';
 import path from 'path';
+import { cleanupUser, cleanupTestDatabase } from './helpers/testCleanup.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
@@ -19,6 +20,17 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
   let originalCharacterData: any = null;
 
   beforeAll(async () => {
+    // 0. Login admin antecipado para garantir tokens nas limpezas
+    try {
+      const loginRes = await fetch(`${BASE_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: ADMIN_PASSWORD }),
+      });
+      const loginJson = await loginRes.json();
+      if (loginJson?.data?.token) adminToken = loginJson.data.token;
+    } catch (_) {}
+
     // 1. Garante um usuário de teste
     await fetch(`${BASE_URL}/user/ensure`, {
       method: 'POST',
@@ -129,6 +141,10 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
         }),
       });
     }
+
+    // 3. Limpeza completa do usuário de teste e resíduos
+    await cleanupUser(BASE_URL, API_KEY, testUserId);
+    await cleanupTestDatabase(BASE_URL, API_KEY);
   }, 30000);
 
   it('POST /user/session deve gerar link com publicId e token de 30 min para o bot', async () => {
@@ -1008,5 +1024,112 @@ describe('🌐 Workstream Web & Admin — Waifuletes Web Features', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.userId).toBe(testUserId);
+  });
+
+  describe('🔮 Endpoints de Personagens Míticos (Web)', () => {
+    let createdMythicId = '';
+
+    it('POST /api/admin/users/:userId/mythic-slots deve conceder slot para criação de mítico', async () => {
+      if (!adminToken) return;
+      const res = await fetch(`${BASE_URL}/api/admin/users/${encodeURIComponent(testUserId)}/mythic-slots`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ slots: 2 }),
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.mythicSlots).toBeGreaterThanOrEqual(2);
+    });
+
+    it('POST /api/web/user/:publicId/mythics deve criar personagem mítico consumindo slot', async () => {
+      if (!testPublicId || !testUserToken) return;
+
+      const res = await fetch(`${BASE_URL}/api/web/user/${encodeURIComponent(testPublicId)}/mythics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: testUserToken,
+          name: 'Valquíria Mítica de Teste',
+          series: 'Mitologia Nórdica',
+          description: 'Criada para validar o fluxo completo de criação e exclusão de míticos.',
+          gender: 'FEMALE',
+          customization: {
+            borderColor: '#ffd700',
+            animationType: 'spin',
+            glowColor: '#c084fc',
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.character).toBeDefined();
+      expect(json.data.character.isMythic).toBe(true);
+      createdMythicId = json.data.character.id;
+    });
+
+    it('GET /api/web/user/:publicId/mythics deve listar míticos forjados pelo usuário', async () => {
+      if (!testPublicId || !testUserToken || !createdMythicId) return;
+
+      const res = await fetch(
+        `${BASE_URL}/api/web/user/${encodeURIComponent(testPublicId)}/mythics?token=${encodeURIComponent(testUserToken)}`
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(Array.isArray(json.data.mythics)).toBe(true);
+      expect(json.data.mythics.some((m: any) => m.id === createdMythicId)).toBe(true);
+    });
+
+    it('PUT /api/web/user/:publicId/mythics/:characterId deve atualizar customização do mítico', async () => {
+      if (!testPublicId || !testUserToken || !createdMythicId) return;
+
+      const res = await fetch(
+        `${BASE_URL}/api/web/user/${encodeURIComponent(testPublicId)}/mythics/${encodeURIComponent(createdMythicId)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: testUserToken,
+            customization: {
+              borderColor: '#38bdf8',
+              animationType: 'pulse',
+              glowColor: '#60a5fa',
+            },
+          }),
+        }
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.character.mythicCustomization.borderColor).toBe('#38bdf8');
+    });
+
+    it('DELETE /api/web/user/:publicId/mythics/:characterId SEM body deve excluir o mítico e liberar o slot com sucesso (não pode dar "body must be object")', async () => {
+      if (!testPublicId || !testUserToken || !createdMythicId) return;
+
+      // Requisição DELETE padrão do navegador/frontend: token na querystring e sem corpo (body vazio/undefined)
+      const res = await fetch(
+        `${BASE_URL}/api/web/user/${encodeURIComponent(testPublicId)}/mythics/${encodeURIComponent(createdMythicId)}?token=${encodeURIComponent(testUserToken)}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.characterId).toBe(createdMythicId);
+      expect(json.data.availableSlots).toBeGreaterThanOrEqual(1);
+
+      // Confere que o personagem mítico foi realmente removido
+      const getRes = await fetch(`${BASE_URL}/characters/${encodeURIComponent(createdMythicId)}`);
+      expect(getRes.status).toBe(404);
+    });
   });
 });

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import dotenv from 'dotenv';
 import path from 'path';
+import { cleanupUser, forceDivorce, cleanupTestDatabase } from './helpers/testCleanup.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
@@ -258,5 +259,12 @@ describe('🏰 Harem Settings, Privacy & Pinned Photo — Waifuletes', () => {
       expect(resetJson.success).toBe(true);
       expect(resetJson.data.pinnedPhoto).toBeNull();
     }
+  });
+
+  afterAll(async () => {
+    if (testChar1Id) await forceDivorce(BASE_URL, API_KEY, testUserId, testChar1Id);
+    if (testChar2Id) await forceDivorce(BASE_URL, API_KEY, testUserId, testChar2Id);
+    await cleanupUser(BASE_URL, API_KEY, testUserId);
+    await cleanupTestDatabase(BASE_URL, API_KEY);
   });
 });

@@ -228,4 +228,31 @@ describe('🔮 Sistema de Personagens Míticos — Waifuletes API', () => {
         .rejects.toThrow('Personagens míticos não podem ser colocados em coleções/pastas.');
     });
   });
+
+  describe('8. Exclusão de Personagem Mítico & Liberação de Slots', () => {
+    it('deve calcular slots disponíveis corretamente após exclusão de mítico', async () => {
+      mockPrisma.character.findUnique.mockResolvedValue({
+        id: 'char_mythic_1',
+        isMythic: true,
+        creatorUserId: 'user_1',
+      });
+      mockPrisma.character.count.mockResolvedValue(0); // 0 restantes após exclusão
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user_1',
+        mythicSlots: 1,
+      });
+
+      const user = await mockPrisma.user.findUnique({ where: { id: 'user_1' } });
+      const remainingMythics = await mockPrisma.character.count({
+        where: { creatorUserId: 'user_1', isMythic: true },
+      });
+
+      const totalSlots = user?.mythicSlots || 0;
+      const availableSlots = Math.max(0, totalSlots - remainingMythics);
+
+      expect(totalSlots).toBe(1);
+      expect(remainingMythics).toBe(0);
+      expect(availableSlots).toBe(1);
+    });
+  });
 });

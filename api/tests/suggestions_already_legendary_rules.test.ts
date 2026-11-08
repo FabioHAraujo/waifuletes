@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import dotenv from 'dotenv';
 import path from 'path';
+import { cleanupUser, forceDivorce, cleanupTestDatabase } from './helpers/testCleanup.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
@@ -15,6 +16,7 @@ describe('⭐ Personagem JÁ Lendário: nenhuma trava de casamento deve ser apli
   let testUserToken = '';
   let adminToken = '';
   let legendaryMarriedCharId = '';
+  let originalCandidateRarity = 'LEGENDARY';
   const createdSuggestionIds: string[] = [];
 
   beforeAll(async () => {
@@ -70,6 +72,7 @@ describe('⭐ Personagem JÁ Lendário: nenhuma trava de casamento deve ser apli
       const candidateRes = await fetch(`${BASE_URL}/characters?limit=1&page=2&maritalStatus=single&rarity=COMMON`);
       const candidateJson = await candidateRes.json();
       legendaryMarriedCharId = candidateJson.data?.data?.[0]?.id || '';
+      originalCandidateRarity = candidateJson.data?.data?.[0]?.baseRarity || 'COMMON';
     }
 
     if (legendaryMarriedCharId && adminToken) {
@@ -102,6 +105,23 @@ describe('⭐ Personagem JÁ Lendário: nenhuma trava de casamento deve ser apli
         headers: { Authorization: `Bearer ${adminToken}` },
       }).catch(() => {});
     }
+
+    if (legendaryMarriedCharId) {
+      if (originalCandidateRarity !== 'LEGENDARY' && adminToken) {
+        await fetch(`${BASE_URL}/api/admin/characters/${encodeURIComponent(legendaryMarriedCharId)}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ baseRarity: originalCandidateRarity }),
+        }).catch(() => {});
+      }
+      await forceDivorce(BASE_URL, API_KEY, testUserId, legendaryMarriedCharId);
+    }
+
+    await cleanupUser(BASE_URL, API_KEY, testUserId);
+    await cleanupTestDatabase(BASE_URL, API_KEY);
   });
 
   it('personagem de teste deve estar casado e já ser LENDÁRIO', async () => {

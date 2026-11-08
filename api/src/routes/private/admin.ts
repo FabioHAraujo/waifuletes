@@ -644,4 +644,186 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
       });
     },
   });
+
+  // Deletar usuário e liberar casamentos associados (Admin/Testes)
+  fastify.delete('/admin/users/:userId', {
+    schema: {
+      description: 'Remove um usuário e todas as suas dependências (casamentos, sugestões, etc), liberando os personagens casados',
+      tags: ['Administração (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: {
+          userId: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          harem: { select: { characterId: true } },
+        },
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: `Usuário '${userId}' não encontrado.` },
+        });
+      }
+
+      const characterIds = user.harem.map((h) => h.characterId);
+
+      await fastify.prisma.$transaction(async (tx) => {
+        if (characterIds.length > 0) {
+          await tx.$executeRaw`
+            UPDATE characters
+            SET "claimCount" = GREATEST(0, "claimCount" - 1)
+            WHERE id = ANY(${characterIds})
+          `;
+        }
+
+        await tx.haremEntry.deleteMany({ where: { userId } });
+        await tx.soulmate.deleteMany({ where: { userId } });
+        await tx.wishlistEntry.deleteMany({ where: { userId } });
+        await tx.characterSuggestion.deleteMany({ where: { userId } });
+        await tx.userNotification.deleteMany({ where: { userId } });
+        await tx.userCollection.deleteMany({ where: { userId } });
+        await tx.characterInvestment.deleteMany({ where: { userId } });
+        await tx.kakeraTransaction.deleteMany({ where: { userId } });
+        await tx.userGroup.deleteMany({ where: { userId } });
+        await tx.user.delete({ where: { id: userId } });
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          userId,
+          freedCharactersCount: characterIds.length,
+          message: `Usuário '${userId}' removido com sucesso e ${characterIds.length} casamento(s) desfeito(s).`,
+        },
+      });
+    },
+  });
+
+  // Limpeza geral de dados de teste (Admin/Testes)
+  fastify.post('/admin/cleanup-test-data', {
+    schema: {
+      description: 'Remove em lote todos os dados de testes automatizados (usuários teste, sugestões teste, grupos teste) e desfaz casamentos de teste',
+      tags: ['Administração (Privado)'],
+    },
+    handler: async (_request, reply) => {
+      const testUsers = await fastify.prisma.user.findMany({
+        where: {
+          AND: [
+            { id: { not: 'test-user-1' } },
+            {
+              OR: [
+                {
+                  name: {
+                    in: [
+                      'Test User',
+                      'Roll Tester',
+                      'Outro Jogador Teste',
+                      'Daily Tester',
+                      'Tester',
+                      'Concurrent Tester',
+                      'Jogador Harem Teste',
+                      'RollTester',
+                      'test_validation_user',
+                      'Seed Init User',
+                      'Jogador Web Teste',
+                      'Jogador Teste Já Lendário',
+                      'Jogador Novas Features',
+                      'Jogador Teste',
+                      'Jogador Teste Casamentos',
+                    ],
+                  },
+                },
+                { id: { startsWith: 'test_' } },
+                { id: { startsWith: 'another_user_' } },
+                { id: { startsWith: 'seed_' } },
+                { id: { startsWith: 'roll_tester_' } },
+              ],
+            },
+          ],
+        },
+        select: {
+          id: true,
+          harem: { select: { characterId: true } },
+        },
+      });
+
+      const testUserIds = testUsers.map((u) => u.id);
+      const characterIds = Array.from(new Set(testUsers.flatMap((u) => u.harem.map((h) => h.characterId))));
+
+      let freedMarriages = 0;
+      let deletedUsers = 0;
+      let deletedSuggestions = 0;
+      let deletedGroups = 0;
+
+      await fastify.prisma.$transaction(async (tx) => {
+        if (characterIds.length > 0) {
+          await tx.$executeRaw`
+            UPDATE characters
+            SET "claimCount" = GREATEST(0, "claimCount" - 1)
+            WHERE id = ANY(${characterIds})
+          `;
+        }
+
+        if (testUserIds.length > 0) {
+          const haremRes = await tx.haremEntry.deleteMany({ where: { userId: { in: testUserIds } } });
+          freedMarriages = haremRes.count;
+
+          await tx.soulmate.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.wishlistEntry.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.userNotification.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.userCollection.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.characterInvestment.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.kakeraTransaction.deleteMany({ where: { userId: { in: testUserIds } } });
+          await tx.userGroup.deleteMany({ where: { userId: { in: testUserIds } } });
+          const userRes = await tx.user.deleteMany({ where: { id: { in: testUserIds } } });
+          deletedUsers = userRes.count;
+        }
+
+        const suggRes = await tx.characterSuggestion.deleteMany({
+          where: {
+            OR: [
+              ...(testUserIds.length > 0 ? [{ userId: { in: testUserIds } }] : []),
+              { reason: { contains: 'debounce', mode: 'insensitive' } },
+              { suggestedName: { contains: 'debounce', mode: 'insensitive' } },
+              { reason: { contains: 'Sugestão para validar', mode: 'insensitive' } },
+              { reason: { contains: 'Sugestão de teste', mode: 'insensitive' } },
+            ],
+          },
+        });
+        deletedSuggestions = suggRes.count;
+
+        const grpRes = await tx.group.deleteMany({
+          where: {
+            OR: [
+              { id: { startsWith: 'test_' } },
+              { id: { startsWith: 'group_roll_tester_' } },
+              { id: 'test-group-1' },
+            ],
+          },
+        });
+        deletedGroups = grpRes.count;
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          deletedUsers,
+          freedMarriages,
+          deletedSuggestions,
+          deletedGroups,
+          message: `Limpeza concluída: ${deletedUsers} usuários removidos, ${freedMarriages} casamentos desfeitos, ${deletedSuggestions} sugestões e ${deletedGroups} grupos de teste apagados.`,
+        },
+      });
+    },
+  });
 };

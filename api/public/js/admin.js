@@ -36,6 +36,14 @@ const usersState = {
   totalPages: 1
 };
 
+const tradesState = {
+  search: '',
+  page: 1,
+  limit: 20,
+  total: 0,
+  totalPages: 1
+};
+
 let selectedMarryTargetUser = null;
 let suggestionFilterStatus = 'PENDING';
 
@@ -85,6 +93,8 @@ function setupAdminEvents() {
         loadAdminCatalog();
       } else if (targetId === 'tab-users') {
         loadAdminUsers();
+      } else if (targetId === 'tab-trades') {
+        loadAdminTrades();
       }
     });
   });
@@ -243,6 +253,41 @@ function setupAdminEvents() {
       if (usersState.page < usersState.totalPages) {
         usersState.page++;
         loadAdminUsers();
+      }
+    });
+  }
+
+  // Busca de negociações
+  let tradesSearchTimer = null;
+  const adminTradesSearchInput = document.getElementById('admin-trades-search-input');
+  if (adminTradesSearchInput) {
+    adminTradesSearchInput.addEventListener('input', () => {
+      clearTimeout(tradesSearchTimer);
+      tradesSearchTimer = setTimeout(() => {
+        tradesState.search = adminTradesSearchInput.value.trim();
+        tradesState.page = 1;
+        loadAdminTrades();
+      }, 300);
+    });
+  }
+
+  // Paginação de negociações
+  const tradesBtnPrev = document.getElementById('admin-trades-btn-prev');
+  if (tradesBtnPrev) {
+    tradesBtnPrev.addEventListener('click', () => {
+      if (tradesState.page > 1) {
+        tradesState.page--;
+        loadAdminTrades();
+      }
+    });
+  }
+
+  const tradesBtnNext = document.getElementById('admin-trades-btn-next');
+  if (tradesBtnNext) {
+    tradesBtnNext.addEventListener('click', () => {
+      if (tradesState.page < tradesState.totalPages) {
+        tradesState.page++;
+        loadAdminTrades();
       }
     });
   }
@@ -1760,6 +1805,203 @@ async function confirmAdminMythicSlots(event) {
     loadAdminUsers();
   } catch (err) {
     Api.showToast('Erro de comunicação ao conceder slots.', '❌');
+  } finally {
+    Api.hideLoading();
+  }
+}
+
+// ========================================================
+// GESTÃO DE NEGOCIAÇÕES (CLASSIFICADOS)
+// ========================================================
+async function loadAdminTrades() {
+  const tbody = document.getElementById('admin-trades-tbody');
+  const totalCountEl = document.getElementById('admin-trades-total-count');
+  const pageIndicatorEl = document.getElementById('admin-trades-page-indicator');
+  const btnPrev = document.getElementById('admin-trades-btn-prev');
+  const btnNext = document.getElementById('admin-trades-btn-next');
+
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px;"><i class="fas fa-spinner fa-spin"></i> Carregando lista de negociações...</td></tr>';
+
+  try {
+    const params = new URLSearchParams({
+      page: tradesState.page,
+      limit: tradesState.limit,
+    });
+    if (tradesState.search) params.append('search', tradesState.search);
+
+    const res = await Api.get(`/api/admin/market/trades?${params.toString()}`, {
+      Authorization: `Bearer ${adminToken}`,
+    });
+
+    if (!res.success) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 24px; color: red;">${res.error?.message || 'Erro ao carregar negociações.'}</td></tr>`;
+      return;
+    }
+
+    const { trades, pagination } = res.data;
+    tradesState.total = pagination.total;
+    tradesState.totalPages = pagination.totalPages;
+
+    if (totalCountEl) totalCountEl.textContent = `${tradesState.total.toLocaleString('pt-BR')} negociações`;
+    if (pageIndicatorEl) pageIndicatorEl.textContent = `${tradesState.page} / ${tradesState.totalPages}`;
+    if (btnPrev) btnPrev.disabled = tradesState.page <= 1;
+    if (btnNext) btnNext.disabled = tradesState.page >= tradesState.totalPages;
+
+    if (trades.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px;">Nenhuma negociação encontrada com os filtros atuais.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    trades.forEach((trade) => {
+      const tr = document.createElement('tr');
+      const dateStr = new Date(trade.updatedAt || trade.createdAt).toLocaleString('pt-BR');
+
+      // Seller / Buyer info
+      const cleanSellerNumber = (trade.seller?.id || '').replace('@s.whatsapp.net', '').replace('@c.us', '');
+      const sellerPlatformBadge = trade.seller?.platform === 'WHATSAPP'
+        ? '<span style="color: #16a34a; font-size: 11px;"><i class="fab fa-whatsapp"></i> WhatsApp</span>'
+        : `<small style="font-size: 11px;">${trade.seller?.platform || ''}</small>`;
+
+      const cleanBuyerNumber = (trade.buyer?.id || '').replace('@s.whatsapp.net', '').replace('@c.us', '');
+      const buyerPlatformBadge = trade.buyer?.platform === 'WHATSAPP'
+        ? '<span style="color: #16a34a; font-size: 11px;"><i class="fab fa-whatsapp"></i> WhatsApp</span>'
+        : `<small style="font-size: 11px;">${trade.buyer?.platform || ''}</small>`;
+
+      // Character info
+      const char = trade.character || {};
+      const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
+      const charImg = char.imageUrl || '/media/characters/default.jpg';
+
+      // Offered items formatting
+      const offered = trade.offeredItems || {};
+      let itemsHtml = '';
+      if (offered.isFree) {
+        itemsHtml = '<div style="color: #10b981; font-weight: 700;">🎁 Doação (Grátis)</div>';
+      } else {
+        const parts = [];
+        if (offered.zinthos && Number(offered.zinthos) > 0) {
+          parts.push(`<div style="font-weight: 800; color: #b45309;">🪙 ${Number(offered.zinthos).toLocaleString('pt-BR')} Zinthos</div>`);
+        }
+        if (Array.isArray(offered.offeredWaifus) && offered.offeredWaifus.length > 0) {
+          parts.push(`<div style="margin-top: 2px;"><strong>Waifus:</strong> ${offered.offeredWaifus.map(w => {
+            const wRarity = RARITY_CONFIG[w.baseRarity] || RARITY_CONFIG.COMMON;
+            return `<span class="badge-tag" style="background:${wRarity.color};color:#fff;padding:2px 6px;margin:2px;font-size:11px;display:inline-block;">${escapeHtml(w.name || w.id)}</span>`;
+          }).join(' ')}</div>`);
+        }
+        if (Array.isArray(offered.fishes) && offered.fishes.length > 0) {
+          const fishSummary = {};
+          offered.fishes.forEach(f => {
+            const k = f.name || 'Peixe';
+            fishSummary[k] = (fishSummary[k] || 0) + 1;
+          });
+          parts.push(`<div style="margin-top: 2px;"><strong>Peixes:</strong> ${Object.entries(fishSummary).map(([n, c]) => `${c}x ${escapeHtml(n)}`).join(', ')}</div>`);
+        }
+        if (Array.isArray(offered.fishingBuffs) && offered.fishingBuffs.length > 0) {
+          parts.push(`<div style="margin-top: 2px;"><strong>Buffs:</strong> ${offered.fishingBuffs.map(b => escapeHtml(b.originalName || b.type || 'Buff')).join(', ')}</div>`);
+        }
+        if (Array.isArray(offered.farmItems) && offered.farmItems.length > 0) {
+          parts.push(`<div style="margin-top: 2px;"><strong>Fazenda:</strong> ${offered.farmItems.map(it => `${it.amount}x ${escapeHtml(it.name || it.itemId)}`).join(', ')}</div>`);
+        }
+        itemsHtml = parts.join('') || '<span style="color: var(--text-muted);">Sem itens</span>';
+      }
+
+      // Status badge
+      let statusHtml = '';
+      if (trade.status === 'ACCEPTED') {
+        statusHtml = '<span class="badge-rarity" style="position: static; border-color: #16a34a; color: #16a34a; font-weight: 800; display: inline-block;">Concluída</span>';
+      } else if (trade.isReverted) {
+        statusHtml = `<span class="badge-rarity" style="position: static; border-color: #dc2626; color: #dc2626; font-weight: 800; display: inline-block;" title="${escapeAttr(trade.cancelReason || 'Revertida')}">Revertida</span>`;
+      } else {
+        statusHtml = `<span class="badge-rarity" style="position: static; border-color: #64748b; color: #64748b; font-weight: 700; display: inline-block;">${escapeHtml(trade.status)}</span>`;
+      }
+
+      // Action button
+      let actionHtml = '';
+      if (trade.status === 'ACCEPTED') {
+        actionHtml = `
+          <button class="btn-retro btn-sm btn-danger" onclick="adminRevertTrade('${escapeAttr(trade.id)}', '${escapeAttr(char.name || '')}', '${escapeAttr(trade.seller?.name || '')}', '${escapeAttr(trade.buyer?.name || '')}')" title="Reverter esta negociação e devolver os personagens e itens aos donos originais">
+            <i class="fas fa-undo"></i> Reverter
+          </button>
+        `;
+      } else if (trade.isReverted) {
+        actionHtml = '<span style="font-size: 12px; color: var(--text-muted); font-weight: 700;"><i class="fas fa-check"></i> Revertida</span>';
+      } else {
+        actionHtml = '<span style="font-size: 12px; color: var(--text-muted);">-</span>';
+      }
+
+      tr.innerHTML = `
+        <td style="font-size: 12px; white-space: nowrap;">
+          <div style="font-weight: 700;">${dateStr}</div>
+          <small style="color: var(--text-muted); font-family: monospace;">ID: ${escapeHtml(trade.id.slice(0, 10))}...</small>
+        </td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="${escapeAttr(charImg)}" style="width: 44px; height: 56px; object-fit: cover; border-radius: 4px; border: 1.5px solid ${rarity.color};" onerror="this.src='/media/characters/default.jpg'">
+            <div>
+              <div style="font-weight: 800; font-size: 14px; color: ${rarity.color};">${escapeHtml(char.name || char.id)}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(char.series || '')}</div>
+              ${trade.listingInterest ? `<div style="font-size: 11px; color: var(--accent-gold); font-style: italic;">Pediu: "${escapeHtml(trade.listingInterest)}"</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td>
+          <div style="font-weight: 800;">${escapeHtml(trade.seller?.name || 'Vendedor')}</div>
+          <div style="font-family: monospace; font-size: 12px;">${escapeHtml(cleanSellerNumber)}</div>
+          ${sellerPlatformBadge}
+        </td>
+        <td>
+          <div style="font-weight: 800;">${escapeHtml(trade.buyer?.name || 'Comprador')}</div>
+          <div style="font-family: monospace; font-size: 12px;">${escapeHtml(cleanBuyerNumber)}</div>
+          ${buyerPlatformBadge}
+        </td>
+        <td style="font-size: 12px;">
+          ${itemsHtml}
+        </td>
+        <td style="text-align: center;">
+          ${statusHtml}
+        </td>
+        <td style="text-align: center;">
+          ${actionHtml}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error('Erro ao listar negociações:', err);
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px; color: red;">Erro de comunicação ao carregar lista de negociações.</td></tr>';
+  }
+}
+
+async function adminRevertTrade(offerId, charName, sellerName, buyerName) {
+  const msg = `Deseja realmente REVERTER esta negociação dos Classificados?\n\n` +
+    `• Personagem: ${charName}\n` +
+    `• Vendedor original: ${sellerName}\n` +
+    `• Comprador: ${buyerName}\n\n` +
+    `Ao confirmar:\n` +
+    `1. O personagem anunciado retornará para ${sellerName}.\n` +
+    `2. As waifus e itens ofertados retornarão para ${buyerName}.\n` +
+    `3. Os Zinthos pagos serão estornados para ${buyerName}.\n` +
+    `4. O anúncio voltará a ficar ATIVO nos classificados.`;
+
+  if (!confirm(msg)) return;
+
+  Api.showLoading('Aguarde...', `Revertendo negociação de ${charName}...`);
+  try {
+    const res = await Api.post(`/api/admin/market/trades/${encodeURIComponent(offerId)}/revert`, {}, {
+      Authorization: `Bearer ${adminToken}`,
+    });
+
+    if (res.success) {
+      Api.showToast(res.data?.message || 'Negociação revertida com sucesso!', '🔄');
+      loadAdminTrades();
+    } else {
+      Api.showToast(res.error?.message || 'Falha ao reverter negociação.', '❌');
+    }
+  } catch (err) {
+    console.error('Erro ao reverter negociação:', err);
+    Api.showToast('Erro de comunicação ao reverter negociação.', '❌');
   } finally {
     Api.hideLoading();
   }

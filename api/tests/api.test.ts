@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import dotenv from 'dotenv';
 import path from 'path';
+import { cleanupUser, cleanupTestDatabase } from './helpers/testCleanup.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
@@ -257,5 +258,10 @@ describe('💎 Workstream E — Novo Ranking de Harém e Fragmentos de Roll', ()
     const json = await res.json();
     expect(json.success).toBe(false);
     expect(json.error.code).toBe('CHARACTER_NOT_FOUND');
+  });
+
+  afterAll(async () => {
+    await cleanupUser(BASE_URL, API_KEY, 'seed_init_user');
+    await cleanupTestDatabase(BASE_URL, API_KEY);
   });
 });

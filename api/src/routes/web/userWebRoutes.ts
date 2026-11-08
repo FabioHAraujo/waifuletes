@@ -3303,15 +3303,28 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           characterId: { type: 'string' },
         },
       },
-      body: {
+      querystring: {
         type: 'object',
-        required: ['token'],
-        properties: { token: { type: 'string' } },
+        properties: {
+          token: { type: 'string' },
+        },
       },
     },
     handler: async (request, reply) => {
       const { publicId, characterId } = request.params as { publicId: string; characterId: string };
-      const { token } = request.body as { token: string };
+      const queryToken = (request.query as { token?: string } | undefined)?.token;
+      const bodyToken = (request.body as { token?: string } | undefined)?.token;
+      const headerAuth = request.headers['authorization'];
+      const headerCustomToken = request.headers['token'];
+      const headerBearer = typeof headerAuth === 'string' ? headerAuth.replace(/^Bearer\s+/i, '') : undefined;
+      const token = queryToken || bodyToken || (typeof headerCustomToken === 'string' ? headerCustomToken : undefined) || headerBearer;
+
+      if (!token) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Token de autenticação não informado.' },
+        });
+      }
 
       const session = publicId === 'token-session'
         ? await webSessionService.validateTokenOnly(token)
@@ -3336,9 +3349,13 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       await fastify.prisma.$transaction(async (tx) => {
+        await tx.soulmate.deleteMany({ where: { characterId } });
         await tx.haremEntry.deleteMany({ where: { characterId } });
         await tx.character.delete({ where: { id: characterId } });
       });
+
+      const uploadsDir = path.resolve(config.MEDIA_DIR, 'uploads', 'characters', characterId);
+      await fs.rm(uploadsDir, { recursive: true, force: true }).catch(() => {});
 
       const remainingMythics = await fastify.prisma.character.count({
         where: { creatorUserId: session.userId, isMythic: true },

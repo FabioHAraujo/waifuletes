@@ -61,6 +61,9 @@
         <button class="retro-tab" data-tab="tab-users">
           <i class="fas fa-users"></i> Usuários
         </button>
+        <button class="retro-tab" data-tab="tab-trades">
+          <i class="fas fa-handshake"></i> Negociações
+        </button>
       </div>
 
       <!-- Aba 1: Catálogo com Botão Editar -->
@@ -197,6 +200,47 @@
             <button class="btn-retro btn-sm" id="admin-users-btn-prev" disabled><i class="fas fa-angle-left"></i> Anterior</button>
             <span class="page-indicator" id="admin-users-page-indicator">1 / 1</span>
             <button class="btn-retro btn-sm" id="admin-users-btn-next" disabled>Próxima <i class="fas fa-angle-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aba 4: Gestão de Negociações dos Classificados -->
+      <div class="tab-content hidden" id="tab-trades">
+        <div class="search-panel" style="margin-bottom: 20px;">
+          <div class="search-input-group" style="margin-bottom: 0;">
+            <i class="fas fa-search"></i>
+            <input type="text" id="admin-trades-search-input" class="retro-input" placeholder="Pesquisar por personagem, vendedor ou comprador...">
+          </div>
+        </div>
+
+        <div style="overflow-x: auto; margin-bottom: 20px;">
+          <table class="retro-table" id="admin-trades-table">
+            <thead>
+              <tr style="background: #fef08a;">
+                <th style="min-width: 140px;">Data / Horário</th>
+                <th style="min-width: 220px;">Personagem Anunciado</th>
+                <th style="min-width: 180px;">Vendedor</th>
+                <th style="min-width: 180px;">Comprador</th>
+                <th style="min-width: 220px;">Itens Oferecidos (Pagamento)</th>
+                <th style="text-align: center; min-width: 110px;">Status</th>
+                <th style="text-align: center; min-width: 130px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="admin-trades-tbody">
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 24px;">Carregando negociações...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginação de Negociações -->
+        <div class="pagination-bar">
+          <div class="page-info"><span id="admin-trades-total-count">0 negociações</span></div>
+          <div class="page-controls">
+            <button class="btn-retro btn-sm" id="admin-trades-btn-prev" disabled><i class="fas fa-angle-left"></i> Anterior</button>
+            <span class="page-indicator" id="admin-trades-page-indicator">1 / 1</span>
+            <button class="btn-retro btn-sm" id="admin-trades-btn-next" disabled>Próxima <i class="fas fa-angle-right"></i></button>
           </div>
         </div>
       </div>
@@ -441,6 +485,6 @@
 
   <script src="/vendor/cropper.min.js"></script>
   <script src="/js/api.js?v=20261107-mythics-tabs"></script>
-  <script src="/js/admin.js?v=20261107-mythics-tabs"></script>
+  <script src="/js/admin.js?v=20261107-trades-tab"></script>
 </body>
 </html>

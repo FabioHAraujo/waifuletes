@@ -50,6 +50,9 @@ O **Waifuletes** é um motor de jogo RESTful especializado em gacha, harém e co
 - Fastify 4.x é utilizado. Ao adicionar plugins como Helmet ou Rate Limit, utilize versões compatíveis com v4 (`@fastify/helmet@11.x`, `@fastify/rate-limit@9.x`).
 - Todos os endpoints devem possuir validação de schema com `additionalProperties: false` para mitigar ataques de injeção de parâmetros.
 
+### 3.5. Schemas Fastify e Métodos HTTP (DELETE, GET)
+- **Schemas de Requisição:** Endpoints HTTP do tipo `DELETE` e `GET` NUNCA devem definir schema de `body` como `{ type: 'object' }` a menos que o payload no corpo seja estritamente obrigatório e documentado como tal. Navegadores e clientes HTTP padrão (fetch, axios, curl) enviam requisições DELETE sem body (passando parâmetros via query string ou headers). Definir `body: { type: 'object' }` faz o validador Ajv do Fastify rejeitar requisições legítimas com `VALIDATION_ERROR: body must be object`.
+
 ---
 
 ## 📁 4. Estrutura de Diretórios Canônica
@@ -99,3 +102,18 @@ waifuletes/
     docker compose up -d --build api
     ```
   - **NUNCA sugira apenas `docker restart api`** quando o código do backend for alterado. Forneça sempre o comando completo com `--build` para que o usuário não precise perguntar se precisa de rebuild.
+
+---
+
+## 🧪 7. Diretrizes Estritas de Testes Automatizados (Vitest)
+
+### 7.1. Validação Real de Schemas e Rotas HTTP
+- **Nunca confiar apenas em testes unitários de serviços com mocks:** Testar unicamente a classe de serviço (ex: `UserService`, `DivorceService`) com mocks do Prisma valida apenas cálculos e regras de negócio internas, mas é completamente cego a erros estruturais de rotas Fastify, validações do Ajv, headers, query strings e serialização JSON.
+- **Testes devem simular o comportamento real do usuário/frontend:** Endpoints da API (especialmente rotas web públicas e autenticadas) devem possuir testes que invoquem a rota HTTP (via `fastify.inject()` ou `fetch` no servidor de teste), reproduzindo fielmente as chamadas do cliente web (ex: `DELETE` com `?token=...` sem body).
+
+### 7.2. Tolerância Zero para Sujeira de Teste na Base de Dados
+- **Limpeza Obrigatória de Testes:** É expressamente proibido deixar resíduos de testes na base de dados de desenvolvimento ou produção.
+- **Desfazer Casamentos:** Todo teste que realizar casamentos (`/marry`) DEVE obrigatoriamente desfazê-los no `afterAll` ou `finally`, decrementando `claimCount` do personagem para que ele volte ao estado solteiro e possa ser utilizado por jogadores reais.
+- **Remover Usuários e Grupos de Teste:** Usuários criados em testes (ex: `test_*`, `another_user_*`, `seed_*`, `roll_tester_*`) e seus grupos DEVEM ser excluídos ao final de cada suíte (`afterAll`), utilizando os helpers de limpeza (`cleanupUser`, `cleanupTestDatabase`).
+- **Apagar Sugestões de Teste:** Sugestões enviadas para validar criação, alteração ou debounce DEVEM ser excluídas do banco e ter eventuais mensagens de Telegram canceladas no encerramento do teste.
+- **Global Teardown:** A configuração do Vitest (`vitest.config.ts`) possui `globalTeardown` configurado para varrer e expurgar quaisquer resíduos residuais via `POST /admin/cleanup-test-data` caso algum teste seja abortado ou sofra falha crítica antes do `afterAll`.

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import dotenv from 'dotenv';
 import path from 'path';
+import { cleanupUser, cleanupTestDatabase } from './helpers/testCleanup.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config();
@@ -200,5 +201,10 @@ describe('✨ Novas Funcionalidades: Manter Login, Likes, Ranks e Notificações
       const res = await fetch(`${BASE_URL}/groups/${encodeURIComponent(testGroupId)}/leaderboard`);
       expect(res.status).toBe(401);
     });
+  });
+
+  afterAll(async () => {
+    await cleanupUser(BASE_URL, API_KEY, testUserId);
+    await cleanupTestDatabase(BASE_URL, API_KEY);
   });
 });
