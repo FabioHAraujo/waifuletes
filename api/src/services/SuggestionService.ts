@@ -1469,15 +1469,23 @@ export class SuggestionService {
    */
   async deactivateCharacter(characterId: string, reason = 'Denúncia', moderatorName = 'moderator') {
     const cleanId = String(characterId).trim();
-    const character = await this.prisma.character.findFirst({
-      where: {
-        OR: [
-          { id: cleanId },
-          { id: cleanId.toLowerCase() },
-          { name: { equals: cleanId, mode: 'insensitive' } },
-        ],
-      },
+    let character = await this.prisma.character.findUnique({
+      where: { id: cleanId },
     });
+
+    if (!character && cleanId.toLowerCase() !== cleanId) {
+      character = await this.prisma.character.findUnique({
+        where: { id: cleanId.toLowerCase() },
+      });
+    }
+
+    if (!character) {
+      character = await this.prisma.character.findFirst({
+        where: {
+          name: { equals: cleanId, mode: 'insensitive' },
+        },
+      });
+    }
     if (!character) return null;
 
     await this.prisma.character.update({

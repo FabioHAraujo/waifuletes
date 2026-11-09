@@ -79,14 +79,47 @@ export class CharacterService {
     const trimmed = identifier.trim();
     const slug = slugify(trimmed);
 
-    let character = await this.prisma.character.findFirst({
+    // 1. Prioridade máxima: busca por ID exato
+    let character = await this.prisma.character.findUnique({
+      where: { id: trimmed },
+    });
+
+    // 2. Busca por slug exato (quando diferente do ID informado)
+    if (!character && slug && slug !== trimmed) {
+      character = await this.prisma.character.findUnique({
+        where: { id: slug },
+      });
+    }
+
+    if (character) {
+      return character;
+    }
+
+    // 3. Fallback: Busca por nome exato (prioriza ativos e mais populares)
+    character = await this.prisma.character.findFirst({
       where: {
-        OR: [
-          { id: trimmed },
-          { id: slug },
-          { name: { equals: trimmed, mode: 'insensitive' } },
-        ],
+        name: { equals: trimmed, mode: 'insensitive' },
+        isActive: true,
       },
+      orderBy: [
+        { claimCount: 'desc' },
+        { popularityScore: 'desc' },
+      ],
+    });
+
+    if (character) {
+      return character;
+    }
+
+    // 4. Fallback final por nome (mesmo inativo)
+    character = await this.prisma.character.findFirst({
+      where: {
+        name: { equals: trimmed, mode: 'insensitive' },
+      },
+      orderBy: [
+        { claimCount: 'desc' },
+        { popularityScore: 'desc' },
+      ],
     });
 
     if (character) {
@@ -432,34 +465,68 @@ export class CharacterService {
     const trimmed = characterId.trim();
     const slug = slugify(trimmed);
 
-    const character = await this.prisma.character.findFirst({
-      where: {
-        OR: [
-          { id: trimmed },
-          { id: slug },
-          { name: { equals: trimmed, mode: 'insensitive' } },
-        ],
+    const includeOptions = {
+      creatorUser: {
+        select: { id: true, publicId: true, name: true, platform: true },
       },
-      include: {
-        creatorUser: {
-          select: { id: true, publicId: true, name: true, platform: true },
-        },
-        haremEntries: {
-          include: {
-            user: {
-              select: { id: true, publicId: true, name: true, platform: true },
-            },
-          },
-        },
-        _count: {
-          select: {
-            haremEntries: true,
-            wishlists: true,
-            soulmates: true,
+      haremEntries: {
+        include: {
+          user: {
+            select: { id: true, publicId: true, name: true, platform: true },
           },
         },
       },
+      _count: {
+        select: {
+          haremEntries: true,
+          wishlists: true,
+          soulmates: true,
+        },
+      },
+    };
+
+    // 1. Prioridade máxima: busca por ID exato
+    let character = await this.prisma.character.findUnique({
+      where: { id: trimmed },
+      include: includeOptions,
     });
+
+    // 2. Busca por slug exato (quando diferente do ID informado)
+    if (!character && slug && slug !== trimmed) {
+      character = await this.prisma.character.findUnique({
+        where: { id: slug },
+        include: includeOptions,
+      });
+    }
+
+    // 3. Fallback: Busca por nome exato (prioriza ativos e mais populares)
+    if (!character) {
+      character = await this.prisma.character.findFirst({
+        where: {
+          name: { equals: trimmed, mode: 'insensitive' },
+          isActive: true,
+        },
+        include: includeOptions,
+        orderBy: [
+          { claimCount: 'desc' },
+          { popularityScore: 'desc' },
+        ],
+      });
+    }
+
+    // 4. Fallback final por nome (mesmo inativo)
+    if (!character) {
+      character = await this.prisma.character.findFirst({
+        where: {
+          name: { equals: trimmed, mode: 'insensitive' },
+        },
+        include: includeOptions,
+        orderBy: [
+          { claimCount: 'desc' },
+          { popularityScore: 'desc' },
+        ],
+      });
+    }
 
     if (!character) return null;
 

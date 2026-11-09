@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { PrismaClient } = require('../api/node_modules/@prisma/client');
 
 const prisma = new PrismaClient();
 
@@ -67,6 +69,7 @@ function normalizeNameTokens(str) {
 function cleanSeries(series) {
   if (!series) return '';
   return series
+    .replace(/[\u00d7\u2715\u2716]/g, 'x')
     .replace(/:\s*Season\s*\d+.*$/i, '')
     .replace(/\s+Season\s*\d+.*$/i, '')
     .replace(/:\s*Part\s*\d+.*$/i, '')

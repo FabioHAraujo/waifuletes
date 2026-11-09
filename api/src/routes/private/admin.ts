@@ -559,18 +559,32 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
       const { characterId, reason = 'Denúncia / Personagem problemático' } = request.body as any;
 
       const cleanId = String(characterId).trim();
-      const character = await fastify.prisma.character.findFirst({
-        where: {
-          OR: [
-            { id: cleanId },
-            { id: cleanId.toLowerCase() },
-            { name: { equals: cleanId, mode: 'insensitive' } },
-          ],
-        },
+      let character = await fastify.prisma.character.findUnique({
+        where: { id: cleanId },
         include: {
           haremEntries: true,
         },
       });
+
+      if (!character && cleanId.toLowerCase() !== cleanId) {
+        character = await fastify.prisma.character.findUnique({
+          where: { id: cleanId.toLowerCase() },
+          include: {
+            haremEntries: true,
+          },
+        });
+      }
+
+      if (!character) {
+        character = await fastify.prisma.character.findFirst({
+          where: {
+            name: { equals: cleanId, mode: 'insensitive' },
+          },
+          include: {
+            haremEntries: true,
+          },
+        });
+      }
 
       if (!character) {
         return reply.status(404).send({
