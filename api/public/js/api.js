@@ -270,10 +270,69 @@ const Api = {
       url.searchParams.delete('dark');
     }
     return url.toString();
+  },
+
+  /**
+   * Centraliza a aba ativa dentro de uma barra de abas com rolagem horizontal (mobile).
+   * Não faz nada quando a barra cabe inteira na tela (desktop) ou está oculta.
+   */
+  centerActiveTab(container) {
+    if (!container || container.scrollWidth <= container.clientWidth + 1) return;
+    const active = container.querySelector(':scope > .retro-tab.active');
+    if (!active) return;
+    const cRect = container.getBoundingClientRect();
+    const aRect = active.getBoundingClientRect();
+    const target = container.scrollLeft + (aRect.left - cRect.left) - (cRect.width - aRect.width) / 2;
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    container.scrollTo({ left: Math.max(0, target), behavior: reduceMotion ? 'auto' : 'smooth' });
+  },
+
+  initTabScroller() {
+    if (this._tabScrollerInitialized) return;
+    this._tabScrollerInitialized = true;
+
+    const pending = new Set();
+    let scheduled = false;
+    const schedule = (container) => {
+      if (container) pending.add(container);
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        pending.forEach((c) => this.centerActiveTab(c));
+        pending.clear();
+      });
+    };
+    const scheduleWithin = (root) => {
+      root.querySelectorAll('.retro-tabs').forEach((c) => schedule(c));
+    };
+
+    scheduleWithin(document);
+
+    // Reage à troca de aba ativa e à exibição de painéis/modais que contêm barras de abas
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        const el = m.target;
+        if (!(el instanceof Element)) continue;
+        if (el.classList.contains('retro-tab')) {
+          if (el.classList.contains('active') && el.parentElement) schedule(el.parentElement);
+        } else if (el.matches('.tab-content, .subtab-content, .public-tab-content, .modal-overlay, [id$="-panel"]')) {
+          scheduleWithin(el);
+        }
+      }
+    });
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => scheduleWithin(document), 150);
+    });
   }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
   Api.initTheme();
   Api.initGlobalErrorCatching();
+  Api.initTabScroller();
 });

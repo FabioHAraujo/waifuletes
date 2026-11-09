@@ -22,12 +22,23 @@
   --accent-purple: #9333ea;
   --accent-green: #16a34a;
 
-  /* Cores de Raridade */
+  /* Cores de Raridade (bordas e badges sobre fundo escuro da foto) */
   --rarity-legendary: #eab308;
   --rarity-epic: #a855f7;
   --rarity-rare: #3b82f6;
   --rarity-uncommon: #22c55e;
   --rarity-common: #94a3b8;
+
+  /* Cores de Raridade para TEXTO sobre fundos claros (WCAG AA >= 4.5:1 sobre #fff) */
+  --rarity-text-legendary: #a16207;
+  --rarity-text-epic: #9333ea;
+  --rarity-text-rare: #1d4ed8;
+  --rarity-text-uncommon: #15803d;
+  --rarity-text-common: #475569;
+  --text-success: #15803d;
+  --text-info: #1d4ed8;
+  --text-pink: #be185d;
+  --text-violet: #7c3aed;
 
   --radius-retro: 6px;
   --font-retro: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -66,6 +77,17 @@ body.dark-mode {
   --shadow-retro: 3px 3px 0px #090514;
   --shadow-retro-hover: 5px 5px 0px #090514;
   --shadow-retro-sm: 2px 2px 0px #090514;
+
+  /* Texto de raridade sobre o roxo escuro (WCAG AA >= 4.5:1 sobre #1f1333) */
+  --rarity-text-legendary: #facc15;
+  --rarity-text-epic: #c084fc;
+  --rarity-text-rare: #60a5fa;
+  --rarity-text-uncommon: #4ade80;
+  --rarity-text-common: #cbd5e1;
+  --text-success: #4ade80;
+  --text-info: #60a5fa;
+  --text-pink: #f472b6;
+  --text-violet: #a78bfa;
 
   background-color: var(--bg-retro);
   background-image: radial-gradient(#7c3aed 1px, transparent 1px);
@@ -265,6 +287,11 @@ body.dark-mode .legendary-married-alert input[type="file"] {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* Rótulos alternativos: versão curta só aparece no mobile */
+.btn-label-short {
+  display: none;
 }
 
 /* ========================================================
@@ -657,10 +684,12 @@ body.dark-mode .btn-wish-active:hover {
     gap: 10px;
   }
 
+  /* !important: #private-favorites-grid define gap: 16px inline no HTML, o que
+     impedia 2 cards de 50% por linha */
   #private-favorites-grid,
   #public-favorites-grid,
   #public-mythics-grid {
-    gap: 10px;
+    gap: 10px !important;
   }
 
   #private-favorites-grid .waifu-card,
@@ -2161,10 +2190,12 @@ body.modal-open .modal-box {
     border-top: none !important;
     border-left: none !important;
     border-right: none !important;
-    padding: 10px 12px !important;
+    padding: 8px 12px !important;
     display: flex !important;
+    flex-wrap: wrap !important;
     justify-content: space-between !important;
     align-items: center !important;
+    gap: 8px !important;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
   }
 
@@ -2186,20 +2217,29 @@ body.modal-open .modal-box {
     line-height: 1 !important;
   }
 
+  /* Barra de ferramentas horizontal: ocupa a linha inteira abaixo do logo,
+     botões com altura uniforme (touch target >= 40px) e sem overflow */
   .header-actions {
     display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: 4px !important;
-    flex-shrink: 0 !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
-  .header-actions .btn-retro {
-    width: auto !important;
-    padding: 4px 8px !important;
-    font-size: 11px !important;
+  .header-actions > .btn-retro:not(.hidden) {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
     white-space: nowrap !important;
     line-height: 1.2 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   /* Título do usuário unificado e enxuto em 1 linha */
@@ -2219,13 +2259,10 @@ body.modal-open .modal-box {
     line-height: 1.2 !important;
   }
 
-  /* 2. Cards: 1 por linha e badges 10% menores */
+  /* 2. Cards: grid fluido no tablet (2 colunas fixas no mobile, ver bloco <= 640px) e badges 10% menores */
   .waifu-grid {
-    grid-template-columns: 1fr !important;
-    gap: 14px !important;
-    max-width: 380px !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 12px !important;
   }
 
   .card-img-wrapper .badge-rarity,
@@ -2383,6 +2420,36 @@ body.modal-open .modal-box {
   .filter-group .pill-group {
     max-width: 65% !important;
     flex: 1 !important;
+  }
+
+  /* Rótulos com largura fixa: controles alinhados na mesma coluna */
+  .filter-group > span:first-child {
+    flex: 0 0 92px !important;
+  }
+
+  .filter-group > select,
+  .filter-group > .retro-select {
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .filter-group .pill-group {
+    max-width: none !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+
+  .filter-group .pill-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-group .pill-group .retro-pill {
+    flex: 1 0 auto;
+    white-space: nowrap;
+    padding: 6px 6px;
+    font-size: 11.5px;
+    min-height: 32px;
   }
 
   /* 6. Classificados: layout dos filtros, botão atualizar centralizado */
@@ -2565,12 +2632,98 @@ body.modal-open .modal-box {
   }
 }
 
-@keyframes retroModalSlideUp {
-  from {
-    transform: translateY(100%);
+/* ========================================================
+   MOBILE <= 640px: ABAS COM ROLAGEM HORIZONTAL & GRID 2 COLUNAS
+   ======================================================== */
+@media (max-width: 640px) {
+  /* Header: rótulos curtos nos botões para caberem em uma única linha */
+  .btn-label-long {
+    display: none !important;
   }
-  to {
-    transform: translateY(0);
+
+  .btn-label-short {
+    display: inline !important;
+  }
+
+  /* Abas e subabas: segmented control em uma única linha com rolagem por toque.
+     A aba ativa é centralizada automaticamente (ver initTabScroller em api.js). */
+  .retro-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .retro-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .retro-tabs .retro-tab,
+  #harem-subtabs .retro-subtab,
+  .retro-subtabs .retro-subtab {
+    flex: 1 0 auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    scroll-snap-align: center;
+    overflow: visible !important;
+  }
+
+  /* Cards: exatamente 2 colunas compactas (padrão de gachas mobile) */
+  .waifu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    max-width: none !important;
+  }
+
+  .waifu-card .card-info {
+    padding: 8px !important;
+  }
+
+  .waifu-card .card-name {
+    font-size: 13px !important;
+  }
+
+  .waifu-card .card-series {
+    font-size: 11px !important;
+  }
+
+  .waifu-card .card-actions .btn-retro {
+    min-height: 36px;
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-img-wrapper .badge-rarity,
+  .card-img-wrapper .badge-wishes,
+  .card-img-wrapper .badge-covets,
+  .card-img-wrapper .badge-collection-tag,
+  .card-img-wrapper .badge-likes,
+  .card-img-wrapper .badge-photos,
+  .card-img-wrapper .badge-keys {
+    max-width: calc(100% - 16px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-img-wrapper .badge-rarity,
+  .card-img-wrapper .badge-married-alert,
+  .card-img-wrapper .badge-married,
+  .card-img-wrapper .badge-keys,
+  .card-img-wrapper .badge-wishes,
+  .card-img-wrapper .badge-covets,
+  .card-img-wrapper .badge-collection-tag,
+  .card-img-wrapper .badge-likes,
+  .card-img-wrapper .badge-photos {
+    transform: scale(0.85) !important;
   }
 }
-
