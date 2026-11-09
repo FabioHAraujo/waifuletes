@@ -154,9 +154,9 @@ const CharacterPage = {
     const genderEl = document.getElementById('char-gender');
     if (genderEl) {
       const gMap = {
-        FEMALE: '<span style="color:#ec4899;">♀ Feminino</span>',
-        MALE: '<span style="color:#3b82f6;">♂ Masculino</span>',
-        OTHER: '<span style="color:#8b5cf6;">⚧ Outro</span>'
+        FEMALE: '<span style="color: var(--text-pink, #ec4899);">♀ Feminino</span>',
+        MALE: '<span style="color: var(--text-info, #3b82f6);">♂ Masculino</span>',
+        OTHER: '<span style="color: var(--text-violet, #8b5cf6);">⚧ Outro</span>'
       };
       genderEl.innerHTML = gMap[cGender] || gMap.OTHER;
     }
@@ -169,7 +169,8 @@ const CharacterPage = {
         rarityEl.innerHTML = `<span class="badge-rarity" style="position: static; display: inline-block; background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6); padding: 4px 10px; border-radius: 4px;">🔮 MÍTICO</span>`;
       } else {
         const rConfig = RARITY_CONFIG[cRarity] || RARITY_CONFIG.COMMON;
-        rarityEl.innerHTML = `<span style="color:${rConfig.color}; font-weight:800;">${rConfig.emoji} ${rConfig.label}</span>`;
+        const rKey = RARITY_CONFIG[cRarity] ? cRarity.toLowerCase() : 'common';
+        rarityEl.innerHTML = `<span style="color: var(--rarity-text-${rKey}, ${rConfig.color}); font-weight:800;">${rConfig.emoji} ${rConfig.label}</span>`;
       }
     }
 
@@ -197,7 +198,7 @@ const CharacterPage = {
           marriageEl.innerHTML = `💍 Casada(o) com <span style="color: #ec4899; font-weight: 800;">${escapeHtml(ownerName)}</span>`;
         }
       } else {
-        marriageEl.innerHTML = `<span style="color: #22c55e; font-weight: 800;">💍 Solteira(o) (Livre para casamento!)</span>`;
+        marriageEl.innerHTML = `<span style="color: var(--text-success, #22c55e); font-weight: 800;">💍 Solteira(o) (Livre para casamento!)</span>`;
       }
     }
 
@@ -329,7 +330,7 @@ const CharacterPage = {
       } else {
         // Personagem Solteiro
         const ctaSingle = document.createElement('div');
-        ctaSingle.style.cssText = 'font-size: 13px; font-weight: 800; color: #22c55e; padding: 6px;';
+        ctaSingle.style.cssText = 'font-size: 13px; font-weight: 800; color: var(--text-success, #22c55e); padding: 6px;';
         ctaSingle.innerHTML = '✨ Esta waifu está livre para casamento no WhatsApp via <code>!mu-roll</code>!';
         authActionsEl.appendChild(ctaSingle);
       }

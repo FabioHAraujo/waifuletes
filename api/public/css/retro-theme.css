@@ -22,12 +22,23 @@
   --accent-purple: #9333ea;
   --accent-green: #16a34a;
 
-  /* Cores de Raridade */
+  /* Cores de Raridade (bordas e badges sobre fundo escuro da foto) */
   --rarity-legendary: #eab308;
   --rarity-epic: #a855f7;
   --rarity-rare: #3b82f6;
   --rarity-uncommon: #22c55e;
   --rarity-common: #94a3b8;
+
+  /* Cores de Raridade para TEXTO sobre fundos claros (WCAG AA >= 4.5:1 sobre #fff) */
+  --rarity-text-legendary: #a16207;
+  --rarity-text-epic: #9333ea;
+  --rarity-text-rare: #1d4ed8;
+  --rarity-text-uncommon: #15803d;
+  --rarity-text-common: #475569;
+  --text-success: #15803d;
+  --text-info: #1d4ed8;
+  --text-pink: #be185d;
+  --text-violet: #7c3aed;
 
   --radius-retro: 6px;
   --font-retro: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -66,6 +77,17 @@ body.dark-mode {
   --shadow-retro: 3px 3px 0px #090514;
   --shadow-retro-hover: 5px 5px 0px #090514;
   --shadow-retro-sm: 2px 2px 0px #090514;
+
+  /* Texto de raridade sobre o roxo escuro (WCAG AA >= 4.5:1 sobre #1f1333) */
+  --rarity-text-legendary: #facc15;
+  --rarity-text-epic: #c084fc;
+  --rarity-text-rare: #60a5fa;
+  --rarity-text-uncommon: #4ade80;
+  --rarity-text-common: #cbd5e1;
+  --text-success: #4ade80;
+  --text-info: #60a5fa;
+  --text-pink: #f472b6;
+  --text-violet: #a78bfa;
 
   background-color: var(--bg-retro);
   background-image: radial-gradient(#7c3aed 1px, transparent 1px);

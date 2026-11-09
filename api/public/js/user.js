@@ -4559,7 +4559,7 @@ async function openWaifuPreview(charId, charName, charImg, series, rarity, gende
     rarityEl.innerHTML = `<span class="badge-rarity" style="position: static; display: inline-block; background: linear-gradient(135deg, #581c87, #3b0764); border: 1.5px solid #c084fc; color: #facc15; font-weight: 900; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6); padding: 4px 10px; border-radius: 4px;">🔮 MÍTICO</span>`;
   } else if (cRarity && RARITY_CONFIG[cRarity]) {
     const r = RARITY_CONFIG[cRarity];
-    rarityEl.innerHTML = `<span style="color:${r.color}; font-weight:800;">${r.emoji} ${r.label}</span>`;
+    rarityEl.innerHTML = `<span style="color: var(--rarity-text-${cRarity.toLowerCase()}, ${r.color}); font-weight:800;">${r.emoji} ${r.label}</span>`;
   } else {
     rarityEl.textContent = '';
   }
@@ -6142,7 +6142,8 @@ async function openInvestModal(charId) {
 
     const rarityEl = document.getElementById('invest-modal-char-rarity');
     if (rarityEl) {
-      rarityEl.innerHTML = `<span style="color: ${rarity.color};">${rarity.emoji} ${rarity.label}</span>`;
+      const rarityKey = RARITY_CONFIG[char.baseRarity] ? char.baseRarity.toLowerCase() : 'common';
+      rarityEl.innerHTML = `<span style="color: var(--rarity-text-${rarityKey}, ${rarity.color}); font-weight: 800;">${rarity.emoji} ${rarity.label}</span>`;
     }
 
     const cotaPriceEl = document.getElementById('invest-modal-cota-price');
