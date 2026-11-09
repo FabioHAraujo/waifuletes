@@ -2265,13 +2265,10 @@ body.modal-open .modal-box {
     line-height: 1.2 !important;
   }
 
-  /* 2. Cards: 1 por linha e badges 10% menores */
+  /* 2. Cards: grid fluido no tablet (2 colunas fixas no mobile, ver bloco <= 640px) e badges 10% menores */
   .waifu-grid {
-    grid-template-columns: 1fr !important;
-    gap: 14px !important;
-    max-width: 380px !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 12px !important;
   }
 
   .card-img-wrapper .badge-rarity,
@@ -2674,4 +2671,56 @@ body.modal-open .modal-box {
     overflow: visible !important;
   }
 
+  /* Cards: exatamente 2 colunas compactas (padrão de gachas mobile) */
+  .waifu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    max-width: none !important;
+  }
+
+  .waifu-card .card-info {
+    padding: 8px !important;
+  }
+
+  .waifu-card .card-name {
+    font-size: 13px !important;
+  }
+
+  .waifu-card .card-series {
+    font-size: 11px !important;
+  }
+
+  .waifu-card .card-actions .btn-retro {
+    min-height: 36px;
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-img-wrapper .badge-rarity,
+  .card-img-wrapper .badge-wishes,
+  .card-img-wrapper .badge-covets,
+  .card-img-wrapper .badge-collection-tag,
+  .card-img-wrapper .badge-likes,
+  .card-img-wrapper .badge-photos,
+  .card-img-wrapper .badge-keys {
+    max-width: calc(100% - 16px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-img-wrapper .badge-rarity,
+  .card-img-wrapper .badge-married-alert,
+  .card-img-wrapper .badge-married,
+  .card-img-wrapper .badge-keys,
+  .card-img-wrapper .badge-wishes,
+  .card-img-wrapper .badge-covets,
+  .card-img-wrapper .badge-collection-tag,
+  .card-img-wrapper .badge-likes,
+  .card-img-wrapper .badge-photos {
+    transform: scale(0.85) !important;
+  }
 }
