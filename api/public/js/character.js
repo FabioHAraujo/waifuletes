@@ -140,7 +140,7 @@ const CharacterPage = {
           🏆 #${cWaifuRank ? cWaifuRank : '-'}
         </span>
         ${cMudaeRank ? `
-          <span class="char-badge-tag" style="background: #3b82f6; color: #fff; font-weight: 800;" title="Rank original do Mudae">
+          <span class="char-badge-tag" style="background: #1d4ed8; color: #fff; font-weight: 800;" title="Rank original do Mudae">
             🌐 Mudae #${cMudaeRank}
           </span>
         ` : ''}
