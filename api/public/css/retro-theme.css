@@ -2431,6 +2431,36 @@ body.modal-open .modal-box {
     flex: 1 !important;
   }
 
+  /* Rótulos com largura fixa: controles alinhados na mesma coluna */
+  .filter-group > span:first-child {
+    flex: 0 0 92px !important;
+  }
+
+  .filter-group > select,
+  .filter-group > .retro-select {
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .filter-group .pill-group {
+    max-width: none !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+
+  .filter-group .pill-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-group .pill-group .retro-pill {
+    flex: 1 0 auto;
+    white-space: nowrap;
+    padding: 6px 6px;
+    font-size: 11.5px;
+    min-height: 32px;
+  }
+
   /* 6. Classificados: layout dos filtros, botão atualizar centralizado */
   #tab-market .filters-row {
     display: flex !important;
