@@ -684,10 +684,12 @@ body.dark-mode .btn-wish-active:hover {
     gap: 10px;
   }
 
+  /* !important: #private-favorites-grid define gap: 16px inline no HTML, o que
+     impedia 2 cards de 50% por linha */
   #private-favorites-grid,
   #public-favorites-grid,
   #public-mythics-grid {
-    gap: 10px;
+    gap: 10px !important;
   }
 
   #private-favorites-grid .waifu-card,
