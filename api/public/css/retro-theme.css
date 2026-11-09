@@ -2641,12 +2641,37 @@ body.modal-open .modal-box {
   }
 }
 
+/* ========================================================
+   MOBILE <= 640px: ABAS COM ROLAGEM HORIZONTAL & GRID 2 COLUNAS
+   ======================================================== */
+@media (max-width: 640px) {
+  /* Abas e subabas: segmented control em uma única linha com rolagem por toque.
+     A aba ativa é centralizada automaticamente (ver initTabScroller em api.js). */
+  .retro-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
 
-@keyframes retroModalSlideUp {
-  from {
-    transform: translateY(100%);
+  .retro-tabs::-webkit-scrollbar {
+    display: none;
   }
-  to {
-    transform: translateY(0);
+
+  .retro-tabs .retro-tab,
+  #harem-subtabs .retro-subtab,
+  .retro-subtabs .retro-subtab {
+    flex: 1 0 auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    scroll-snap-align: center;
+    overflow: visible !important;
   }
+
 }
