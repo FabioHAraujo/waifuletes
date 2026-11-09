@@ -289,6 +289,11 @@ body.dark-mode .legendary-married-alert input[type="file"] {
   gap: 10px;
 }
 
+/* Rótulos alternativos: versão curta só aparece no mobile */
+.btn-label-short {
+  display: none;
+}
+
 /* ========================================================
    BOTÕES RETRÔ
    ======================================================== */
@@ -2183,10 +2188,12 @@ body.modal-open .modal-box {
     border-top: none !important;
     border-left: none !important;
     border-right: none !important;
-    padding: 10px 12px !important;
+    padding: 8px 12px !important;
     display: flex !important;
+    flex-wrap: wrap !important;
     justify-content: space-between !important;
     align-items: center !important;
+    gap: 8px !important;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
   }
 
@@ -2208,20 +2215,37 @@ body.modal-open .modal-box {
     line-height: 1 !important;
   }
 
+  /* Barra de ferramentas horizontal: ocupa a linha inteira abaixo do logo,
+     botões com altura uniforme (touch target >= 40px) e sem overflow */
   .header-actions {
     display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: 4px !important;
-    flex-shrink: 0 !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
-  .header-actions .btn-retro {
-    width: auto !important;
-    padding: 4px 8px !important;
-    font-size: 11px !important;
+  .header-actions > .btn-retro:not(.hidden) {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
     white-space: nowrap !important;
     line-height: 1.2 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .btn-label-long {
+    display: none !important;
+  }
+
+  .btn-label-short {
+    display: inline !important;
   }
 
   /* Título do usuário unificado e enxuto em 1 linha */
@@ -2587,6 +2611,7 @@ body.modal-open .modal-box {
   }
 }
 
+
 @keyframes retroModalSlideUp {
   from {
     transform: translateY(100%);
@@ -2595,4 +2620,3 @@ body.modal-open .modal-box {
     transform: translateY(0);
   }
 }
-
