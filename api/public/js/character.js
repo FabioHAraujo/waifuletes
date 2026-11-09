@@ -387,6 +387,8 @@ const CharacterPage = {
       if (this.images.length > 1) {
         this.images.forEach((imgUrl, idx) => {
           const thumb = document.createElement('img');
+          thumb.loading = 'lazy';
+          thumb.decoding = 'async';
           thumb.src = imgUrl;
           thumb.className = `char-thumb ${idx === this.currentIndex ? 'active' : ''}`;
           thumb.onerror = () => handleImgError(thumb);

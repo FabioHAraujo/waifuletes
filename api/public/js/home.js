@@ -299,7 +299,7 @@ function createWaifuCard(char) {
 
   card.innerHTML = `
     <div class="card-img-wrapper">
-      <img src="${imgSrc}" loading="lazy" alt="${escapeHtml(char.name)}" onerror="this.onerror=null;this.src='/media/characters/default.jpg';">
+      <img decoding="async" src="${imgSrc}" loading="lazy" alt="${escapeHtml(char.name)}" onerror="this.onerror=null;this.src='/media/characters/default.jpg';">
       
       <div class="badge-rarity" style="border-color: ${rarityCfg.color}; color: ${rarityCfg.color};" title="Raridade: ${rarityCfg.label}">
         ${rarityCfg.emoji} ${rarityCfg.label}

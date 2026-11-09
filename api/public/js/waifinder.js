@@ -449,7 +449,7 @@ const Waifinder = {
 
     card.innerHTML = `
       <div class="waifinder-card-img-wrap">
-        <img class="waifinder-card-img" src="${imgUrl}" alt="${char.name}" onerror="window.handleImgError(this)">
+        <img decoding="async" class="waifinder-card-img" src="${imgUrl}" alt="${char.name}" onerror="window.handleImgError(this)">
         <div class="waifinder-card-gradient"></div>
 
         <div class="waifinder-badges-top">

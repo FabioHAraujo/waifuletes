@@ -1501,7 +1501,7 @@ function createPrivateHaremCard(entry, options = {}) {
   if (isMythic) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -1517,7 +1517,7 @@ function createPrivateHaremCard(entry, options = {}) {
   } else if (isSoulmate) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -1534,7 +1534,7 @@ function createPrivateHaremCard(entry, options = {}) {
   } else {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
         ${rarityBadgeHtml}
         ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
         ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
@@ -1696,7 +1696,7 @@ async function openChoosePhotoModal(charId) {
         const marriageImgUrl = data.marriage.url ? `${data.marriage.url}${data.marriage.url.includes('?') ? '&' : '?'}t=${Date.now()}` : '';
         marriageContainer.innerHTML = `
           <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
-            <img src="${marriageImgUrl}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 6px; border: 2.5px solid ${data.marriage.isPinned ? '#ec4899' : 'var(--border-retro)'}; box-shadow: var(--shadow-retro-sm);" onerror="handleImgError(this)">
+            <img loading="lazy" decoding="async" src="${marriageImgUrl}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 6px; border: 2.5px solid ${data.marriage.isPinned ? '#ec4899' : 'var(--border-retro)'}; box-shadow: var(--shadow-retro-sm);" onerror="handleImgError(this)">
             <div style="flex: 1; min-width: 160px;">
               <div style="font-weight: 800; font-size: 13px; color: #ec4899;">Foto Oficial do Casal 💍</div>
               <p style="font-size: 11px; color: var(--text-muted); margin: 3px 0 8px 0;">
@@ -1740,7 +1740,7 @@ async function openChoosePhotoModal(charId) {
           const item = document.createElement('div');
           item.style.cssText = `cursor: pointer; position: relative; border-radius: 6px; overflow: hidden; border: 2.5px solid ${photo.isPinned ? '#22c55e' : 'var(--border-retro)'}; background: #000; box-shadow: var(--shadow-retro-sm);`;
           item.innerHTML = `
-            <img src="${photo.url}" style="width: 100%; height: 130px; object-fit: cover; display: block;" onerror="handleImgError(this)">
+            <img loading="lazy" decoding="async" src="${photo.url}" style="width: 100%; height: 130px; object-fit: cover; display: block;" onerror="handleImgError(this)">
             <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.75); color: #fff; font-size: 10px; font-weight: 800; text-align: center; padding: 3px 2px;">
               Foto ${photo.index} ${photo.isPinned ? '✓' : ''}
             </div>
@@ -2266,7 +2266,7 @@ function renderPrivateWishlist(wishlist) {
 
       card.innerHTML = `
         <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-          <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+          <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
           <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
             ${rarity.emoji} ${rarity.label}
           </div>
@@ -2377,7 +2377,7 @@ function createPublicHaremCard(entry) {
   if (isMythic) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -2388,7 +2388,7 @@ function createPublicHaremCard(entry) {
   } else if (isSoulmate) {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
       </div>
       <div class="card-info">
         <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -2399,7 +2399,7 @@ function createPublicHaremCard(entry) {
   } else {
     card.innerHTML = `
       <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-        <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
+        <img decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)" loading="lazy">
         ${rarityBadgeHtml}
         ${entry.keys ? `<div class="badge-keys"><span>🔑</span> <span>${entry.keys}</span></div>` : ''}
         ${entry.isFavorite ? `<div class="badge-married" style="background: #ec4899; color: white; top: 8px; right: ${entry.keys ? '56px' : '8px'};">💖</div>` : ''}
@@ -2901,7 +2901,7 @@ function renderBatchAddCharactersList(entries) {
     return `
       <label class="batch-char-card ${isChecked ? 'selected' : ''}" style="display: flex; flex-direction: column; background: var(--bg-card); border: 2px solid ${isChecked ? 'var(--color-primary, #ec4899)' : 'var(--border-retro)'}; border-radius: 6px; padding: 6px; cursor: pointer; user-select: none; transition: all 0.15s ease;">
         <div style="position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 6px; overflow: hidden; border-radius: 4px; background: #000;">
-          <img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="handleImgError(this)" loading="lazy">
+          <img decoding="async" src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="handleImgError(this)" loading="lazy">
           <input type="checkbox" data-char-id="${char.id}" ${isChecked ? 'checked' : ''} onchange="toggleBatchCharSelection('${char.id}', this.checked)" style="position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; cursor: pointer; accent-color: #ec4899;">
           <span class="badge-tag badge-${rarityClass}" style="position: absolute; bottom: 4px; left: 4px; font-size: 10px; padding: 1px 4px;">${rarityLabel}</span>
         </div>
@@ -3060,7 +3060,7 @@ function renderPublicMarketListings(listings) {
 
     card.innerHTML = `
       <div class="card-img-wrapper">
-        <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+        <img loading="lazy" decoding="async" src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
         <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
           ${rarity.emoji} ${rarity.label}
         </div>
@@ -3207,7 +3207,7 @@ async function loadCatalogCharacters() {
 
       card.innerHTML = `
         <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes e fotos">
-          <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+          <img loading="lazy" decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
           ${!isMythic ? topBadgeHtml : ''}
           ${!isMythic && isMarried ? `<div class="badge-married ${spousePublicId ? 'badge-married-link' : ''}" title="${marriedTooltip}">💍</div>` : ''}
           ${!isMythic ? `
@@ -3822,7 +3822,7 @@ function renderUserPhotosGrid() {
 
     item.innerHTML = `
       <div style="aspect-ratio: 9/14; width: 100%; position: relative;">
-        <img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/media/characters/default.jpg'">
+        <img loading="lazy" decoding="async" src="${src}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/media/characters/default.jpg'">
         <span style="position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 3px;">#${idx + 1}</span>
       </div>
       <div style="padding: 4px; background: #fff; border-top: 1px solid #2d241e; display: flex; flex-direction: column; gap: 4px;">
@@ -4821,6 +4821,8 @@ function updatePreviewPhotoDisplay() {
     if (total > 1) {
       previewState.images.forEach((src, idx) => {
         const thumb = document.createElement('img');
+        thumb.loading = 'lazy';
+        thumb.decoding = 'async';
         thumb.src = src;
         thumb.style.width = '36px';
         thumb.style.height = '48px';
@@ -5163,7 +5165,7 @@ async function loadMyListings() {
 
       card.innerHTML = `
         <div class="card-img-wrapper">
-          <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+          <img loading="lazy" decoding="async" src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
           <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
             ${rarity.emoji} ${rarity.label}
           </div>
@@ -5417,7 +5419,7 @@ function createMarketListingCard(listing) {
 
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes">
-      <img src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+      <img loading="lazy" decoding="async" src="${getCharImg(char)}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
       <div class="badge-rarity" style="border-color: ${rarity.color}; color: ${rarity.color};">
         ${rarity.emoji} ${rarity.label}
       </div>
@@ -5571,7 +5573,7 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
       const sm = k >= 10;
       return `
         <label class="offer-waifu-card" title="${escapeHtml(char.name)} (${sm ? '💖' : '🔑'} ${k})">
-          <img src="${getCharImg(char)}" class="offer-waifu-img" onerror="handleImgError(this)" loading="lazy">
+          <img decoding="async" src="${getCharImg(char)}" class="offer-waifu-img" onerror="handleImgError(this)" loading="lazy">
           <input type="checkbox" name="offer-waifu-cb" value="${char.id}" style="display: none;" onchange="this.closest('.offer-waifu-card').classList.toggle('is-selected', this.checked)">
           <div class="offer-waifu-overlay">
             <span class="offer-waifu-name">${escapeHtml(char.name)}</span>
@@ -6529,7 +6531,7 @@ function createMythicCard(char) {
 
   card.innerHTML = `
     <div class="card-img-wrapper" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="Clique para ver detalhes">
-      <img src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
+      <img loading="lazy" decoding="async" src="${char.imageUrl || '/media/characters/default.jpg'}" alt="${escapeHtml(char.name)}" onerror="handleImgError(this)">
     </div>
     <div class="card-info">
       <div class="card-name" style="cursor: pointer;" onclick="openWaifuPreview('${char.id}')" title="${escapeAttr(char.name)}">${escapeHtml(char.name)}</div>
@@ -6635,7 +6637,7 @@ function renderMythicPhotoThumbnails() {
     const thumb = document.createElement('div');
     thumb.style.cssText = 'position: relative; width: 100%; aspect-ratio: 1/1; border: var(--border-retro); border-radius: 4px; overflow: hidden; background: #000;';
     thumb.innerHTML = `
-      <img src="${src}" style="width: 100%; height: 100%; object-fit: cover;">
+      <img loading="lazy" decoding="async" src="${src}" style="width: 100%; height: 100%; object-fit: cover;">
       <button type="button" onclick="removeMythicPhoto(${idx})" style="position: absolute; top: 2px; right: 2px; background: rgba(220, 38, 38, 0.85); color: #fff; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Remover foto">&times;</button>
       ${idx === 0 ? '<span style="position: absolute; bottom: 2px; left: 2px; background: #8b5cf6; color: #fff; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 2px;">Capa</span>' : ''}
     `;
@@ -6785,7 +6787,7 @@ function updateMythicPreview() {
   container.innerHTML = `
     <div class="waifu-card mythic-card anim-${animType}" style="--mythic-border-color: ${borderColor}; --mythic-glow-color: ${glowColor}; width: 100%;">
       <div class="card-img-wrapper" style="height: 240px;">
-        <img src="${photo}" alt="${escapeHtml(name)}" onerror="handleImgError(this)" style="width: 100%; height: 100%; object-fit: cover;">
+        <img loading="lazy" decoding="async" src="${photo}" alt="${escapeHtml(name)}" onerror="handleImgError(this)" style="width: 100%; height: 100%; object-fit: cover;">
       </div>
       <div class="card-info" style="padding: 10px;">
         <div class="card-name" style="font-weight: 800; font-size: 14px;">${escapeHtml(name)}</div>
