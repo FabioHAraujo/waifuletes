@@ -8,7 +8,7 @@ import {
   RARITY_BASE_WEIGHTS,
   RollBonuses,
 } from '../utils/rarityCalculator.js';
-import { config } from '../config.js';
+import { config, getLegendaryChanceCap } from '../config.js';
 
 export interface RollOptions {
   userId: string;
@@ -194,8 +194,9 @@ export class RollService {
 
       // 5. Particionamento O(1) de pesos de sorteio
       // Separa os itens com modificadores especiais (wishlist ou claimCount > 0) dos comuns
-      const specialCandidates: { id: string; weight: number }[] = [];
+      const specialCandidates: { id: string; weight: number; rarity: Rarity }[] = [];
       let specialTotalWeight = 0;
+      let specialLegWeight = 0;
 
       // Agrupa os itens normais por raridade (todos têm o mesmo peso exato)
       const normalByRarity: Record<Rarity, string[]> = {
@@ -214,8 +215,9 @@ export class RollService {
         const isMythic = Boolean((char as any).isMythic);
 
         if (isWish || claimCount > 0 || shares > 0 || isMythic) {
+          const effectiveRarity: Rarity = isMythic ? 'RARE' : char.baseRarity;
           const weight = calculateCharacterWeight({
-            baseRarity: isMythic ? 'RARE' : char.baseRarity,
+            baseRarity: effectiveRarity,
             claimCount,
             totalActiveUsersOrClaims: totalClaims,
             isWishlisted: isWish,
@@ -223,8 +225,11 @@ export class RollService {
             bonuses,
             investmentShares: shares,
           });
-          specialCandidates.push({ id: char.id, weight });
+          specialCandidates.push({ id: char.id, weight, rarity: effectiveRarity });
           specialTotalWeight += weight;
+          if (effectiveRarity === 'LEGENDARY') {
+            specialLegWeight += weight;
+          }
         } else {
           normalByRarity[char.baseRarity].push(char.id);
         }
@@ -241,6 +246,7 @@ export class RollService {
 
       const normalTierWeights: { rarity: Rarity; totalWeight: number }[] = [];
       let normalTotalWeight = 0;
+      let normalLegWeight = 0;
 
       for (const r of ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'] as Rarity[]) {
         const count = normalByRarity[r].length;
@@ -248,6 +254,44 @@ export class RollService {
           const tierWeight = count * rarityWeights[r];
           normalTierWeights.push({ rarity: r, totalWeight: tierWeight });
           normalTotalWeight += tierWeight;
+          if (r === 'LEGENDARY') {
+            normalLegWeight = tierWeight;
+          }
+        }
+      }
+
+      // Aplicação do Cap Máximo de Chance para Lendários (ex: 0.8% no roll)
+      const currentLegWeight = specialLegWeight + normalLegWeight;
+      const initialGrandTotal = specialTotalWeight + normalTotalWeight;
+      const nonLegWeight = initialGrandTotal - currentLegWeight;
+      const legCapFraction = getLegendaryChanceCap();
+
+      if (nonLegWeight > 0 && currentLegWeight > 0 && legCapFraction < 1.0) {
+        const currentLegFraction = currentLegWeight / initialGrandTotal;
+        if (currentLegFraction > legCapFraction) {
+          // targetLegWeight / (targetLegWeight + nonLegWeight) = legCapFraction
+          const targetLegWeight = (legCapFraction / (1 - legCapFraction)) * nonLegWeight;
+          const scaleFactor = targetLegWeight / currentLegWeight;
+
+          specialTotalWeight -= specialLegWeight;
+          specialLegWeight = 0;
+          for (const item of specialCandidates) {
+            if (item.rarity === 'LEGENDARY') {
+              item.weight = Math.max(1, Math.round(item.weight * scaleFactor));
+              specialLegWeight += item.weight;
+            }
+          }
+          specialTotalWeight += specialLegWeight;
+
+          normalTotalWeight -= normalLegWeight;
+          const legTier = normalTierWeights.find((t) => t.rarity === 'LEGENDARY');
+          if (legTier) {
+            legTier.totalWeight = Math.max(1, Math.round(legTier.totalWeight * scaleFactor));
+            normalLegWeight = legTier.totalWeight;
+          } else {
+            normalLegWeight = 0;
+          }
+          normalTotalWeight += normalLegWeight;
         }
       }
 

@@ -100,27 +100,43 @@ export function calculateCharacterWeight(params: WeightCalculationParams): numbe
 
   // Custom rarity multiplier / donor bonus
   const rarityMult = params.bonuses?.rarityMultipliers?.[params.baseRarity];
-  if (typeof rarityMult === 'number' && rarityMult > 0) {
-    base *= rarityMult;
-  }
 
   // Popularity factor: more claimed = harder to get
   const total = Math.max(1, params.totalActiveUsersOrClaims);
   const ratio = params.claimCount / total;
   const popularityFactor = Math.max(0.1, 1 - ratio * 0.5);
 
-  let finalWeight = base * popularityFactor;
-
   // Wishlist and StarWish multipliers (default: 1.5x and 2.0x, or custom via bonuses)
   const defaultWishMult = 1.5;
   const defaultStarMult = 2.0;
 
-  if (params.isStarWish) {
-    const starMult = params.bonuses?.starWishMultiplier ?? defaultStarMult;
-    finalWeight *= starMult;
-  } else if (params.isWishlisted) {
-    const wishMult = params.bonuses?.wishlistMultiplier ?? defaultWishMult;
-    finalWeight *= wishMult;
+  let finalWeight: number;
+
+  if (params.baseRarity === 'LEGENDARY') {
+    // Desacoplamento para Lendários: o multiplicador de wishlist incide sobre o peso base (2.5),
+    // somando com o bônus de raridade em vez de multiplicar em cascata (evita 2.5 * 10 * 20 = 500).
+    const rMult = typeof rarityMult === 'number' && rarityMult > 0 ? rarityMult : 1.0;
+    let wMult = 1.0;
+    if (params.isStarWish) {
+      wMult = params.bonuses?.starWishMultiplier ?? defaultStarMult;
+    } else if (params.isWishlisted) {
+      wMult = params.bonuses?.wishlistMultiplier ?? defaultWishMult;
+    }
+    const combinedMult = Math.max(1.0, rMult + Math.max(0, wMult - 1.0));
+    finalWeight = base * combinedMult * popularityFactor;
+  } else {
+    if (typeof rarityMult === 'number' && rarityMult > 0) {
+      base *= rarityMult;
+    }
+    let weight = base * popularityFactor;
+    if (params.isStarWish) {
+      const starMult = params.bonuses?.starWishMultiplier ?? defaultStarMult;
+      weight *= starMult;
+    } else if (params.isWishlisted) {
+      const wishMult = params.bonuses?.wishlistMultiplier ?? defaultWishMult;
+      weight *= wishMult;
+    }
+    finalWeight = weight;
   }
 
   // Multiplicador de Cotas de Investimento:

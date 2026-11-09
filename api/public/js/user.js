@@ -453,6 +453,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
+  // Pausa todos os slideshows quando a aba do navegador for minimizada ou estiver em segundo plano
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (typeof activeSlideshowCards !== 'undefined') {
+        activeSlideshowCards.forEach(card => pauseCardSlideshow(card));
+      }
+    }
+  });
+
   // Compartilhar Harém (Link limpo sem token com suporte a tema)
   const btnShare = document.getElementById('btn-share-public');
   if (btnShare) {
@@ -1063,7 +1072,7 @@ function setupEventListeners() {
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        overlay.classList.add('hidden');
+        closeModal(overlay.id);
       }
     });
   });
@@ -1074,7 +1083,7 @@ function setupEventListeners() {
       const openOverlays = Array.from(document.querySelectorAll('.modal-overlay:not(.hidden)'));
       if (openOverlays.length > 0) {
         const topModal = openOverlays[openOverlays.length - 1];
-        topModal.classList.add('hidden');
+        closeModal(topModal.id);
       }
     }
   });
@@ -1382,55 +1391,90 @@ function sortHaremCards(harem) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
-/* SLIDESHOW ESCALONADO (STAGGERED) PARA CARDS COM MÚLTIPLAS FOTOS            */
+/* ────────────────────────────────────────────────────────────────────────── */
+/* SLIDESHOW ESCALONADO E OTIMIZADO (INTERSECTION OBSERVER)                    */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-let activeSlideshowTimers = [];
+let slideshowObserver = null;
+const activeSlideshowCards = new Set();
 let slideshowStaggerOffset = 0;
 
+function getSlideshowObserver() {
+  if (slideshowObserver) return slideshowObserver;
+  if (typeof IntersectionObserver === 'undefined') return null;
+
+  slideshowObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const card = entry.target;
+      if (entry.isIntersecting) {
+        startCardSlideshow(card);
+      } else {
+        pauseCardSlideshow(card);
+      }
+    });
+  }, { rootMargin: '120px 0px' });
+
+  return slideshowObserver;
+}
+
 function clearAllCardSlideshows() {
-  activeSlideshowTimers.forEach(id => clearTimeout(id));
-  activeSlideshowTimers = [];
+  activeSlideshowCards.forEach(card => {
+    pauseCardSlideshow(card);
+    if (slideshowObserver) slideshowObserver.unobserve(card);
+    card._slideshowData = null;
+  });
+  activeSlideshowCards.clear();
   slideshowStaggerOffset = 0;
 }
 
-function initCardSlideshow(card, imgEl, imageUrls, isPinned) {
-  // Não fazer slideshow em personagens com foto fixada nos haréns ou com apenas 1 foto
-  if (isPinned) return;
-  if (!Array.isArray(imageUrls) || imageUrls.length <= 1) return;
-
-  // Pré-carrega as imagens para evitar flash em branco ou latência de rede
-  imageUrls.forEach(url => {
-    if (url) {
-      const pre = new Image();
-      pre.src = url;
+function pauseCardSlideshow(card) {
+  const data = card._slideshowData;
+  if (data) {
+    if (data.timer) {
+      clearTimeout(data.timer);
+      data.timer = null;
     }
-  });
+    if (data.imgEl) {
+      data.imgEl.classList.remove('card-img-fading');
+    }
+  }
+}
 
-  let currentIndex = 0;
-  const currentSrc = imgEl.getAttribute('src') || imgEl.src || '';
-  const matchIdx = imageUrls.findIndex(u => u && currentSrc.includes(u));
-  if (matchIdx !== -1) currentIndex = matchIdx;
+function startCardSlideshow(card) {
+  const data = card._slideshowData;
+  if (!data || data.timer) return;
+  if (!card.isConnected) {
+    pauseCardSlideshow(card);
+    activeSlideshowCards.delete(card);
+    return;
+  }
 
-  // Animações staggered: começar o timer com diferença de 1 a 2 segundos (ex: 1.1, 1.25, 1.48...)
-  const step = 1100 + ((slideshowStaggerOffset * 173 + Math.random() * 320) % 800);
+  // Se o card pertencer a um container oculto (display: none), não rodar
+  if (card.closest('.hidden')) return;
+
+  const step = 1100 + ((slideshowStaggerOffset * 173) % 800);
   slideshowStaggerOffset = (slideshowStaggerOffset + step) % 5000;
-  const initialDelay = 1000 + slideshowStaggerOffset;
+  const initialDelay = 1500 + (slideshowStaggerOffset % 3000);
 
   function cycle() {
-    if (!card.isConnected) return;
-    if (document.hidden) {
-      const t = setTimeout(cycle, 5000);
-      activeSlideshowTimers.push(t);
+    if (!card.isConnected || document.hidden || card.closest('.hidden')) {
+      data.timer = null;
       return;
     }
 
+    const { imgEl, imageUrls } = data;
+    data.currentIndex = (data.currentIndex + 1) % imageUrls.length;
+    const nextUrl = imageUrls[data.currentIndex];
+
     // Fade-out suave
     imgEl.classList.add('card-img-fading');
-    const fadeTimer = setTimeout(() => {
-      if (!card.isConnected) return;
-      currentIndex = (currentIndex + 1) % imageUrls.length;
-      imgEl.src = imageUrls[currentIndex];
+    data.timer = setTimeout(() => {
+      if (!card.isConnected || card.closest('.hidden')) {
+        data.timer = null;
+        return;
+      }
+
+      imgEl.src = nextUrl;
 
       let restored = false;
       const restore = () => {
@@ -1443,15 +1487,39 @@ function initCardSlideshow(card, imgEl, imageUrls, isPinned) {
       imgEl.onerror = restore;
       setTimeout(restore, 120);
 
-      // Próxima foto a cada 5 segundos
-      const nextTimer = setTimeout(cycle, 5000);
-      activeSlideshowTimers.push(nextTimer);
-    }, 350);
-    activeSlideshowTimers.push(fadeTimer);
+      // Próxima foto a cada 6 segundos apenas enquanto visível na tela
+      data.timer = setTimeout(cycle, 6000);
+    }, 320);
   }
 
-  const firstTimer = setTimeout(cycle, initialDelay);
-  activeSlideshowTimers.push(firstTimer);
+  data.timer = setTimeout(cycle, initialDelay);
+}
+
+function initCardSlideshow(card, imgEl, imageUrls, isPinned) {
+  // Não fazer slideshow em personagens com foto fixada nos haréns ou com apenas 1 foto
+  if (isPinned) return;
+  if (!Array.isArray(imageUrls) || imageUrls.length <= 1) return;
+
+  let currentIndex = 0;
+  const currentSrc = imgEl.getAttribute('src') || imgEl.src || '';
+  const matchIdx = imageUrls.findIndex(u => u && currentSrc.includes(u));
+  if (matchIdx !== -1) currentIndex = matchIdx;
+
+  card._slideshowData = {
+    imgEl,
+    imageUrls,
+    currentIndex,
+    timer: null,
+  };
+
+  activeSlideshowCards.add(card);
+
+  const observer = getSlideshowObserver();
+  if (observer) {
+    observer.observe(card);
+  } else {
+    startCardSlideshow(card);
+  }
 }
 
 function createPrivateHaremCard(entry, options = {}) {
@@ -4193,8 +4261,15 @@ function closeModal(id) {
   if (id === 'modal-mythic-edit' && typeof cancelMythicCrop === 'function') {
     cancelMythicCrop();
   }
-  const el = document.getElementById(id);
-  if (el) el.classList.add('hidden');
+  if (id === 'modal-suggest-character' && typeof resetSuggestCharacterModal === 'function') {
+    resetSuggestCharacterModal();
+  }
+  if (id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  } else {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.add('hidden'));
+  }
 
   const hasOpenModals = Boolean(document.querySelector('.modal-overlay:not(.hidden)'));
   if (!hasOpenModals) {
@@ -4889,6 +4964,15 @@ function activateMainTab(tabId, updateHash = true) {
   const activeContent = document.getElementById(tabId);
   if (activeContent) activeContent.classList.remove('hidden');
 
+  // Pausa slideshows de cards que ficaram em abas ocultas
+  if (typeof activeSlideshowCards !== 'undefined' && activeSlideshowCards.size > 0) {
+    activeSlideshowCards.forEach(card => {
+      if (card.closest('.hidden')) {
+        pauseCardSlideshow(card);
+      }
+    });
+  }
+
   if (updateHash) {
     if (tabId === 'tab-catalog') {
       const activeSub = document.querySelector('#catalog-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-catalog-characters';
@@ -4926,6 +5010,15 @@ function activateSubTab(subtabsContainerId, subtabId, updateHash = true) {
     tabContent.querySelectorAll('.subtab-content').forEach(c => c.classList.add('hidden'));
     const activeSub = document.getElementById(subtabId);
     if (activeSub) activeSub.classList.remove('hidden');
+
+    // Pausa slideshows de cards que ficaram em subabas ocultas
+    if (typeof activeSlideshowCards !== 'undefined' && activeSlideshowCards.size > 0) {
+      activeSlideshowCards.forEach(card => {
+        if (card.closest('.hidden')) {
+          pauseCardSlideshow(card);
+        }
+      });
+    }
   }
 
   if (updateHash) {

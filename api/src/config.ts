@@ -37,6 +37,7 @@ const envSchema = z.object({
   ROLL_MAX_BASE: z.coerce.number().default(9),
   ROLL_REGEN_SECONDS: z.coerce.number().default(300), // 5 min
   ROLL_REGEN_ACCEL_FACTOR: z.coerce.number().default(20), // Dividido por 1000 (20 = 0.020)
+  ROLL_LEGENDARY_CHANCE_CAP: z.coerce.number().default(80), // 0 a 10000 (80 = 0.80%, 1 = 0.01%, 10000 = 10%)
 
   SOULMATE_KEYS_REQUIRED: z.coerce.number().default(10),
   WISHLIST_MAX_ITEMS: z.coerce.number().default(1000).transform((val) => Math.max(val, 1000)),
@@ -88,6 +89,27 @@ if (process.env.NODE_ENV === 'production') {
   if (apiKeys.length === 0 || apiKeys.every((k) => k.length < 16)) {
     console.warn('⚠️ AVISO DE SEGURANÇA: Chaves de API ausentes ou muito curtas em ambiente de produção!');
   }
+}
+
+/**
+ * Retorna a fração decimal correspondente ao cap máximo de chance de Lendários no roll (0.0 a 1.0).
+ * Escala configurável de 0 a 10000:
+ * - 0: Desativado (1.0 = 100%)
+ * - 1 a 100: interpreta 1 = 0.01% (ex: 80 = 0.80% = 0.008)
+ * - 101 a 10000: interpreta escala onde 10000 = 10% (ex: 800 = 0.80% = 0.008, 10000 = 10% = 0.10)
+ */
+export function getLegendaryChanceCap(): number {
+  const val = config.ROLL_LEGENDARY_CHANCE_CAP;
+  if (!val || val <= 0) return 1.0;
+  let percent: number;
+  if (val <= 100) {
+    percent = val * 0.01;
+  } else if (val <= 10000) {
+    percent = val / 1000;
+  } else {
+    percent = 10.0;
+  }
+  return Math.min(0.10, Math.max(0.0001, percent / 100));
 }
 
 export type Config = typeof config;

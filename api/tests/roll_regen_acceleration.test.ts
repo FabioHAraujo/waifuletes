@@ -61,6 +61,9 @@ describe('Aceleração de Regeneração de Rolls (Diminishing Returns)', () => {
   let service: CooldownService;
 
   beforeEach(() => {
+    (config as any).ROLL_REGEN_SECONDS = 300;
+    (config as any).ROLL_MAX_BASE = 9;
+    (config as any).ROLL_REGEN_ACCEL_FACTOR = 20;
     mockRedis = new MockRedis();
     service = new CooldownService(mockRedis as any);
   });

@@ -712,6 +712,8 @@ body.dark-mode .btn-wish-active:hover {
   flex-direction: column;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 380px;
 }
 
 .waifu-card.rarity-common {
@@ -2045,11 +2047,6 @@ body.dark-mode .btn-card-report:hover {
    ======================================================== */
 body.modal-open {
   overflow: hidden !important;
-  touch-action: none !important;
-}
-
-body.modal-open .modal-box {
-  touch-action: auto !important;
 }
 
 /* ========================================================
@@ -2621,14 +2618,41 @@ body.modal-open .modal-box {
     border-color: #10b981 !important;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.35) !important;
   }
-}
 
-@keyframes retroModalSlideUp {
-  from {
-    transform: translateY(100%);
+  /* Otimização de Performance Mobile: Prevenir congelamento de GPU / ANR por dezenas de animações contínuas */
+  .waifu-card {
+    content-visibility: auto !important;
+    contain-intrinsic-size: auto 380px !important;
   }
-  to {
-    transform: translateY(0);
+
+  .waifu-card.soulmate-card {
+    animation: none !important;
+    border: 2px solid #ec4899 !important;
+    box-shadow: 0 0 10px rgba(236, 72, 153, 0.45) !important;
+  }
+
+  .waifu-card.soulmate-card::before,
+  .waifu-card.mythic-card.anim-spin::before {
+    animation: none !important;
+    display: none !important;
+  }
+
+  .waifu-card.soulmate-card .card-img-wrapper img,
+  .waifu-card.mythic-card .card-img-wrapper img {
+    animation: none !important;
+    will-change: auto !important;
+  }
+
+  .waifu-card.soulmate-card .card-img-wrapper::after,
+  .waifu-card.mythic-card .card-img-wrapper::after {
+    animation: none !important;
+    display: none !important;
+  }
+
+  .waifu-card.mythic-card {
+    animation: none !important;
+    border: 2px solid var(--mythic-border-color, #ffd700) !important;
+    box-shadow: 0 0 12px var(--mythic-glow-color, rgba(168, 85, 247, 0.5)) !important;
   }
 }
 
