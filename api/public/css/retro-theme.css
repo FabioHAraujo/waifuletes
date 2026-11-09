@@ -2242,14 +2242,6 @@ body.modal-open .modal-box {
     text-overflow: ellipsis !important;
   }
 
-  .btn-label-long {
-    display: none !important;
-  }
-
-  .btn-label-short {
-    display: inline !important;
-  }
-
   /* Título do usuário unificado e enxuto em 1 linha */
   .hero-section#user-header {
     margin: 0 0 10px 0 !important;
@@ -2644,6 +2636,15 @@ body.modal-open .modal-box {
    MOBILE <= 640px: ABAS COM ROLAGEM HORIZONTAL & GRID 2 COLUNAS
    ======================================================== */
 @media (max-width: 640px) {
+  /* Header: rótulos curtos nos botões para caberem em uma única linha */
+  .btn-label-long {
+    display: none !important;
+  }
+
+  .btn-label-short {
+    display: inline !important;
+  }
+
   /* Abas e subabas: segmented control em uma única linha com rolagem por toque.
      A aba ativa é centralizada automaticamente (ver initTabScroller em api.js). */
   .retro-tabs {
