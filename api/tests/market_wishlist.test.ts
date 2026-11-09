@@ -224,4 +224,70 @@ describe('🛍️ Wishlist nos Classificados & Badge À Venda', () => {
     expect(resultAll.data.removedCount).toBe(1);
     expect(resultAll.data.message).not.toContain('com você');
   });
+
+  it('MarketService.getUserSentOffers deve retornar todas as ofertas do usuário ordenadas por data desc sem trava de 15 dias', async () => {
+    let capturedFindManyArgs: any = null;
+
+    const mockPrisma: any = {
+      marketOffer: {
+        findMany: async (args: any) => {
+          capturedFindManyArgs = args;
+          return [
+            {
+              id: 'offer_new',
+              buyerId: 'user_buyer_1',
+              listingId: 'listing_1',
+              createdAt: new Date('2026-11-09T18:00:00Z'),
+              status: 'PENDING',
+              offeredItems: { zinthos: 500 },
+              listing: {
+                id: 'listing_1',
+                character: {
+                  id: 'char_1',
+                  name: 'Asuka',
+                  series: 'Evangelion',
+                  baseRarity: 'LEGENDARY',
+                  imageUrls: ['asuka.png'],
+                },
+                user: { id: 'seller_1', name: 'Shinji', publicId: 'shinji_pub' },
+              },
+            },
+            {
+              id: 'offer_old',
+              buyerId: 'user_buyer_1',
+              listingId: 'listing_2',
+              createdAt: new Date('2026-09-01T12:00:00Z'), // Mais de 60 dias atrás
+              status: 'ACCEPTED',
+              offeredItems: { isFree: true },
+              listing: {
+                id: 'listing_2',
+                character: {
+                  id: 'char_2',
+                  name: 'Rei',
+                  series: 'Evangelion',
+                  baseRarity: 'RARE',
+                  imageUrls: ['rei.png'],
+                },
+                user: { id: 'seller_2', name: 'Gendo', publicId: 'gendo_pub' },
+              },
+            },
+          ];
+        },
+      },
+    };
+
+    const marketService = new MarketService(mockPrisma);
+    const offers = await marketService.getUserSentOffers('user_buyer_1');
+
+    // Valida que busca APENAS por buyerId sem restrição de data (sem createdAt: { gte: ... })
+    expect(capturedFindManyArgs.where).toEqual({ buyerId: 'user_buyer_1' });
+    expect(capturedFindManyArgs.orderBy).toEqual({ createdAt: 'desc' });
+
+    // Valida que retornou todas as ofertas (incluindo a de 60 dias atrás)
+    expect(offers).toHaveLength(2);
+    expect(offers[0].id).toBe('offer_new');
+    expect(offers[0].listing.character.name).toBe('Asuka');
+    expect(offers[1].id).toBe('offer_old');
+    expect(offers[1].listing.character.name).toBe('Rei');
+  });
 });

@@ -374,15 +374,12 @@ export class MarketService {
   }
 
   /**
-   * Retorna todas as ofertas enviadas pelo usuário nos últimos 15 dias
+   * Retorna todas as ofertas enviadas pelo usuário (ordenadas da mais recente para a mais antiga)
    */
   async getUserSentOffers(buyerId: string) {
-    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
-
     const offers = await this.prisma.marketOffer.findMany({
       where: {
         buyerId,
-        createdAt: { gte: fifteenDaysAgo },
       },
       orderBy: { createdAt: 'desc' },
       include: {

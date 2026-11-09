@@ -480,7 +480,7 @@ function setupEventListeners() {
     });
   });
 
-  // Alternância de subabas do painel privado (Catálogo e Harém)
+  // Alternância de subabas do painel privado (Catálogo, Harém e Classificados)
   const privateSubtabs = document.querySelectorAll('#private-panel .retro-subtabs .retro-subtab[data-subtab]');
   privateSubtabs.forEach(subtab => {
     subtab.addEventListener('click', () => {
@@ -495,6 +495,13 @@ function setupEventListeners() {
         loadUserSuggestions();
       } else if (targetId === 'subtab-harem-mythics') {
         loadUserMythics();
+      } else if (targetId === 'subtab-market-browse') {
+        loadWishlistMarket();
+        loadGlobalMarket();
+      } else if (targetId === 'subtab-market-my-listings') {
+        loadMyListings();
+      } else if (targetId === 'subtab-market-sent-offers') {
+        loadMySentOffers();
       }
     });
   });
@@ -1046,6 +1053,37 @@ function setupEventListeners() {
 
   // Botão de submeter proposta de oferta
   document.getElementById('btn-submit-offer')?.addEventListener('click', submitMarketOffer);
+
+  // Busca de waifus no modal de oferta
+  const offerWaifusSearchInput = document.getElementById('offer-waifus-search-input');
+  if (offerWaifusSearchInput) {
+    offerWaifusSearchInput.addEventListener('input', () => {
+      filterOfferWaifus();
+    });
+  }
+  document.getElementById('btn-clear-offer-waifus-search')?.addEventListener('click', () => {
+    clearOfferWaifusSearch();
+  });
+
+  // Paginação e atualização de ofertas enviadas
+  document.getElementById('btn-my-offers-prev')?.addEventListener('click', () => {
+    if (mySentOffersState.page > 1) {
+      mySentOffersState.page--;
+      renderMySentOffersPage();
+    }
+  });
+
+  document.getElementById('btn-my-offers-next')?.addEventListener('click', () => {
+    const totalPages = Math.ceil(mySentOffersState.items.length / (mySentOffersState.pageSize || 20));
+    if (mySentOffersState.page < totalPages) {
+      mySentOffersState.page++;
+      renderMySentOffersPage();
+    }
+  });
+
+  document.getElementById('btn-refresh-my-offers')?.addEventListener('click', () => {
+    loadMySentOffers();
+  });
 
   // Tag manager no modal de sugestão
   document.getElementById('btn-add-suggest-tag')?.addEventListener('click', () => addSuggestTag());
@@ -4987,7 +5025,10 @@ function activateMainTab(tabId, updateHash = true) {
       else if (activeSub === 'subtab-harem-settings') updateUrlHash('harem', 'configuracoes');
       else updateUrlHash('harem', 'casados');
     } else if (tabId === 'tab-market') {
-      updateUrlHash('classificados');
+      const activeSub = document.querySelector('#market-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-market-browse';
+      if (activeSub === 'subtab-market-my-listings') updateUrlHash('classificados', 'meus-anuncios');
+      else if (activeSub === 'subtab-market-sent-offers') updateUrlHash('classificados', 'ofertas-enviadas');
+      else updateUrlHash('classificados', 'geral');
     } else if (tabId === 'tab-notifications') {
       updateUrlHash('notificacoes');
     }
@@ -4995,7 +5036,7 @@ function activateMainTab(tabId, updateHash = true) {
 }
 
 /**
- * Ativa uma subaba interna (Catálogo ou Harém)
+ * Ativa uma subaba interna (Catálogo, Harém ou Classificados)
  */
 function activateSubTab(subtabsContainerId, subtabId, updateHash = true) {
   const container = document.getElementById(subtabsContainerId);
@@ -5028,6 +5069,9 @@ function activateSubTab(subtabsContainerId, subtabId, updateHash = true) {
     else if (subtabId === 'subtab-harem-mythics') updateUrlHash('harem', 'miticos');
     else if (subtabId === 'subtab-harem-wishlist') updateUrlHash('harem', 'wishlist');
     else if (subtabId === 'subtab-harem-settings') updateUrlHash('harem', 'configuracoes');
+    else if (subtabId === 'subtab-market-browse') updateUrlHash('classificados', 'geral');
+    else if (subtabId === 'subtab-market-my-listings') updateUrlHash('classificados', 'meus-anuncios');
+    else if (subtabId === 'subtab-market-sent-offers') updateUrlHash('classificados', 'ofertas-enviadas');
   }
 }
 
@@ -5073,6 +5117,8 @@ function switchTab(tabId, subtabId = null) {
   } else if (tabId === 'tab-rankings') {
     loadRankings();
   } else if (tabId === 'tab-market') {
+    const targetSub = subtabId || document.querySelector('#market-subtabs .retro-subtab.active')?.dataset.subtab || 'subtab-market-browse';
+    activateSubTab('market-subtabs', targetSub, true);
     loadMarketTab();
   } else if (tabId === 'tab-notifications') {
     loadUserNotifications();
@@ -5131,6 +5177,13 @@ function navigateToHash(hash) {
     activateSubTab('harem-subtabs', 'subtab-harem-settings', false);
   } else if (mainPart === 'classificados' || mainPart === 'mercado' || mainPart === 'market') {
     activateMainTab('tab-market', false);
+    if (subPart === 'meus-anuncios' || subPart === 'anuncios' || subPart === 'my-listings') {
+      activateSubTab('market-subtabs', 'subtab-market-my-listings', false);
+    } else if (subPart === 'ofertas-enviadas' || subPart === 'ofertas' || subPart === 'sent-offers') {
+      activateSubTab('market-subtabs', 'subtab-market-sent-offers', false);
+    } else {
+      activateSubTab('market-subtabs', 'subtab-market-browse', false);
+    }
     loadMarketTab();
   } else if (mainPart === 'notificacoes' || mainPart === 'notifications') {
     activateMainTab('tab-notifications', false);
@@ -5227,13 +5280,17 @@ async function loadMyListings() {
   const grid = document.getElementById('my-listings-grid');
   if (!grid) return;
 
+  const countBadge = document.getElementById('my-listings-count');
+
   try {
     const res = await Api.get(`/api/web/user/${encodeURIComponent(userPublicId)}/market/my-listings?token=${encodeURIComponent(userSessionToken)}`);
     if (!res.success || !Array.isArray(res.data) || res.data.length === 0) {
+      if (countBadge) countBadge.textContent = '0';
       grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted);">Você não possui nenhum anúncio ativo no momento. Vá ao seu Harém e clique em "Vender" para anunciar!</div>';
       return;
     }
 
+    if (countBadge) countBadge.textContent = res.data.length;
     grid.innerHTML = '';
     res.data.forEach(listing => {
       const char = listing.character;
@@ -5657,6 +5714,18 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
     const c = item.character;
     return !c?.isMythic && c?.rarity !== 'MYTHIC' && c?.baseRarity !== 'MYTHIC';
   });
+
+  const offerSearchInput = document.getElementById('offer-waifus-search-input');
+  if (offerSearchInput) offerSearchInput.value = '';
+  const clearSearchBtn = document.getElementById('btn-clear-offer-waifus-search');
+  if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
+  const emptySearchEl = document.getElementById('offer-waifus-empty-search');
+  if (emptySearchEl) emptySearchEl.classList.add('hidden');
+  const searchContainer = document.getElementById('offer-waifus-search-container');
+  if (searchContainer) {
+    searchContainer.style.display = harem.length === 0 ? 'none' : '';
+  }
+
   if (harem.length === 0) {
     waifusList.innerHTML = '<div style="grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); padding: 8px;">Você não possui waifus no harém para oferecer.</div>';
   } else {
@@ -5665,7 +5734,7 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
       const k = item.keys || 1;
       const sm = k >= 10;
       return `
-        <label class="offer-waifu-card" title="${escapeHtml(char.name)} (${sm ? '💖' : '🔑'} ${k})">
+        <label class="offer-waifu-card" title="${escapeHtml(char.name)} (${sm ? '💖' : '🔑'} ${k})" data-name="${escapeAttr(char.name || '')}" data-series="${escapeAttr(char.series || '')}">
           <img decoding="async" src="${getCharImg(char)}" class="offer-waifu-img" onerror="handleImgError(this)" loading="lazy">
           <input type="checkbox" name="offer-waifu-cb" value="${char.id}" style="display: none;" onchange="this.closest('.offer-waifu-card').classList.toggle('is-selected', this.checked)">
           <div class="offer-waifu-overlay">
@@ -5786,6 +5855,51 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
   }
 
   openModal('modal-market-offer');
+}
+
+function filterOfferWaifus() {
+  const searchInput = document.getElementById('offer-waifus-search-input');
+  const clearBtn = document.getElementById('btn-clear-offer-waifus-search');
+  const emptyEl = document.getElementById('offer-waifus-empty-search');
+  const listEl = document.getElementById('offer-waifus-list');
+  if (!searchInput || !listEl) return;
+
+  const query = (searchInput.value || '').trim();
+  if (clearBtn) {
+    clearBtn.classList.toggle('hidden', !query);
+  }
+
+  const cards = listEl.querySelectorAll('.offer-waifu-card');
+  let visibleCount = 0;
+
+  cards.forEach(card => {
+    const name = card.dataset.name || '';
+    const series = card.dataset.series || '';
+    const match = matchesTextFilter(query, name, series);
+    if (match) {
+      card.style.display = '';
+      visibleCount++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  if (emptyEl) {
+    if (cards.length > 0 && visibleCount === 0) {
+      emptyEl.classList.remove('hidden');
+    } else {
+      emptyEl.classList.add('hidden');
+    }
+  }
+}
+
+function clearOfferWaifusSearch() {
+  const searchInput = document.getElementById('offer-waifus-search-input');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus();
+  }
+  filterOfferWaifus();
 }
 
 function adjustOfferFishGroupQty(idx, delta, max) {
@@ -5967,61 +6081,122 @@ async function submitMarketOffer() {
   }
 }
 
+let mySentOffersState = {
+  items: [],
+  page: 1,
+  pageSize: 20,
+};
+
 async function loadMySentOffers() {
   const tbody = document.getElementById('tbody-my-offers');
   if (!tbody) return;
 
+  const auth = getActiveAuthUser();
+  const token = auth.token || userSessionToken;
+  const pId = auth.publicId || userPublicId || 'token-session';
+  if (!token) return;
+
   try {
-    const res = await Api.get(`/api/web/user/${encodeURIComponent(userPublicId)}/market/my-offers?token=${encodeURIComponent(userSessionToken)}`);
-    if (!res.success || !Array.isArray(res.data) || res.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Você não enviou nenhuma oferta nos últimos 15 dias.</td></tr>';
+    const res = await Api.get(`/api/web/user/${encodeURIComponent(pId)}/market/my-offers?token=${encodeURIComponent(token)}`);
+    if (!res.success || !Array.isArray(res.data)) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--accent-red); padding: 20px;">Erro ao carregar histórico de ofertas.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = res.data.map(offer => {
-      const dateStr = new Date(offer.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-      const charName = offer.listing?.character?.name || 'Personagem';
-      const series = offer.listing?.character?.series ? ` (${escapeHtml(offer.listing.character.series)})` : '';
-      const seller = offer.listing?.user?.name || 'Vendedor';
+    mySentOffersState.items = res.data;
+    // Sempre a última oferta enviada (mais recente) no topo
+    mySentOffersState.items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      const offered = offer.offeredItems || {};
-      let summary = '';
-      if (offered.isFree) {
-        summary = '🎁 Pedido de graça (Doação)';
-      } else {
-        const parts = [];
-        if (Array.isArray(offered.waifuIds) && offered.waifuIds.length > 0) parts.push(`${offered.waifuIds.length} waifu(s)`);
-        if (Array.isArray(offered.fishes) && offered.fishes.length > 0) parts.push(`${offered.fishes.length} peixe(s)`);
-        if (Array.isArray(offered.fishingBuffs) && offered.fishingBuffs.length > 0) parts.push(`${offered.fishingBuffs.length} buff(s)`);
-        if (Array.isArray(offered.farmItems) && offered.farmItems.length > 0) {
-          const farmCount = offered.farmItems.reduce((acc, it) => acc + (Number(it.amount) || 1), 0);
-          parts.push(`${farmCount} item(ns) da fazenda`);
-        }
-        if (offered.zinthos && Number(offered.zinthos) > 0) parts.push(`🪙 ${Number(offered.zinthos).toLocaleString('pt-BR')} zinthos`);
-        summary = parts.join(', ') || 'Nenhum item';
-      }
+    const countBadge = document.getElementById('my-sent-offers-count');
+    if (countBadge) countBadge.textContent = mySentOffersState.items.length;
 
-      let statusBadge = `<span class="badge-tag" style="background: #eab308; color: #000;">Pendente</span>`;
-      if (offer.status === 'ACCEPTED') statusBadge = `<span class="badge-tag" style="background: #22c55e; color: #fff;">Aceita 🎉</span>`;
-      if (offer.status === 'REJECTED') statusBadge = `<span class="badge-tag" style="background: #64748b; color: #fff;">Negada 👎</span>`;
-      if (offer.status === 'CANCELLED') {
-        const reasonTooltip = offer.cancelReason ? ` - Motivo: ${escapeHtml(offer.cancelReason)}` : '';
-        statusBadge = `<span class="badge-tag" style="background: #ef4444; color: #fff;" title="${escapeHtml(offer.cancelReason || '')}">Cancelada ⚠️${reasonTooltip}</span>`;
-      }
-
-      return `
-        <tr>
-          <td style="white-space: nowrap; font-size: 12px;">${dateStr}</td>
-          <td style="font-weight: 700;">${escapeHtml(charName)}${series}</td>
-          <td>${escapeHtml(seller)}</td>
-          <td style="font-size: 13px;">${summary}</td>
-          <td>${statusBadge}</td>
-        </tr>
-      `;
-    }).join('');
+    renderMySentOffersPage();
   } catch (err) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--accent-red); padding: 20px;">Erro ao carregar histórico de ofertas.</td></tr>';
   }
+}
+
+function renderMySentOffersPage() {
+  const tbody = document.getElementById('tbody-my-offers');
+  if (!tbody) return;
+
+  const total = mySentOffersState.items.length;
+  const pageSize = mySentOffersState.pageSize || 20;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (mySentOffersState.page > totalPages) mySentOffersState.page = totalPages;
+  if (mySentOffersState.page < 1) mySentOffersState.page = 1;
+
+  const totalCountEl = document.getElementById('my-offers-total-count');
+  if (totalCountEl) {
+    totalCountEl.textContent = `${total} oferta${total === 1 ? '' : 's'}`;
+  }
+  const pageIndicator = document.getElementById('my-offers-page-indicator');
+  if (pageIndicator) {
+    pageIndicator.textContent = `${mySentOffersState.page} / ${totalPages}`;
+  }
+  const btnPrev = document.getElementById('btn-my-offers-prev');
+  if (btnPrev) {
+    btnPrev.disabled = mySentOffersState.page <= 1;
+  }
+  const btnNext = document.getElementById('btn-my-offers-next');
+  if (btnNext) {
+    btnNext.disabled = mySentOffersState.page >= totalPages;
+  }
+
+  if (total === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Você não enviou nenhuma oferta até o momento.</td></tr>';
+    return;
+  }
+
+  const startIdx = (mySentOffersState.page - 1) * pageSize;
+  const pageItems = mySentOffersState.items.slice(startIdx, startIdx + pageSize);
+
+  tbody.innerHTML = pageItems.map(offer => {
+    const dateStr = new Date(offer.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const charName = offer.listing?.character?.name || 'Personagem';
+    const series = offer.listing?.character?.series ? ` (${escapeHtml(offer.listing.character.series)})` : '';
+    const seller = offer.listing?.user?.name || 'Vendedor';
+
+    const offered = offer.offeredItems || {};
+    let summary = '';
+    if (offered.isFree) {
+      summary = '🎁 Pedido de graça (Doação)';
+    } else {
+      const parts = [];
+      if (Array.isArray(offered.waifus) && offered.waifus.length > 0) {
+        parts.push(`${offered.waifus.length} waifu(s)`);
+      } else if (Array.isArray(offered.waifuIds) && offered.waifuIds.length > 0) {
+        parts.push(`${offered.waifuIds.length} waifu(s)`);
+      }
+      if (Array.isArray(offered.fishes) && offered.fishes.length > 0) parts.push(`${offered.fishes.length} peixe(s)`);
+      if (Array.isArray(offered.fishingBuffs) && offered.fishingBuffs.length > 0) parts.push(`${offered.fishingBuffs.length} buff(s)`);
+      if (Array.isArray(offered.farmItems) && offered.farmItems.length > 0) {
+        const farmCount = offered.farmItems.reduce((acc, it) => acc + (Number(it.amount) || 1), 0);
+        parts.push(`${farmCount} item(ns) da fazenda`);
+      }
+      if (offered.zinthos && Number(offered.zinthos) > 0) parts.push(`🪙 ${Number(offered.zinthos).toLocaleString('pt-BR')} zinthos`);
+      summary = parts.join(', ') || 'Nenhum item';
+    }
+
+    let statusBadge = `<span class="badge-tag" style="background: #eab308; color: #000;">Pendente</span>`;
+    if (offer.status === 'ACCEPTED') statusBadge = `<span class="badge-tag" style="background: #22c55e; color: #fff;">Aceita 🎉</span>`;
+    if (offer.status === 'REJECTED') statusBadge = `<span class="badge-tag" style="background: #64748b; color: #fff;">Negada 👎</span>`;
+    if (offer.status === 'CANCELLED') {
+      const reasonTooltip = offer.cancelReason ? ` - Motivo: ${escapeHtml(offer.cancelReason)}` : '';
+      statusBadge = `<span class="badge-tag" style="background: #ef4444; color: #fff;" title="${escapeHtml(offer.cancelReason || '')}">Cancelada ⚠️${reasonTooltip}</span>`;
+    }
+
+    return `
+      <tr>
+        <td style="white-space: nowrap; font-size: 12px;">${dateStr}</td>
+        <td style="font-weight: 700;">${escapeHtml(charName)}${series}</td>
+        <td>${escapeHtml(seller)}</td>
+        <td style="font-size: 13px;">${summary}</td>
+        <td>${statusBadge}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // Funções de controle de Zinthos no modal de oferta
