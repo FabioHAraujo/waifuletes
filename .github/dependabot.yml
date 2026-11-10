@@ -17,7 +17,3 @@ updates:
       - dependency-name: "zod"
         update-types: ["version-update:semver-major"]
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
