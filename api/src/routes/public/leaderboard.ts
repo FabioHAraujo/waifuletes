@@ -183,32 +183,66 @@ export const publicLeaderboardRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!topHarem || topHarem.length === 0) {
         topHarem = await fastify.prisma.$queryRaw`
+          WITH user_harem_stats AS (
+            SELECT 
+              u.id,
+              u.name,
+              u.platform,
+              count(h.id) FILTER (WHERE c.is_mythic IS NOT TRUE)::int as "totalMarriages",
+              count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON' AND c.is_mythic IS NOT TRUE)::int as "commonCount",
+              count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON' AND c.is_mythic IS NOT TRUE)::int as "uncommonCount",
+              count(h.id) FILTER (WHERE c."baseRarity" = 'RARE' AND c.is_mythic IS NOT TRUE)::int as "rareCount",
+              count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC' AND c.is_mythic IS NOT TRUE)::int as "epicCount",
+              count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY' AND c.is_mythic IS NOT TRUE)::int as "legendaryCount",
+              coalesce(sum(h.keys) FILTER (WHERE c.is_mythic IS NOT TRUE), 0)::int as "totalKeys",
+              (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) as "totalSoulmates"
+            FROM users u
+            JOIN harem_entries h ON h."userId" = u.id
+            JOIN characters c ON c.id = h."characterId"
+            WHERE u.id != 'test_web_user_1' AND LOWER(u.name) NOT LIKE '%jogador web teste%'
+            GROUP BY u.id, u.name, u.platform
+          )
           SELECT 
-            u.id,
-            u.name,
-            u.platform,
-            count(h.id) FILTER (WHERE c.is_mythic IS NOT TRUE)::int as "totalMarriages",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON' AND c.is_mythic IS NOT TRUE)::int as "commonCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON' AND c.is_mythic IS NOT TRUE)::int as "uncommonCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'RARE' AND c.is_mythic IS NOT TRUE)::int as "rareCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC' AND c.is_mythic IS NOT TRUE)::int as "epicCount",
-            count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY' AND c.is_mythic IS NOT TRUE)::int as "legendaryCount",
-            coalesce(sum(h.keys) FILTER (WHERE c.is_mythic IS NOT TRUE), 0)::int as "totalKeys",
-            (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) as "totalSoulmates",
+            id,
+            name,
+            platform,
+            "totalMarriages",
+            "commonCount",
+            "uncommonCount",
+            "rareCount",
+            "epicCount",
+            "legendaryCount",
+            "totalKeys",
+            "totalSoulmates",
             (
-              count(h.id) FILTER (WHERE c."baseRarity" = 'COMMON' AND c.is_mythic IS NOT TRUE) * 2 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'UNCOMMON' AND c.is_mythic IS NOT TRUE) * 6 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'RARE' AND c.is_mythic IS NOT TRUE) * 20 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'EPIC' AND c.is_mythic IS NOT TRUE) * 60 +
-              count(h.id) FILTER (WHERE c."baseRarity" = 'LEGENDARY' AND c.is_mythic IS NOT TRUE) * 200 +
-              coalesce(sum(h.keys) FILTER (WHERE c.is_mythic IS NOT TRUE), 0) * 1 +
-              (SELECT count(*)::int FROM soulmates s WHERE s."userId" = u.id) * 3000
+              -- Comum com Diminishing Returns (até 200 @ 2pts, 201-600 @ 1pt, 601+ @ 0.5pt)
+              LEAST("commonCount", 200) * 2 +
+              GREATEST(0, LEAST("commonCount" - 200, 400)) * 1 +
+              FLOOR(GREATEST(0, "commonCount" - 600) * 0.5)::int +
+
+              -- Incomum com Diminishing Returns (até 150 @ 6pts, 151-400 @ 3pts, 401+ @ 1pt)
+              LEAST("uncommonCount", 150) * 6 +
+              GREATEST(0, LEAST("uncommonCount" - 150, 250)) * 3 +
+              GREATEST(0, "uncommonCount" - 400) * 1 +
+
+              -- Raro com Diminishing Returns (até 100 @ 20pts, 101-250 @ 10pts, 251+ @ 5pts)
+              LEAST("rareCount", 100) * 20 +
+              GREATEST(0, LEAST("rareCount" - 100, 150)) * 10 +
+              GREATEST(0, "rareCount" - 250) * 5 +
+
+              -- Épico com Diminishing Returns (até 50 @ 60pts, 51-100 @ 30pts, 101+ @ 15pts)
+              LEAST("epicCount", 50) * 60 +
+              GREATEST(0, LEAST("epicCount" - 50, 50)) * 30 +
+              GREATEST(0, "epicCount" - 100) * 15 +
+
+              -- Lendário SEM Diminishing Returns (200 pts integrais sempre)
+              "legendaryCount" * 200 +
+
+              -- Chaves e Soulmates
+              "totalKeys" * 1 +
+              "totalSoulmates" * 3000
             )::int as "collectionPoints"
-          FROM users u
-          JOIN harem_entries h ON h."userId" = u.id
-          JOIN characters c ON c.id = h."characterId"
-          WHERE u.id != 'test_web_user_1' AND LOWER(u.name) NOT LIKE '%jogador web teste%'
-          GROUP BY u.id, u.name, u.platform
+          FROM user_harem_stats
           ORDER BY "collectionPoints" DESC, "totalMarriages" DESC
           LIMIT ${parsedLimit}
         `;

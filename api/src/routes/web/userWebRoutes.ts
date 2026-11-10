@@ -15,6 +15,7 @@ import { NotificationService } from '../../services/NotificationService.js';
 import { CatalogService } from '../../services/CatalogService.js';
 import { CollectionService } from '../../services/CollectionService.js';
 import { UserService } from '../../services/UserService.js';
+import { CooldownService } from '../../services/CooldownService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
 import { optimizeImageUnder1Mb, MAX_IMAGE_UPLOAD_BYTES } from '../../utils/imageOptimizer.js';
@@ -88,7 +89,8 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   const divorceService = new DivorceService(fastify.prisma, marketInvestmentService, fastify.redis);
   const webSessionService = new WebSessionService(fastify.redis, fastify.prisma);
   const suggestionService = new SuggestionService(fastify.prisma, fastify.redis, characterService);
-  const marketService = new MarketService(fastify.prisma, characterService);
+  const cooldownService = new CooldownService(fastify.redis);
+  const marketService = new MarketService(fastify.prisma, characterService, cooldownService);
   const covetService = new CovetService(fastify.prisma, characterService, wishlistService);
   const notificationService = new NotificationService(fastify.prisma);
   const catalogService = new CatalogService(fastify.prisma, fastify.redis);

@@ -52,9 +52,48 @@ class MockRedis {
     return deleted;
   }
 
+  async incrbyfloat(key: string, amount: number): Promise<string> {
+    const item = this.store.get(key);
+    const now = Date.now();
+    let current = 0;
+    let expiresAt = Infinity;
+    if (item && item.expiresAt > now) {
+      current = parseFloat(item.val) || 0;
+      expiresAt = item.expiresAt;
+    }
+    const next = current + amount;
+    this.store.set(key, { val: next.toString(), expiresAt });
+    return next.toString();
+  }
+
+  async incrby(key: string, amount: number): Promise<number> {
+    const item = this.store.get(key);
+    const now = Date.now();
+    let current = 0;
+    let expiresAt = Infinity;
+    if (item && item.expiresAt > now) {
+      current = parseInt(item.val, 10) || 0;
+      expiresAt = item.expiresAt;
+    }
+    const next = current + amount;
+    this.store.set(key, { val: next.toString(), expiresAt });
+    return next;
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    const item = this.store.get(key);
+    if (!item) return 0;
+    item.expiresAt = Date.now() + seconds * 1000;
+    return 1;
+  }
+
   pipeline() {
     const operations: Array<() => Promise<any>> = [];
     return {
+      get: (key: string) => {
+        operations.push(() => this.get(key));
+        return this;
+      },
       ttl: (key: string) => {
         operations.push(() => this.ttl(key));
         return this;
@@ -208,5 +247,85 @@ describe('💍 Sistema de Cooldown de Casamento por Raridade (CooldownService)',
     const cd = await cooldownService.getClaimCooldown(testUserId, Rarity.COMMON);
     expect(cd.active).toBe(true);
     expect(cd.remainingSeconds).toBeGreaterThan(0);
+  });
+
+  describe('📊 Limite Diário de Casamento & Trocas nos Classificados', () => {
+    it('deve permitir casamentos até o limite diário configurado por raridade', async () => {
+      // Épico: limite 10
+      for (let i = 0; i < 9; i++) {
+        const check = await cooldownService.canMarryDaily(testUserId, Rarity.EPIC, false);
+        expect(check.allowed).toBe(true);
+        await cooldownService.incrementDailyMarry(testUserId, Rarity.EPIC, 1.0);
+      }
+
+      // 10º casamento (atinge o limite)
+      const check10 = await cooldownService.canMarryDaily(testUserId, Rarity.EPIC, false);
+      expect(check10.allowed).toBe(true);
+      await cooldownService.incrementDailyMarry(testUserId, Rarity.EPIC, 1.0);
+
+      // 11º casamento deve ser bloqueado
+      const check11 = await cooldownService.canMarryDaily(testUserId, Rarity.EPIC, false);
+      expect(check11.allowed).toBe(false);
+      expect(check11.reason).toContain('limite diário');
+    });
+
+    it('Lendário não deve ter limite diário para casamentos no roll', async () => {
+      for (let i = 0; i < 20; i++) {
+        const check = await cooldownService.canMarryDaily(testUserId, Rarity.LEGENDARY, false);
+        expect(check.allowed).toBe(true);
+      }
+    });
+
+    it('trocas no classificado contam 50% (0.5) e 0.5 arredonda para cima, mas permite !mu-casar', async () => {
+      // Usuário faz 1 troca de waifu Rara (+0.5)
+      await cooldownService.incrementDailyMarry(testUserId, Rarity.RARE, 0.5);
+
+      const status = await cooldownService.getDailyMarryStatus(testUserId);
+      expect(status.byRarity.RARE.used).toBe(0.5);
+      expect(status.byRarity.RARE.effectiveUsed).toBe(1); // 0.5 conta como 1 (round-up)
+      expect(status.byRarity.RARE.remaining).toBe(14); // 15 - 1 = 14
+
+      // Casar pelo !mu-casar deve permitir
+      const canMarry = await cooldownService.canMarryDaily(testUserId, Rarity.RARE, false);
+      expect(canMarry.allowed).toBe(true);
+
+      // Agora o usuário tem 9 casamentos e 1 troca em Épico (9.5 de 10)
+      await cooldownService.resetCooldown(testUserId, 'claim', Rarity.EPIC);
+      for (let i = 0; i < 9; i++) {
+        await cooldownService.incrementDailyMarry(testUserId, Rarity.EPIC, 1.0);
+      }
+      await cooldownService.incrementDailyMarry(testUserId, Rarity.EPIC, 0.5); // 9.5 usado
+
+      const epicStatus = await cooldownService.getDailyMarryStatus(testUserId);
+      expect(epicStatus.byRarity.EPIC.used).toBe(9.5);
+      expect(epicStatus.byRarity.EPIC.effectiveUsed).toBe(10); // round up
+
+      // Se o jogador casar pelo !mu-casar DEVE permitir (pois 9.5 < 10)!
+      const canMarryEpic = await cooldownService.canMarryDaily(testUserId, Rarity.EPIC, false);
+      expect(canMarryEpic.allowed).toBe(true);
+
+      // Ao realizar o casamento (+1.0), vai para 10.5 e agora sim bloqueia
+      await cooldownService.incrementDailyMarry(testUserId, Rarity.EPIC, 1.0);
+      const afterMarryEpic = await cooldownService.canMarryDaily(testUserId, Rarity.EPIC, false);
+      expect(afterMarryEpic.allowed).toBe(false);
+    });
+
+    it('troca nos classificados para Lendária deve ter limite estrito de 10 por dia', async () => {
+      // 10 trocas de Lendária permitidas
+      for (let i = 0; i < 10; i++) {
+        const canTrade = await cooldownService.canMarryDaily(testUserId, Rarity.LEGENDARY, true);
+        expect(canTrade.allowed).toBe(true);
+        await cooldownService.incrementDailyTrade(testUserId, Rarity.LEGENDARY, 1);
+      }
+
+      // 11ª troca de Lendária deve ser bloqueada
+      const canTrade11 = await cooldownService.canMarryDaily(testUserId, Rarity.LEGENDARY, true);
+      expect(canTrade11.allowed).toBe(false);
+      expect(canTrade11.reason).toContain('10 Lendárias');
+
+      // Mas o roll/casamento normal de Lendária continua livre sem limite!
+      const canMarryNormal = await cooldownService.canMarryDaily(testUserId, Rarity.LEGENDARY, false);
+      expect(canMarryNormal.allowed).toBe(true);
+    });
   });
 });

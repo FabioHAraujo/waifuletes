@@ -40,6 +40,40 @@ export const RARITY_CLAIM_COOLDOWNS: Record<Rarity, number> = {
   LEGENDARY: config.COOLDOWN_CLAIM_SECONDS_LEGENDARY,
 };
 
+export const RARITY_DAILY_MARRY_LIMITS: Record<Rarity, number | null> = {
+  COMMON: 25,
+  UNCOMMON: 20,
+  RARE: 15,
+  EPIC: 10,
+  LEGENDARY: null,
+};
+
+export const RARITY_DAILY_TRADE_LIMITS: Record<Rarity, number | null> = {
+  COMMON: 25,
+  UNCOMMON: 20,
+  RARE: 15,
+  EPIC: 10,
+  LEGENDARY: 10, // Limite de 10 lendárias recebidas por dia em trocas
+};
+
+export interface DailyMarryRarityStatus {
+  used: number;
+  effectiveUsed: number;
+  limit: number | null;
+  remaining: number | null;
+  canMarry: boolean;
+  tradeLimit: number | null;
+  tradeUsed: number;
+  remainingTrades: number | null;
+  canTrade: boolean;
+}
+
+export interface UserDailyMarryState {
+  byRarity: Record<Rarity, DailyMarryRarityStatus>;
+  secondsUntilReset: number;
+  nextReset: Date;
+}
+
 export const ALL_RARITIES: Rarity[] = [
   Rarity.COMMON,
   Rarity.UNCOMMON,
@@ -150,6 +184,14 @@ export class CooldownService {
 
   private dailyKey(userId: string): string {
     return `cooldown:daily:${userId}`;
+  }
+
+  private dailyMarryKey(userId: string, rarity: Rarity): string {
+    return `cooldown:daily:marry:${userId}:${rarity}`;
+  }
+
+  private dailyTradeKey(userId: string, rarity: Rarity): string {
+    return `cooldown:daily:trade:${userId}:${rarity}`;
   }
 
   private lockKey(groupId: string, characterId: string): string {
@@ -495,16 +537,168 @@ export class CooldownService {
   }
 
   async getAllUserCooldowns(userId: string, extraMaxRolls: number = 0) {
-    const [roll, claim, daily] = await Promise.all([
+    const [roll, claim, daily, dailyMarry] = await Promise.all([
       this.getRollCooldown(userId, extraMaxRolls),
       this.getAllClaimCooldowns(userId),
       this.getDailyCooldown(userId),
+      this.getDailyMarryStatus(userId),
     ]);
 
     return {
       roll,
       claim,
       daily,
+      dailyMarry,
+    };
+  }
+
+  async getDailyMarryCount(userId: string, rarity: Rarity): Promise<number> {
+    const raw = await this.redis.get(this.dailyMarryKey(userId, rarity));
+    return raw ? parseFloat(raw) || 0 : 0;
+  }
+
+  async getDailyTradeCount(userId: string, rarity: Rarity): Promise<number> {
+    const raw = await this.redis.get(this.dailyTradeKey(userId, rarity));
+    return raw ? parseInt(raw, 10) || 0 : 0;
+  }
+
+  async canMarryDaily(
+    userId: string,
+    rarity: Rarity,
+    isTrade = false
+  ): Promise<{ allowed: boolean; reason?: string; used: number; limit: number | null }> {
+    if (rarity === Rarity.LEGENDARY) {
+      if (isTrade) {
+        const tradeUsed = await this.getDailyTradeCount(userId, Rarity.LEGENDARY);
+        const tradeLimit = RARITY_DAILY_TRADE_LIMITS.LEGENDARY ?? 10;
+        if (tradeUsed >= tradeLimit) {
+          return {
+            allowed: false,
+            reason: `Você atingiu o limite diário de ${tradeLimit} Lendárias recebidas em trocas hoje. O limite reseta às 04:00 BRT.`,
+            used: tradeUsed,
+            limit: tradeLimit,
+          };
+        }
+        return { allowed: true, used: tradeUsed, limit: tradeLimit };
+      }
+      return { allowed: true, used: 0, limit: null };
+    }
+
+    const limit = RARITY_DAILY_MARRY_LIMITS[rarity];
+    if (limit === null || limit === undefined) {
+      return { allowed: true, used: 0, limit: null };
+    }
+
+    const used = await this.getDailyMarryCount(userId, rarity);
+    // Se used < limit, o casamento ou troca é permitido.
+    // Ex: com 9 casamentos e 1 troca (9.5 de 10), 9.5 < 10, o !mu-casar é permitido!
+    if (used >= limit) {
+      const label =
+        rarity === Rarity.COMMON
+          ? 'Comuns'
+          : rarity === Rarity.UNCOMMON
+          ? 'Incomuns'
+          : rarity === Rarity.RARE
+          ? 'Raros'
+          : 'Épicos';
+      const actionStr = isTrade ? 'trocas/casamentos' : 'casamentos';
+      return {
+        allowed: false,
+        reason: `Você já atingiu seu limite diário de ${actionStr} para personagens ${label} (${limit}/${limit}). O limite reseta às 04:00 BRT.`,
+        used,
+        limit,
+      };
+    }
+
+    return { allowed: true, used, limit };
+  }
+
+  async incrementDailyMarry(userId: string, rarity: Rarity, amount: number): Promise<void> {
+    const key = this.dailyMarryKey(userId, rarity);
+    const ttl = this.getDailyCycleInfo().secondsUntilReset;
+    await this.redis.incrbyfloat(key, amount);
+    const curTtl = await this.redis.ttl(key);
+    if (curTtl < 0) {
+      await this.redis.expire(key, ttl);
+    }
+  }
+
+  async decrementDailyMarry(userId: string, rarity: Rarity, amount: number): Promise<void> {
+    const key = this.dailyMarryKey(userId, rarity);
+    await this.redis.incrbyfloat(key, -amount);
+  }
+
+  async incrementDailyTrade(userId: string, rarity: Rarity, count: number): Promise<void> {
+    const key = this.dailyTradeKey(userId, rarity);
+    const ttl = this.getDailyCycleInfo().secondsUntilReset;
+    await this.redis.incrby(key, count);
+    const curTtl = await this.redis.ttl(key);
+    if (curTtl < 0) {
+      await this.redis.expire(key, ttl);
+    }
+  }
+
+  async decrementDailyTrade(userId: string, rarity: Rarity, count: number): Promise<void> {
+    const key = this.dailyTradeKey(userId, rarity);
+    await this.redis.incrby(key, -count);
+  }
+
+  async getDailyMarryStatus(userId: string): Promise<UserDailyMarryState> {
+    const cycle = this.getDailyCycleInfo();
+    const pipeline = this.redis.pipeline();
+    for (const r of ALL_RARITIES) {
+      pipeline.get(this.dailyMarryKey(userId, r));
+      pipeline.get(this.dailyTradeKey(userId, r));
+    }
+    const results = await pipeline.exec();
+
+    const byRarity: Record<Rarity, DailyMarryRarityStatus> = {} as any;
+
+    ALL_RARITIES.forEach((r, idx) => {
+      const marryRaw = results?.[idx * 2]?.[1] as string | null;
+      const tradeRaw = results?.[idx * 2 + 1]?.[1] as string | null;
+
+      const used = marryRaw ? parseFloat(marryRaw) || 0 : 0;
+      const tradeUsed = tradeRaw ? parseInt(tradeRaw, 10) || 0 : 0;
+      const effectiveUsed = Math.ceil(used);
+
+      if (r === Rarity.LEGENDARY) {
+        const tradeLimit = RARITY_DAILY_TRADE_LIMITS.LEGENDARY ?? 10;
+        const remainingTrades = Math.max(0, tradeLimit - tradeUsed);
+        byRarity[r] = {
+          used: 0,
+          effectiveUsed: 0,
+          limit: null,
+          remaining: null,
+          canMarry: true,
+          tradeLimit,
+          tradeUsed,
+          remainingTrades,
+          canTrade: tradeUsed < tradeLimit,
+        };
+      } else {
+        const limit = RARITY_DAILY_MARRY_LIMITS[r]!;
+        const remaining = Math.max(0, limit - effectiveUsed);
+        const canMarry = used < limit;
+        const canTrade = used < limit;
+        byRarity[r] = {
+          used,
+          effectiveUsed,
+          limit,
+          remaining,
+          canMarry,
+          tradeLimit: limit,
+          tradeUsed: Math.floor(used * 2),
+          remainingTrades: Math.max(0, Math.floor((limit - used) * 2)),
+          canTrade,
+        };
+      }
+    });
+
+    return {
+      byRarity,
+      secondsUntilReset: cycle.secondsUntilReset,
+      nextReset: cycle.nextReset,
     };
   }
 
@@ -516,9 +710,15 @@ export class CooldownService {
       if (rarity) {
         const normRarity = String(rarity).toUpperCase() as Rarity;
         await this.redis.del(this.claimKey(userId, normRarity));
+        await this.redis.del(this.dailyMarryKey(userId, normRarity));
+        await this.redis.del(this.dailyTradeKey(userId, normRarity));
       } else {
         const keysToDelete = ALL_RARITIES.map((r) => this.claimKey(userId, r));
         keysToDelete.push(this.legacyClaimKey(userId));
+        for (const r of ALL_RARITIES) {
+          keysToDelete.push(this.dailyMarryKey(userId, r));
+          keysToDelete.push(this.dailyTradeKey(userId, r));
+        }
         await this.redis.del(...keysToDelete);
       }
     }

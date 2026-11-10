@@ -659,6 +659,10 @@ export class RollService {
           fullRechargeSeconds: rollsState.fullRechargeSeconds,
           fullRechargeAt: rollsState.fullRechargeAt,
           regenSeconds: rollsState.regenSeconds,
+          dailyMarryLimit: {
+            rarity: chosen.baseRarity,
+            limitReached: !(await this.cooldownService.canMarryDaily(userId, chosen.baseRarity, false)).allowed,
+          },
         },
       };
     } catch (err: any) {

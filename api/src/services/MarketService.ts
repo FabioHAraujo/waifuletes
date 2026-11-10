@@ -1,7 +1,8 @@
-import { PrismaClient, ListingStatus, OfferStatus, KakeraReason } from '@prisma/client';
+import { PrismaClient, ListingStatus, OfferStatus, KakeraReason, Rarity } from '@prisma/client';
 import { config } from '../config.js';
 import { DomainError } from '../errors/DomainError.js';
 import { CharacterService } from './CharacterService.js';
+import { CooldownService } from './CooldownService.js';
 import { NotificationService } from './NotificationService.js';
 
 export interface CreateOfferData {
@@ -21,7 +22,8 @@ export class MarketService {
 
   constructor(
     private prisma: PrismaClient,
-    private characterService?: CharacterService
+    private characterService?: CharacterService,
+    private cooldownService?: CooldownService
   ) {
     this.notificationService = new NotificationService(this.prisma);
   }
@@ -693,9 +695,10 @@ export class MarketService {
     // 2. Valida se o Comprador ainda possui as Waifus ofertadas
     const offered = (offer.offeredItems || {}) as any;
     const waifuIds: string[] = Array.isArray(offered.waifuIds) ? offered.waifuIds : [];
+    let buyerEntries: any[] = [];
 
     if (waifuIds.length > 0) {
-      const buyerEntries = await this.prisma.haremEntry.findMany({
+      buyerEntries = await this.prisma.haremEntry.findMany({
         where: { userId: offer.buyerId, characterId: { in: waifuIds } },
         include: { character: true },
       });
@@ -734,6 +737,49 @@ export class MarketService {
           cancelled: true,
           reason: 'Não foi possível aceitar a oferta: personagens Míticos pertencem exclusivamente ao seu criador e não podem ser negociados nos classificados. A oferta foi cancelada automaticamente.',
         };
+      }
+    }
+
+    // 2.1. Valida cotas diárias de casamento e trocas nos classificados
+    const buyerCharRarity = (listing.character.baseRarity || 'COMMON') as Rarity;
+    if (this.cooldownService) {
+      // Valida se o comprador pode receber o personagem anunciado
+      const buyerCheck = await this.cooldownService.canMarryDaily(offer.buyerId, buyerCharRarity, true);
+      if (!buyerCheck.allowed) {
+        return {
+          success: false,
+          cancelled: false,
+          reason: `Não foi possível aceitar a oferta: ${buyerCheck.reason || 'O proponente atingiu o limite diário de casamentos/trocas.'}`,
+        };
+      }
+
+      // Valida se o vendedor pode receber os personagens ofertados
+      if (buyerEntries.length > 0) {
+        const legCount = buyerEntries.filter((e) => (e.character.baseRarity || 'COMMON') === 'LEGENDARY').length;
+        if (legCount > 0) {
+          const currentTradeUsed = await this.cooldownService.getDailyTradeCount(sellerId, Rarity.LEGENDARY);
+          if (currentTradeUsed + legCount > 10) {
+            return {
+              success: false,
+              cancelled: false,
+              reason: `Não foi possível aceitar a oferta: Você atingirá o limite de 10 Lendárias recebidas em trocas hoje (${currentTradeUsed}/${10}).`,
+            };
+          }
+        }
+
+        for (const entry of buyerEntries) {
+          const wRarity = (entry.character.baseRarity || 'COMMON') as Rarity;
+          if (wRarity !== 'LEGENDARY') {
+            const sellerCheck = await this.cooldownService.canMarryDaily(sellerId, wRarity, true);
+            if (!sellerCheck.allowed) {
+              return {
+                success: false,
+                cancelled: false,
+                reason: `Não foi possível aceitar a oferta: Você atingiu seu limite diário para personagens ${wRarity}.`,
+              };
+            }
+          }
+        }
       }
     }
 
@@ -948,6 +994,26 @@ export class MarketService {
         },
       });
     });
+
+    // 6. Atualiza cotas diárias de casamento e troca nos classificados
+    if (this.cooldownService) {
+      if (buyerCharRarity === 'LEGENDARY') {
+        await this.cooldownService.incrementDailyTrade(offer.buyerId, Rarity.LEGENDARY, 1);
+      } else {
+        await this.cooldownService.incrementDailyMarry(offer.buyerId, buyerCharRarity, 0.5);
+      }
+
+      if (buyerEntries.length > 0) {
+        for (const entry of buyerEntries) {
+          const wRarity = (entry.character.baseRarity || 'COMMON') as Rarity;
+          if (wRarity === 'LEGENDARY') {
+            await this.cooldownService.incrementDailyTrade(sellerId, Rarity.LEGENDARY, 1);
+          } else {
+            await this.cooldownService.incrementDailyMarry(sellerId, wRarity, 0.5);
+          }
+        }
+      }
+    }
 
     this.notificationService
       .notifyMarketEvent(

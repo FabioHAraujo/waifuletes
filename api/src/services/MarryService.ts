@@ -86,8 +86,24 @@ export class MarryService {
       };
     }
 
-    // 4. Reserva atômica de cooldown de claim para a raridade deste personagem via SET ... NX
+    // 4. Validação de Limite Diário de Casamento por Raridade
     const rarity = character.baseRarity || Rarity.COMMON;
+    const dailyCheck = await this.cooldownService.canMarryDaily(userId, rarity, false);
+    if (!dailyCheck.allowed) {
+      return {
+        success: false,
+        error: {
+          code: 'DAILY_MARRY_LIMIT_REACHED',
+          message:
+            dailyCheck.reason ||
+            `Você já atingiu seu limite diário de casamentos para a raridade ${rarity}.`,
+          rarity,
+          limit: dailyCheck.limit,
+        },
+      };
+    }
+
+    // 5. Reserva atômica de cooldown de claim para a raridade deste personagem via SET ... NX
     const cooldownSecs = this.cooldownService.getClaimCooldownSecondsForRarity(rarity);
     const acquiredClaim = await this.cooldownService.acquireClaimLock(userId, rarity, cooldownSecs);
     if (!acquiredClaim) {
@@ -219,6 +235,9 @@ export class MarryService {
     if (characterId !== targetCharId) {
       await this.cooldownService.releaseClaimLock(groupId, characterId);
     }
+
+    // 7. Incrementa o contador de casamento diário para esta raridade
+    await this.cooldownService.incrementDailyMarry(userId, rarity, 1.0);
 
     const nextClaimAt = new Date(Date.now() + cooldownSecs * 1000);
 

@@ -2,11 +2,13 @@ import { FastifyPluginAsync } from 'fastify';
 import { MarketService } from '../../services/MarketService.js';
 import { MarketInvestmentService } from '../../services/MarketInvestmentService.js';
 import { CharacterService } from '../../services/CharacterService.js';
+import { CooldownService } from '../../services/CooldownService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 
 export const privateMarketRoutes: FastifyPluginAsync = async (fastify) => {
   const characterService = new CharacterService(fastify.prisma, fastify.redis);
-  const marketService = new MarketService(fastify.prisma, characterService);
+  const cooldownService = new CooldownService(fastify.redis);
+  const marketService = new MarketService(fastify.prisma, characterService, cooldownService);
   const marketInvestmentService = new MarketInvestmentService(fastify.prisma, characterService, fastify.redis);
 
   fastify.addHook('preHandler', verifyApiKey);
