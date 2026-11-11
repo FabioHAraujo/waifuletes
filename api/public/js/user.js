@@ -36,6 +36,8 @@ let pendingDivorceTarget = null;
 let activeReportCharacter = null;
 let activeSellCharacter = null;
 let activeOfferListing = null;
+const marketListingsMap = new Map();
+window.marketListingsMap = marketListingsMap;
 
 // Estado de busca e paginação do Harém (Casados) e Wishlist
 let haremFilterState = {
@@ -3166,6 +3168,9 @@ function renderPublicMarketListings(listings) {
 
   grid.innerHTML = '';
   listings.forEach(listing => {
+    if (listing?.id) {
+      marketListingsMap.set(listing.id, listing);
+    }
     const char = listing.character;
     const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
     const isOwnListing = Boolean(userSessionData && userSessionData.publicId === userPublicId && userSessionData.isAdmin);
@@ -3191,7 +3196,7 @@ function renderPublicMarketListings(listings) {
       <div class="card-info">
         <div class="card-name">${escapeHtml(char.name)}</div>
         <div class="card-series">${escapeHtml(char.series || 'Sem série')}</div>
-        <div style="background: var(--bg-retro-accent); padding: 6px 8px; border-radius: 4px; font-size: 12px; margin: 8px 0; border: var(--border-retro);">
+        <div style="background: var(--bg-retro-accent); padding: 6px 8px; border-radius: 4px; font-size: 12px; margin: 8px 0; border: var(--border-retro); word-break: break-word;">
           <strong style="color: #f59e0b;"><i class="fas fa-search"></i> Procura:</strong> ${escapeHtml(listing.interest)}
         </div>
         <div class="card-actions" style="margin-top: 8px;">
@@ -3200,7 +3205,7 @@ function renderPublicMarketListings(listings) {
               <i class="fas fa-check"></i> Seu Anúncio
             </button>
           ` : `
-            <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="handlePublicOfferClick('${listing.id}', '${escapeAttr(char.name)}', '${getCharImg(char)}', '${escapeAttr(listing.interest)}')">
+            <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="handlePublicOfferClickById('${listing.id}')">
               <i class="fas fa-handshake"></i> Fazer Oferta
             </button>
           `}
@@ -3211,7 +3216,26 @@ function renderPublicMarketListings(listings) {
   });
 }
 
+function handlePublicOfferClickById(listingId) {
+  const listing = marketListingsMap.get(listingId);
+  if (!listing) {
+    console.error('Anúncio não encontrado:', listingId);
+    return;
+  }
+  const char = listing.character || {};
+  handlePublicOfferClick(listing.id, char.name || 'Personagem', getCharImg(char), listing.interest || 'Sem preferências');
+}
+window.handlePublicOfferClickById = handlePublicOfferClickById;
+
 async function handlePublicOfferClick(listingId, charName, charImg, interest) {
+  if ((!charName || interest === undefined) && marketListingsMap.has(listingId)) {
+    const l = marketListingsMap.get(listingId);
+    const char = l.character || {};
+    charName = charName || char.name || 'Personagem';
+    charImg = charImg || getCharImg(char);
+    interest = interest !== undefined ? interest : (l.interest || 'Sem preferências');
+  }
+
   if (userSessionToken && userSessionData?.isAdmin) {
     openOfferModal(listingId, charName, charImg, interest);
     return;
@@ -4587,7 +4611,12 @@ function getCharImg(char) {
 
 function escapeAttr(str) {
   if (!str) return '';
-  return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
 }
 
 const LOCAL_BUFF_DESCRIPTIONS = {
@@ -5574,6 +5603,9 @@ async function rejectMarketOffer(offerId, listingId, characterName) {
 }
 
 function createMarketListingCard(listing) {
+  if (listing?.id) {
+    marketListingsMap.set(listing.id, listing);
+  }
   const char = listing.character;
   const rarity = RARITY_CONFIG[char.baseRarity] || RARITY_CONFIG.COMMON;
   const sellerName = listing.user?.name || 'Jogador';
@@ -5604,7 +5636,7 @@ function createMarketListingCard(listing) {
       <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
         <i class="fas fa-user-tag"></i> Vendedor: <strong>${escapeHtml(sellerName)}</strong>
       </div>
-      <div style="background: var(--bg-retro-accent); padding: 6px 8px; border-radius: 4px; font-size: 12px; margin: 8px 0; border: var(--border-retro);">
+      <div style="background: var(--bg-retro-accent); padding: 6px 8px; border-radius: 4px; font-size: 12px; margin: 8px 0; border: var(--border-retro); word-break: break-word;">
         <strong style="color: #f59e0b;"><i class="fas fa-search"></i> Procura:</strong> ${escapeHtml(listing.interest)}
       </div>
       <div class="card-actions" style="margin-top: 8px;">
@@ -5613,7 +5645,7 @@ function createMarketListingCard(listing) {
             <i class="fas fa-check"></i> Seu Personagem
           </button>
         ` : `
-          <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="openOfferModal('${listing.id}', '${escapeAttr(char.name)}', '${getCharImg(char)}', '${escapeAttr(listing.interest)}')">
+          <button class="btn-retro btn-sm btn-gold" style="width: 100%;" onclick="openOfferModalById('${listing.id}')">
             <i class="fas fa-handshake"></i> Fazer Oferta
           </button>
         `}
@@ -5806,7 +5838,26 @@ function addOfferPetalitas(qty) {
   }
 }
 
+function openOfferModalById(listingId) {
+  const listing = marketListingsMap.get(listingId);
+  if (!listing) {
+    console.error('Anúncio não encontrado:', listingId);
+    return;
+  }
+  const char = listing.character || {};
+  openOfferModal(listing.id, char.name || 'Personagem', getCharImg(char), listing.interest || 'Sem preferências');
+}
+window.openOfferModalById = openOfferModalById;
+
 async function openOfferModal(listingId, characterName, imageUrl, interest) {
+  if ((!characterName || interest === undefined) && marketListingsMap.has(listingId)) {
+    const l = marketListingsMap.get(listingId);
+    const char = l.character || {};
+    characterName = characterName || char.name || 'Personagem';
+    imageUrl = imageUrl || getCharImg(char);
+    interest = interest !== undefined ? interest : (l.interest || 'Sem preferências');
+  }
+
   activeOfferListing = { id: listingId, name: characterName };
   document.getElementById('offer-target-name').textContent = characterName;
   document.getElementById('offer-target-interest').textContent = `Procura: ${interest}`;

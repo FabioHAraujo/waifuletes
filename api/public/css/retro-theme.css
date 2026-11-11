@@ -1314,6 +1314,10 @@ body.dark-mode .retro-subtab.active {
   padding: 4px 0;
 }
 
+.offertab-content {
+  padding-top: 10pt;
+}
+
 /* ========================================================
    TABELA RETRÔ (ADMIN & USUÁRIOS)
    ======================================================== */
