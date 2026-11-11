@@ -1270,6 +1270,7 @@ async function loadUserData() {
       document.getElementById('public-panel').classList.add('hidden');
 
       loadCatalogCharacters();
+      renderHostingCostBadge(userSessionData.hostingCost, false);
       renderPrivateHarem(harem);
 
       if (Array.isArray(userSessionData.wishlist)) {
@@ -1341,6 +1342,7 @@ async function loadUserData() {
       const marketUserNameEl = document.getElementById('public-market-user-name');
       if (marketUserNameEl) marketUserNameEl.textContent = userSessionData.name || 'Jogador';
 
+      renderHostingCostBadge(userSessionData.hostingCost, true);
       renderPublicHarem(harem);
       renderPublicMarketListings(userSessionData.listings || []);
     }
@@ -7302,6 +7304,98 @@ async function confirmDeleteMythic(charId, charName) {
     Api.hideLoading();
   }
 }
+
+/**
+ * Renderiza o Badge de Custo de Hospedagem Diária e seus tooltips/popups interativos
+ */
+function renderHostingCostBadge(hostingCost, isPublic = false) {
+  const prefix = isPublic ? 'public-' : '';
+  const badge = document.getElementById(`${prefix}harem-hosting-badge`);
+  const textEl = document.getElementById(`${prefix}harem-hosting-text`);
+  const statusEl = document.getElementById(`${prefix}hosting-tooltip-status`);
+  const bodyEl = document.getElementById(`${prefix}hosting-tooltip-body`);
+
+  if (!badge || !textEl || !bodyEl) return;
+
+  if (!hostingCost) {
+    badge.style.display = 'none';
+    return;
+  }
+
+  badge.style.display = 'inline-flex';
+
+  const totalCost = Number(hostingCost.totalCost || 0).toLocaleString('pt-BR');
+  textEl.textContent = `Custo atual da hospedagem: ${totalCost} zinthos/dia`;
+
+  if (hostingCost.isInactive) {
+    badge.classList.add('inactive-mode');
+    if (statusEl) {
+      statusEl.textContent = 'Hospedagem (Jogador Inativo > 72h)';
+      statusEl.style.color = '#ef4444';
+    }
+  } else {
+    badge.classList.remove('inactive-mode');
+    if (statusEl) {
+      statusEl.textContent = 'Hospedagem Diária (Jogador Ativo)';
+      statusEl.style.color = '#15803d';
+    }
+  }
+
+  const counts = hostingCost.counts || {};
+  const costs = hostingCost.costs || {};
+  const rates = hostingCost.rates || {};
+
+  const rarityMeta = [
+    { key: 'COMMON', label: 'Comum', emoji: '⚪', color: '#94a3b8' },
+    { key: 'UNCOMMON', label: 'Incomum', emoji: '🟢', color: '#22c55e' },
+    { key: 'RARE', label: 'Raro', emoji: '🔵', color: '#3b82f6' },
+    { key: 'EPIC', label: 'Épico', emoji: '🟣', color: '#a855f7' },
+    { key: 'LEGENDARY', label: 'Lendário', emoji: '⭐', color: '#eab308' },
+  ];
+
+  let rowsHtml = '';
+  rarityMeta.forEach(r => {
+    const qty = counts[r.key] || 0;
+    const rate = rates[r.key] || 0;
+    const cost = Number(costs[r.key] || 0).toLocaleString('pt-BR');
+    rowsHtml += `
+      <div class="hosting-row">
+        <span>${r.emoji} <strong>${r.label}:</strong> ${qty} waifus (${rate}z/un)</span>
+        <span style="font-weight: 700;">${cost}z</span>
+      </div>
+    `;
+  });
+
+  const totalWaifus = hostingCost.totalWaifus !== undefined ? hostingCost.totalWaifus : Object.values(counts).reduce((a, b) => a + b, 0);
+
+  rowsHtml += `
+    <div class="hosting-row-total">
+      <span>Total (${totalWaifus} waifus):</span>
+      <span style="color: #9333ea;">${totalCost} zinthos/dia</span>
+    </div>
+    <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+      ${hostingCost.isInactive ? '⚠️ Taxa de inatividade aplicada (mais de 72h offline).' : '✨ Cobrado no reset diário (04:00 BRT).'}
+    </div>
+  `;
+
+  bodyEl.innerHTML = rowsHtml;
+
+  // Suporte a toque no Mobile (alterna classe active-touch)
+  badge.onclick = (e) => {
+    // Previne fechar imediatamente se clicar dentro do tooltip
+    if (e.target.closest('.harem-hosting-tooltip')) return;
+    badge.classList.toggle('active-touch');
+  };
+}
+
+// Fecha tooltip do mobile ao clicar fora
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.harem-hosting-badge')) {
+    document.querySelectorAll('.harem-hosting-badge.active-touch').forEach(el => {
+      el.classList.remove('active-touch');
+    });
+  }
+});
 
 
 

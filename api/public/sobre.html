@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waifuletes ✨ Sobre o Jogo, Regras & Comandos</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261111-hosting-sobre">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    .about-section {
+      background: var(--bg-card);
+      border: var(--border-retro);
+      box-shadow: var(--shadow-retro);
+      border-radius: var(--radius-retro);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .about-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 2px dashed var(--border-retro);
+      padding-bottom: 8px;
+    }
+    .fee-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      margin-bottom: 12px;
+    }
+    .fee-table th, .fee-table td {
+      border: 1px solid var(--text-main);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .fee-table th {
+      background: var(--bg-retro-accent);
+      font-weight: 800;
+    }
+    .cmd-category {
+      margin-top: 18px;
+      margin-bottom: 8px;
+      font-weight: 700;
+      color: var(--primary-retro);
+      font-size: 1.05rem;
+    }
+    .cmd-list {
+      list-style: none;
+      padding-left: 0;
+    }
+    .cmd-list li {
+      padding: 6px 0;
+      border-bottom: 1px dotted var(--border-retro);
+    }
+    .cmd-code {
+      background: var(--bg-retro-accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="retro-header">
+      <a href="/" class="logo-area">
+        <div class="logo-icon">✨</div>
+        <div class="logo-text">
+          <h1>Waifuletes</h1>
+          <span>Catálogo & Harém Retrô</span>
+        </div>
+      </a>
+      <div class="header-actions">
+        <button id="btn-toggle-theme" class="btn-retro btn-sm"><i class="fas fa-moon"></i> Dark</button>
+        <a href="/" class="btn-retro btn-sm"><i class="fas fa-home"></i> Início</a>
+        <a href="https://github.com/moothz/waifuletes" target="_blank" rel="noopener" class="btn-retro btn-sm btn-gold">
+          <i class="fab fa-github"></i> Contribuir no GitHub
+        </a>
+      </div>
+    </header>
+
+    <main style="margin-top: 20px;">
+      <!-- Seção 1: O Jogo -->
+      <section class="about-section">
+        <h2 class="about-title"><i class="fas fa-gamepad" style="color: #e11d48;"></i> O que é o Waifuletes?</h2>
+        <p>O <strong>Waifuletes</strong> é um motor de jogo de coleção e gacha de personagens estilo Mudae, integrado aos bots de chat (como a Ravena AI no WhatsApp). Colecione waifus e husbandos favoritos de mais de 27.000 opções de animes, mangás e jogos!</p>
+      </section>
+
+      <!-- Seção 2: Sistema de Hospedagem & Cuidados com o Harém -->
+      <section class="about-section">
+        <h2 class="about-title"><i class="fas fa-hotel" style="color: #9333ea;"></i> Sistema de Hospedagem & Inatividade</h2>
+        <p>Manter um grande harém exige dedicação e recursos! Todo dia às <strong>04:00 BRT</strong> é processada a taxa diária de hospedagem com base no número e na raridade dos personagens no seu harém:</p>
+
+        <table class="fee-table">
+          <thead>
+            <tr>
+              <th>Raridade</th>
+              <th>Taxa Jogador Ativo (por dia)</th>
+              <th>Taxa Jogador Inativo (> 72h)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>⚪ Comum</td>
+              <td><strong>1 Zinthos</strong></td>
+              <td><strong>10 Zinthos</strong></td>
+            </tr>
+            <tr>
+              <td>🟢 Incomum</td>
+              <td><strong>3 Zinthos</strong></td>
+              <td><strong>60 Zinthos</strong></td>
+            </tr>
+            <tr>
+              <td>🔵 Raro</td>
+              <td><strong>8 Zinthos</strong></td>
+              <td><strong>200 Zinthos</strong></td>
+            </tr>
+            <tr>
+              <td>🟣 Épico</td>
+              <td><strong>15 Zinthos</strong></td>
+              <td><strong>350 Zinthos</strong></td>
+            </tr>
+            <tr>
+              <td>⭐ Lendário</td>
+              <td><strong>40 Zinthos</strong></td>
+              <td><strong>1.000 Zinthos</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="background: var(--bg-card-subtle); border-left: 4px solid #e11d48; padding: 12px; margin-top: 12px;">
+          <strong>💔 O que acontece se meu saldo de Zinthos zerar?</strong>
+          <p style="margin-top: 6px; font-size: 0.95rem;">
+            Caso não tenha Zinthos para cobrir a taxa, o valor restante é quitado automaticamente confiscando waifus do seu harém, <strong>da menos valiosa para a mais valiosa</strong> (Comum até Lendária). Cada waifu confiscada quita <strong>30% do seu valor base de divórcio</strong>. Se o confisco de uma waifu render mais do que a dívida, o excedente fica como saldo positivo na sua conta!
+          </p>
+        </div>
+      </section>
+
+      <!-- Seção 3: Comandos do Jogo -->
+      <section class="about-section">
+        <h2 class="about-title"><i class="fas fa-terminal" style="color: #2563eb;"></i> Comandos Principais (!waifus)</h2>
+        
+        <div class="cmd-category">🎲 Sorteio (Roll)</div>
+        <ul class="cmd-list">
+          <li><span class="cmd-code">!mu-roll</span> (ou !mu-r) — Sorteia um personagem aleatório.</li>
+          <li><span class="cmd-code">!mu-rollf</span> — Sorteia apenas personagens femininos.</li>
+          <li><span class="cmd-code">!mu-rollm</span> — Sorteia apenas personagens masculinos.</li>
+          <li><span class="cmd-code">!mu-chances</span> — Painel de probabilidades e chances do seu pool.</li>
+        </ul>
+
+        <div class="cmd-category">💍 Casamento & Harém</div>
+        <ul class="cmd-list">
+          <li><span class="cmd-code">!mu-casar</span> (ou !mu-c) — Casa com a waifu rolada nos últimos 300 segundos.</li>
+          <li><span class="cmd-code">!mu-harem</span> — Lista suas waifus e husbandos colecionados.</li>
+          <li><span class="cmd-code">!mu-divorciar &lt;id&gt;</span> — Divorcia um personagem em troca de Zinthos.</li>
+          <li><span class="cmd-code">!mu-foto &lt;nome&gt;</span> — Gera a foto oficial de casamento com o personagem.</li>
+        </ul>
+
+        <div class="cmd-category">💰 Economia & Wishlist</div>
+        <ul class="cmd-list">
+          <li><span class="cmd-code">!mu-diario</span> — Coleta a recompensa diária de Zinthos (reseta às 04:00).</li>
+          <li><span class="cmd-code">!mu-saldo</span> — Consulta seu saldo atual de Zinthos.</li>
+          <li><span class="cmd-code">!mu-desejar &lt;id&gt;</span> — Adiciona um personagem à sua lista de desejos (+50% no drop).</li>
+          <li><span class="cmd-code">!mu-adm</span> — Envia no seu privado o link de acesso ao seu painel web pessoal.</li>
+        </ul>
+      </section>
+
+      <!-- Seção 4: Contribuindo no GitHub -->
+      <section class="about-section" style="border: 2px solid #16a34a;">
+        <h2 class="about-title"><i class="fab fa-github" style="color: #16a34a;"></i> Contribua com o Waifuletes!</h2>
+        <p>O Waifuletes é um projeto de código aberto! Você pode sugerir melhorias de código, novas regras ou correções abrindo um Pull Request no nosso repositório oficial:</p>
+        <p style="margin-top: 10px;">
+          🔗 <a href="https://github.com/moothz/waifuletes" target="_blank" rel="noopener" style="font-weight: 800; color: #2563eb;">github.com/moothz/waifuletes</a>
+        </p>
+      </section>
+    </main>
+
+    <footer class="retro-footer">
+      Waifuletes ✨ Motor de Jogo & Coleções • Integrado com a Ravena AI
+    </footer>
+  </div>
+  <script src="/js/api.js?v=20261111-hosting-sobre"></script>
+  <script>
+    const themeBtn = document.getElementById('btn-toggle-theme');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('waifu_theme', isDark ? 'dark' : 'light');
+        themeBtn.innerHTML = isDark ? '<i class="fas fa-sun"></i> Light' : '<i class="fas fa-moon"></i> Dark';
+      });
+      if (localStorage.getItem('waifu_theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+        themeBtn.innerHTML = '<i class="fas fa-sun"></i> Light';
+      }
+    }
+  </script>
+</body>
+</html>

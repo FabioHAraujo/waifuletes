@@ -416,4 +416,23 @@ export const privateUserRoutes: FastifyPluginAsync = async (fastify) => {
       });
     },
   });
+
+  fastify.post('/user/:userId/checkin', {
+    preHandler: verifyApiKey,
+    schema: {
+      description: 'Registra presença/atividade do usuário sem realizar ações de jogo (ping/checkin)',
+      tags: ['Usuários (Privado)'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: { userId: { type: 'string' } },
+        additionalProperties: false,
+      },
+    },
+    handler: async (request, reply) => {
+      const { userId } = request.params as { userId: string };
+      await userService.touchLastActive(userId);
+      return reply.send({ success: true, timestamp: new Date().toISOString() });
+    },
+  });
 };

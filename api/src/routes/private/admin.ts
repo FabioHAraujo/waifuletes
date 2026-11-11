@@ -4,6 +4,8 @@ import { CharacterService } from '../../services/CharacterService.js';
 import { CooldownService } from '../../services/CooldownService.js';
 import { DivorceService } from '../../services/DivorceService.js';
 import { MarryService } from '../../services/MarryService.js';
+import { HostingFeeService } from '../../services/HostingFeeService.js';
+import { NotificationService } from '../../services/NotificationService.js';
 import { parseManifestString } from '../../utils/manifestLoader.js';
 import { calculateDivorceRefund } from '../../utils/rarityCalculator.js';
 import { config } from '../../config.js';
@@ -16,6 +18,8 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const characterService = new CharacterService(fastify.prisma);
   const divorceService = new DivorceService(fastify.prisma, undefined, fastify.redis);
   const marryService = new MarryService(fastify.prisma, cooldownService, characterService);
+  const notificationService = new NotificationService(fastify.prisma);
+  const hostingFeeService = new HostingFeeService(fastify.prisma, fastify.redis, notificationService, divorceService);
 
   fastify.addHook('preHandler', verifyApiKey);
 
@@ -838,6 +842,33 @@ export const privateAdminRoutes: FastifyPluginAsync = async (fastify) => {
           message: `Limpeza concluída: ${deletedUsers} usuários removidos, ${freedMarriages} casamentos desfeitos, ${deletedSuggestions} sugestões e ${deletedGroups} grupos de teste apagados.`,
         },
       });
+    },
+  });
+
+  fastify.post('/admin/daily-hosting-fee', {
+    schema: {
+      description: 'Executa a cobrança da taxa diária de hospedagem (ativa e inativa) e confisco',
+      tags: ['Administração (Privado)'],
+      body: {
+        type: 'object',
+        properties: {
+          dryRun: { type: 'boolean', default: false },
+          force: { type: 'boolean', default: false },
+        },
+        additionalProperties: false,
+      },
+    },
+    handler: async (request, reply) => {
+      const { dryRun = false, force = false } = (request.body as any) || {};
+      try {
+        const summary = await hostingFeeService.runDailyFee({ dryRun, force });
+        return reply.send({ success: true, data: summary });
+      } catch (err: any) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'HOSTING_FEE_ERROR', message: err.message },
+        });
+      }
     },
   });
 };

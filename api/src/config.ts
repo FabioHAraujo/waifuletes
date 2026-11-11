@@ -70,6 +70,12 @@ const envSchema = z.object({
   UPSTREAM_API_URL: z.string().optional(),
   UPSTREAM_API_KEY: z.string().optional(),
   REMOTE_MEDIA_BASE_URL: z.string().optional(),
+
+  // Taxa de Hospedagem e Inatividade
+  HOSTING_CONFISCO_PERMILLE: z.coerce.number().default(3000),
+  HOSTING_TAXAS_INATIVAS: z.string().default('10,60,200,350,1000'),
+  HOSTING_TAXAS_ATIVAS: z.string().default('1,3,8,15,40'),
+  HOSTING_GRACE_HOURS: z.coerce.number().default(72),
 });
 
 export const config = envSchema.parse(process.env);
@@ -112,5 +118,50 @@ export function getLegendaryChanceCap(): number {
   }
   return Math.min(0.10, Math.max(0.0001, percent / 100));
 }
+
+import { Rarity } from '@prisma/client';
+
+export interface HostingRates {
+  [key: string]: number;
+  COMMON: number;
+  UNCOMMON: number;
+  RARE: number;
+  EPIC: number;
+  LEGENDARY: number;
+}
+
+/**
+ * Converte a string CSV de taxas (COMMON,UNCOMMON,RARE,EPIC,LEGENDARY) em um objeto tipado
+ */
+export function parseHostingRates(csv: string, defaultRates: HostingRates): HostingRates {
+  if (!csv || typeof csv !== 'string') return defaultRates;
+  const parts = csv.split(',').map((p) => parseInt(p.trim(), 10));
+  if (parts.length < 5 || parts.some((n) => isNaN(n) || n < 0)) {
+    return defaultRates;
+  }
+  return {
+    COMMON: parts[0],
+    UNCOMMON: parts[1],
+    RARE: parts[2],
+    EPIC: parts[3],
+    LEGENDARY: parts[4],
+  };
+}
+
+export const activeHostingRates = parseHostingRates(config.HOSTING_TAXAS_ATIVAS, {
+  COMMON: 1,
+  UNCOMMON: 3,
+  RARE: 8,
+  EPIC: 15,
+  LEGENDARY: 40,
+});
+
+export const inactiveHostingRates = parseHostingRates(config.HOSTING_TAXAS_INATIVAS, {
+  COMMON: 10,
+  UNCOMMON: 60,
+  RARE: 200,
+  EPIC: 350,
+  LEGENDARY: 1000,
+});
 
 export type Config = typeof config;

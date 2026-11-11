@@ -29,15 +29,18 @@ export class UserService {
 
     try {
       // 1. Upsert User
+      const now = new Date();
       const user = await this.prisma.user.upsert({
         where: { id: userId },
         create: {
           id: userId,
           name: name || userId,
           platform,
+          lastActiveAt: now,
         },
         update: {
           ...(name ? { name } : {}),
+          lastActiveAt: now,
         },
       });
 
@@ -339,5 +342,26 @@ export class UserService {
       usedSlots,
       availableSlots: Math.max(0, user.mythicSlots - usedSlots),
     };
+  }
+
+  /**
+   * Atualiza a última atividade do jogador de forma eficiente com debounce no Redis
+   */
+  async touchLastActive(userId: string): Promise<void> {
+    const cleanUserId = userId.includes('@') ? userId.split('@')[0].split(':')[0] : userId;
+    if (this.redis) {
+      const lockKey = `touch:active:${cleanUserId}`;
+      const acquired = await this.redis.set(lockKey, '1', 'EX', 300, 'NX');
+      if (!acquired) return; // Já atualizado nos últimos 5 minutos
+    }
+
+    try {
+      await this.prisma.user.update({
+        where: { id: cleanUserId },
+        data: { lastActiveAt: new Date() },
+      });
+    } catch {
+      // Ignora se o usuário ainda não existir no banco
+    }
   }
 }

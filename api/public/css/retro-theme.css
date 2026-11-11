@@ -2755,3 +2755,121 @@ body.modal-open {
     transform: scale(0.85) !important;
   }
 }
+
+/* ========================================================
+   BADGE DE CUSTO DE HOSPEDAGEM DO HARÉM
+   ======================================================== */
+.harem-hosting-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: var(--border-retro);
+  box-shadow: var(--shadow-retro-sm);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  z-index: 20;
+}
+
+.harem-hosting-badge:hover,
+.harem-hosting-badge.active-touch {
+  background: var(--bg-retro-accent);
+  box-shadow: var(--shadow-retro);
+  transform: translateY(-1px);
+}
+
+.harem-hosting-badge.inactive-mode {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+body.dark-mode .harem-hosting-badge.inactive-mode {
+  background: #450a0a !important;
+  color: #fca5a5 !important;
+}
+
+.harem-hosting-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 290px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: var(--border-retro);
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.4);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  font-weight: normal;
+  line-height: 1.5;
+  text-align: left;
+  z-index: 100;
+  cursor: default;
+}
+
+.harem-hosting-badge:hover .harem-hosting-tooltip,
+.harem-hosting-badge.active-touch .harem-hosting-tooltip {
+  display: block;
+  animation: fadeInTooltip 0.15s ease-out;
+}
+
+@keyframes fadeInTooltip {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.harem-hosting-tooltip-title {
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-retro);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.harem-hosting-tooltip-body .hosting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px dotted rgba(100, 100, 100, 0.2);
+}
+
+.harem-hosting-tooltip-body .hosting-row:last-child {
+  border-bottom: none;
+}
+
+.harem-hosting-tooltip-body .hosting-row-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 2px solid var(--border-retro);
+  font-weight: 800;
+  display: flex;
+  justify-content: space-between;
+}
+
+@media (max-width: 600px) {
+  .harem-hosting-badge {
+    font-size: 11.5px;
+    padding: 5px 8px;
+    max-width: 100%;
+  }
+
+  .harem-hosting-tooltip {
+    right: 0;
+    width: 260px;
+    max-width: calc(100vw - 32px);
+  }
+}
+

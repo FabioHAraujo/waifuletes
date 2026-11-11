@@ -19,7 +19,7 @@ import { CooldownService } from '../../services/CooldownService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
 import { optimizeImageUnder1Mb, MAX_IMAGE_UPLOAD_BYTES } from '../../utils/imageOptimizer.js';
-import { config } from '../../config.js';
+import { config, activeHostingRates, inactiveHostingRates } from '../../config.js';
 import { Rarity, Gender } from '@prisma/client';
 
 interface RavenaBotHealth {
@@ -175,7 +175,17 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       const user = await fastify.prisma.user.findUnique({
         where: { publicId },
-        select: { id: true, publicId: true, name: true, kakera: true, haremName: true, haremPrivate: true, mythicSlots: true },
+        select: {
+          id: true,
+          publicId: true,
+          name: true,
+          kakera: true,
+          haremName: true,
+          haremPrivate: true,
+          mythicSlots: true,
+          lastActiveAt: true,
+          updatedAt: true,
+        },
       });
 
       if (!user) {
@@ -193,6 +203,49 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         haremService.getUserHarem(user.id, 1, 0, 'keys'),
         collectionService.listUserCollections(user.id),
       ]);
+
+      // Cálculo de Custo Diário de Hospedagem
+      const now = Date.now();
+      const lastActiveTime = user.lastActiveAt
+        ? new Date(user.lastActiveAt).getTime()
+        : new Date(user.updatedAt).getTime();
+      const graceMs = config.HOSTING_GRACE_HOURS * 3600 * 1000;
+      const isInactive = (now - lastActiveTime) > graceMs;
+      const rates = isInactive ? inactiveHostingRates : activeHostingRates;
+
+      const rarityCounts: Record<string, number> = {
+        COMMON: 0,
+        UNCOMMON: 0,
+        RARE: 0,
+        EPIC: 0,
+        LEGENDARY: 0,
+      };
+
+      for (const item of haremResult.data) {
+        const r = (item.character?.baseRarity || 'COMMON').toUpperCase();
+        if (rarityCounts[r] !== undefined) {
+          rarityCounts[r]++;
+        }
+      }
+
+      const rarityCosts: Record<string, number> = {
+        COMMON: rarityCounts.COMMON * rates.COMMON,
+        UNCOMMON: rarityCounts.UNCOMMON * rates.UNCOMMON,
+        RARE: rarityCounts.RARE * rates.RARE,
+        EPIC: rarityCounts.EPIC * rates.EPIC,
+        LEGENDARY: rarityCounts.LEGENDARY * rates.LEGENDARY,
+      };
+
+      const totalDailyHostingCost = Object.values(rarityCosts).reduce((acc, c) => acc + c, 0);
+
+      const hostingCostInfo = {
+        isInactive,
+        totalCost: totalDailyHostingCost,
+        rates,
+        counts: rarityCounts,
+        costs: rarityCosts,
+        totalWaifus: haremResult.data.length,
+      };
 
       if (isOwner) {
         const wishlistResult = await wishlistService.getWishlist(user.id);
@@ -253,6 +306,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
             wishlist: wishlistResult,
             covetedCharacterIds,
             inventory: currentInventory,
+            hostingCost: hostingCostInfo,
           },
         });
       }
@@ -334,6 +388,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           collections: publicCollections,
           totalHarem: visibleEntries.length,
           listings: publicListings,
+          hostingCost: hostingCostInfo,
         },
       });
     },
@@ -3440,5 +3495,9 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
     },
+  });
+
+  fastify.get('/sobre', async (_request, reply) => {
+    return reply.sendFile('sobre.html');
   });
 };

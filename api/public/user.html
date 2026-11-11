@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Harém do Usuário • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261110-market-v3">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261111-hosting-badge-v2">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -90,6 +90,7 @@
         <button class="retro-tab" data-tab="tab-harem"><i class="fas fa-ring"></i> Harém (<span id="harem-count">0</span>)</button>
         <button class="retro-tab" data-tab="tab-market"><i class="fas fa-store"></i> Classificados <span id="market-pending-badge" class="badge-tag hidden" style="background:#f59e0b;color:#000;margin-left:4px;font-weight:800;padding:3px 6px;border-radius:4px;font-size:11px;">0</span></button>
         <button class="retro-tab" data-tab="tab-notifications"><i class="fas fa-bell"></i> Notificações <span id="notifications-count-badge" class="badge-tag hidden" style="background:#ef4444;color:#fff;margin-left:4px;font-weight:800;padding:2px 6px;border-radius:4px;font-size:11px;">0</span></button>
+        <a href="/sobre" class="retro-tab" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;"><i class="fas fa-info-circle"></i> Sobre</a>
       </div>
 
       <!-- Aba 1: Catálogo Geral com Ações Rápidas -->
@@ -263,6 +264,23 @@
 
       <!-- Aba 3: Harém -->
       <div class="tab-content hidden" id="tab-harem">
+        <!-- Barra Superior do Harém: Custo de Hospedagem (Direita Superior) -->
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 8px;">
+          <div id="harem-hosting-badge" class="harem-hosting-badge" title="Clique ou passe o mouse para detalhes">
+            <i class="fas fa-hotel"></i>
+            <span id="harem-hosting-text">Custo atual da hospedagem: 0 zinthos/dia</span>
+            <div id="harem-hosting-tooltip" class="harem-hosting-tooltip">
+              <div class="harem-hosting-tooltip-title">
+                <i class="fas fa-coins" style="color: #facc15;"></i>
+                <span id="hosting-tooltip-status">Hospedagem Diária</span>
+              </div>
+              <div id="hosting-tooltip-body" class="harem-hosting-tooltip-body">
+                Carregando detalhes...
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Subtabs do Harém -->
         <div class="retro-tabs retro-subtabs" id="harem-subtabs">
           <button class="retro-tab retro-subtab active" data-subtab="subtab-harem-married"><i class="fas fa-ring"></i> Casados (<span id="harem-count-sub">0</span>)</button>
@@ -641,6 +659,23 @@
 
       <!-- Aba 1: Harém Público (Padrão) -->
       <div class="tab-content public-tab-content" id="public-tab-harem">
+        <!-- Barra Superior do Harém Público: Custo de Hospedagem (Direita Superior) -->
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 8px;">
+          <div id="public-harem-hosting-badge" class="harem-hosting-badge" title="Clique ou passe o mouse para detalhes">
+            <i class="fas fa-hotel"></i>
+            <span id="public-harem-hosting-text">Custo atual da hospedagem: 0 zinthos/dia</span>
+            <div id="public-harem-hosting-tooltip" class="harem-hosting-tooltip">
+              <div class="harem-hosting-tooltip-title">
+                <i class="fas fa-coins" style="color: #facc15;"></i>
+                <span id="public-hosting-tooltip-status">Hospedagem Diária</span>
+              </div>
+              <div id="public-hosting-tooltip-body" class="harem-hosting-tooltip-body">
+                Carregando detalhes...
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Seção de Míticos Forjados (Fica no topo, visível se tiver pelo menos 1 mítico) -->
         <div id="public-mythics-section" class="hidden" style="margin-bottom: 28px; text-align: center;">
           <div style="display: inline-block; background: linear-gradient(135deg, #2e1065 0%, #581c87 100%); border: 2px solid #a855f7; border-radius: var(--radius-retro); padding: 8px 24px; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.35); margin-bottom: 16px;">
@@ -1858,7 +1893,7 @@
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261110-market-v2"></script>
-  <script src="/js/user.js?v=20261110-market-v4"></script>
+  <script src="/js/api.js?v=20261111-hosting-sobre"></script>
+  <script src="/js/user.js?v=20261111-hosting-badge-v2"></script>
 </body>
 </html>
