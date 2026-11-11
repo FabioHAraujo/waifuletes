@@ -205,12 +205,23 @@ export class MarketService {
     };
 
     if (search) {
-      where.character = {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { series: { contains: search, mode: 'insensitive' } },
-        ],
-      };
+      const searchTerms = search.replace(/[,;+]/g, ' ').trim().split(/\s+/).filter(Boolean);
+      if (searchTerms.length > 1) {
+        where.AND = searchTerms.map((term) => ({
+          OR: [
+            { character: { name: { contains: term, mode: 'insensitive' } } },
+            { character: { series: { contains: term, mode: 'insensitive' } } },
+            { interest: { contains: term, mode: 'insensitive' } },
+          ],
+        }));
+      } else if (searchTerms.length === 1) {
+        const term = searchTerms[0];
+        where.OR = [
+          { character: { name: { contains: term, mode: 'insensitive' } } },
+          { character: { series: { contains: term, mode: 'insensitive' } } },
+          { interest: { contains: term, mode: 'insensitive' } },
+        ];
+      }
     }
 
     let orderBy: any = { createdAt: 'desc' };
