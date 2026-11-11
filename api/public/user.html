@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Harém do Usuário • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261109-mobile-ux">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261110-market-v2">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -1075,7 +1075,7 @@
           <div class="retro-tabs" style="margin-bottom: 12px;">
             <button class="retro-tab active" data-offertab="offertab-waifus"><i class="fas fa-ring"></i> Waifus</button>
             <button class="retro-tab" data-offertab="offertab-zinthos"><i class="fas fa-coins"></i> Zinthos</button>
-            <button class="retro-tab" data-offertab="offertab-fishes"><i class="fas fa-fish"></i> Peixes</button>
+            <button class="retro-tab" data-offertab="offertab-runas"><i class="fas fa-gem"></i> Runas</button>
             <button class="retro-tab" data-offertab="offertab-buffs"><i class="fas fa-bolt"></i> Buffs Pesca</button>
             <button class="retro-tab" data-offertab="offertab-farm"><i class="fas fa-seedling"></i> Fazenda</button>
           </div>
@@ -1119,9 +1119,31 @@
             </div>
           </div>
 
-          <!-- Seleção de Peixes -->
-          <div class="offertab-content hidden" id="offertab-fishes">
-            <div id="offer-fishes-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; padding: 4px;"></div>
+          <!-- Seleção de Runas -->
+          <div class="offertab-content hidden" id="offertab-runas">
+            <div style="background: var(--bg-card); padding: 14px; border: var(--border-retro); border-radius: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 6px;">
+                <span style="font-weight: 800; font-size: 14px;"><i class="fas fa-gem" style="color: #38bdf8;"></i> Moeda Global (Runas ᚱ)</span>
+                <span style="font-size: 12px; color: var(--text-muted);">Seu Saldo: <b id="offer-user-runas-balance" style="color: #38bdf8;">0 ᚱ</b></span>
+              </div>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label class="retro-label">Quantidade de Runas a oferecer:</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="number" id="offer-runas-input" class="retro-input" min="0" value="0" placeholder="0" oninput="updateOfferRunasQuote()">
+                  <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferRunasMax()">Tudo</button>
+                  <button type="button" class="btn-retro btn-sm btn-danger" onclick="setOfferRunasZero()">Zerar</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferRunas(100)">+100</button>
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferRunas(500)">+500</button>
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferRunas(1000)">+1.000</button>
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferRunas(5000)">+5.000</button>
+              </div>
+              <div id="offer-runas-quote-display" style="margin-top: 10px; padding: 8px 12px; background: var(--bg-retro-accent); border: var(--border-retro); border-radius: 4px; font-size: 12px;">
+                <i class="fas fa-calculator" style="color: #f59e0b;"></i> Cotação do banco: <strong>≈ 0 Zinthos</strong> | <strong>≈ 0 Petalitas</strong>
+              </div>
+            </div>
           </div>
 
           <!-- Seleção de Buffs -->
@@ -1129,8 +1151,31 @@
             <div id="offer-buffs-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; padding: 4px;"></div>
           </div>
 
-          <!-- Seleção de Fazenda -->
+          <!-- Seleção de Fazenda (Petalitas + Elixirs + Decorações) -->
           <div class="offertab-content hidden" id="offertab-farm">
+            <div style="background: var(--bg-card); padding: 12px 14px; border: var(--border-retro); border-radius: 6px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                <span style="font-weight: 800; font-size: 13px;"><i class="fas fa-coins" style="color: #ec4899;"></i> Petalitas (Moeda da Fazenda)</span>
+                <span style="font-size: 12px; color: var(--text-muted);">Seu Saldo: <b id="offer-user-petalitas-balance" style="color: #ec4899;">0</b></span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="number" id="offer-petalitas-input" class="retro-input" min="0" value="0" placeholder="0">
+                <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferPetalitasMax()">Tudo</button>
+                <button type="button" class="btn-retro btn-sm btn-danger" onclick="setOfferPetalitasZero()">Zerar</button>
+              </div>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferPetalitas(500)">+500</button>
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferPetalitas(2000)">+2.000</button>
+                <button type="button" class="btn-retro btn-sm" onclick="addOfferPetalitas(10000)">+10.000</button>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; color: var(--text-muted);">
+              <span>Itens da Fazenda:</span>
+              <div style="display: flex; gap: 8px; font-size: 11px;">
+                <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#10b981;margin-right:3px;"></span>Elixirs</span>
+                <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#a855f7;margin-right:3px;"></span>Decorações</span>
+              </div>
+            </div>
             <div id="offer-farm-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; padding: 4px;"></div>
           </div>
         </div>
@@ -1813,7 +1858,7 @@
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261109-market-subtabs-search"></script>
-  <script src="/js/user.js?v=20261109-market-subtabs-search"></script>
+  <script src="/js/api.js?v=20261110-market-v2"></script>
+  <script src="/js/user.js?v=20261110-market-v2"></script>
 </body>
 </html>

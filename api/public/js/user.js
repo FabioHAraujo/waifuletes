@@ -511,6 +511,22 @@ function setupEventListeners() {
     navigateToHash(window.location.hash);
   });
 
+  // Ajuste dinâmico de cards nos classificados em caso de resize da tela
+  let marketResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(marketResizeTimer);
+    marketResizeTimer = setTimeout(() => {
+      if (typeof getMarketPageLimit === 'function') {
+        const newLimit = getMarketPageLimit();
+        if (newLimit !== marketState.limit) {
+          marketState.limit = newLimit;
+          if (marketState.page > 1) marketState.page = 1;
+          loadGlobalMarket();
+        }
+      }
+    }, 250);
+  });
+
   // Alternância de abas do painel público (Harém e Classificados)
   const publicTabs = document.querySelectorAll('#public-panel .retro-tab[data-publictab]');
   publicTabs.forEach(tab => {
@@ -5404,6 +5420,12 @@ async function openViewOffersModal(listingId, characterName) {
             return `<button type="button" class="badge-tag" style="background:#8b5cf6;color:#fff;border:none;cursor:pointer;margin:2px;padding:3px 8px;font-size:12px;" onclick="openWaifuPreview('${wId}', '${wId}', '', '', '')"><i class="fas fa-image"></i> ${escapeHtml(wId)}</button>`;
           }).join(' ')}</div>`);
         }
+        if (offered.runas && Number(offered.runas) > 0) {
+          parts.push(`<div><strong>Moeda Global (Runas):</strong> <span style="color:#38bdf8;font-weight:800;">ᚱ ${Number(offered.runas).toLocaleString('pt-BR')} Runas</span></div>`);
+        }
+        if (offered.petalitas && Number(offered.petalitas) > 0) {
+          parts.push(`<div><strong>Moeda da Fazenda (Petalitas):</strong> <span style="color:#ec4899;font-weight:800;">🌸 ${Number(offered.petalitas).toLocaleString('pt-BR')} Petalitas</span></div>`);
+        }
         if (Array.isArray(offered.fishes) && offered.fishes.length > 0) {
           const fishSummary = {};
           offered.fishes.forEach(f => {
@@ -5649,9 +5671,33 @@ async function loadWishlistMarket() {
   }
 }
 
+function getMarketPageLimit() {
+  const grid = document.getElementById('global-market-grid') || document.getElementById('public-market-grid');
+  if (!grid) return 10;
+
+  try {
+    const style = window.getComputedStyle(grid);
+    const gridTemplateColumns = style.getPropertyValue('grid-template-columns');
+    if (gridTemplateColumns) {
+      const cols = gridTemplateColumns.split(' ').filter(Boolean).length;
+      if (cols <= 2) {
+        return 10; // Mobile / Retrato: exatamente 2 colunas x até 5 linhas = 10 itens
+      }
+      return cols * 2; // Desktop / Paisagem: exatamente 2 linhas x N colunas (ex: 2x5 = 10, 2x4 = 8, 2x3 = 6)
+    }
+  } catch (_) {}
+
+  if (window.innerWidth <= 640) return 10;
+  const width = grid.offsetWidth || window.innerWidth;
+  const cols = Math.max(2, Math.floor(width / (180 + 16)));
+  return cols <= 2 ? 10 : cols * 2;
+}
+
 async function loadGlobalMarket() {
   const grid = document.getElementById('global-market-grid');
   if (!grid) return;
+
+  marketState.limit = getMarketPageLimit();
 
   grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 28px;">Buscando classificados globais...</div>';
 
@@ -5689,7 +5735,78 @@ async function loadGlobalMarket() {
   }
 }
 
-function openOfferModal(listingId, characterName, imageUrl, interest) {
+let liveBuyerInventory = {
+  runas: 0,
+  rates: { runasPerZinthos: 0.2857, runasPerJardimCoin: 0.125 },
+  fishingBuffs: [],
+  farm: { coins: 0, items: [] }
+};
+
+function updateOfferRunasQuote() {
+  const input = document.getElementById('offer-runas-input');
+  const quoteEl = document.getElementById('offer-runas-quote-display');
+  if (!input || !quoteEl) return;
+  const val = Math.max(0, parseFloat(input.value) || 0);
+
+  const rz = liveBuyerInventory.rates?.runasPerZinthos || 0.2857;
+  const rj = liveBuyerInventory.rates?.runasPerJardimCoin || 0.125;
+
+  const approxZinthos = rz > 0 ? Math.floor(val / rz) : 0;
+  const approxPetalitas = rj > 0 ? Math.floor(val / rj) : 0;
+
+  quoteEl.innerHTML = `<i class="fas fa-calculator" style="color: #f59e0b;"></i> Cotação do banco: <strong>≈ ${approxZinthos.toLocaleString('pt-BR')} Zinthos</strong> | <strong>≈ ${approxPetalitas.toLocaleString('pt-BR')} Petalitas</strong>`;
+}
+
+function setOfferRunasMax() {
+  const input = document.getElementById('offer-runas-input');
+  if (input) {
+    input.value = Math.floor(liveBuyerInventory.runas || 0);
+    updateOfferRunasQuote();
+  }
+}
+
+function setOfferRunasZero() {
+  const input = document.getElementById('offer-runas-input');
+  if (input) {
+    input.value = '0';
+    updateOfferRunasQuote();
+  }
+}
+
+function addOfferRunas(qty) {
+  const input = document.getElementById('offer-runas-input');
+  if (input) {
+    const current = parseFloat(input.value) || 0;
+    const maxVal = liveBuyerInventory.runas || 0;
+    input.value = Math.min(maxVal, current + qty);
+    updateOfferRunasQuote();
+  }
+}
+
+function setOfferPetalitasMax() {
+  const input = document.getElementById('offer-petalitas-input');
+  if (input) {
+    input.value = Math.floor(liveBuyerInventory.farm?.coins || 0);
+  }
+}
+
+function setOfferPetalitasZero() {
+  const input = document.getElementById('offer-petalitas-input');
+  if (input) {
+    input.value = '0';
+  }
+}
+
+function addOfferPetalitas(qty) {
+  const input = document.getElementById('offer-petalitas-input');
+  if (input) {
+    const current = parseFloat(input.value) || 0;
+    const maxVal = liveBuyerInventory.farm?.coins || 0;
+    input.value = Math.min(maxVal, current + qty);
+  }
+}
+
+async function openOfferModal(listingId, characterName, imageUrl, interest) {
   activeOfferListing = { id: listingId, name: characterName };
   document.getElementById('offer-target-name').textContent = characterName;
   document.getElementById('offer-target-interest').textContent = `Procura: ${interest}`;
@@ -5699,6 +5816,8 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
   document.getElementById('offer-message-input').value = '';
 
   const auth = getActiveAuthUser();
+  const token = auth.token || userSessionToken;
+  const pId = auth.publicId || userPublicId || 'token-session';
   const buyerData = auth.isOwner ? userSessionData : (visitorSessionData || userSessionData);
 
   const zInput = document.getElementById('offer-zinthos-input');
@@ -5747,114 +5866,135 @@ function openOfferModal(listingId, characterName, imageUrl, interest) {
     }).join('');
   }
 
-  // 2. Popula Peixes da Pescaria (agrupados por espécie com quantidade)
-  const fishesList = document.getElementById('offer-fishes-list');
-  const rawFishes = userSessionData?.inventory?.fishes || [];
-  const fishGroups = {};
-  rawFishes.forEach(f => {
-    const key = f.name || 'Peixe';
-    if (!fishGroups[key]) {
-      fishGroups[key] = { name: key, items: [], isRare: Boolean(f.is_rare || f.isRare) };
-    }
-    fishGroups[key].items.push(f);
-  });
-  const groupList = Object.values(fishGroups);
+  // Prepara placeholders enquanto carrega o inventário ao vivo
+  const runasInput = document.getElementById('offer-runas-input');
+  if (runasInput) runasInput.value = '0';
+  const petalitasInput = document.getElementById('offer-petalitas-input');
+  if (petalitasInput) petalitasInput.value = '0';
 
-  if (groupList.length === 0) {
-    fishesList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Nenhum peixe na sua mochila de pesca no momento.</div>';
-    window.activeFishGroups = [];
-  } else {
-    window.activeFishGroups = groupList;
-    fishesList.innerHTML = groupList.map((g, idx) => {
-      const count = g.items.length;
-      const avgWeight = (g.items.reduce((acc, it) => acc + (Number(it.weight) || 0), 0) / count).toFixed(1);
-      const rareTag = g.isRare ? '⭐ RARO' : '';
-      return `
-        <div style="display: flex; align-items: center; justify-content: space-between; border: var(--border-retro); padding: 6px 10px; border-radius: 4px; background: var(--bg-card); font-size: 12px;">
-          <div>
-            🐟 <strong>${escapeHtml(g.name)}</strong>
-            <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(~${avgWeight}kg | Em estoque: ${count})</span>
-            ${rareTag ? `<span style="color:#eab308;font-weight:bold;margin-left:4px;">${rareTag}</span>` : ''}
-          </div>
-          <div class="retro-qty-control" style="display: flex; gap: 4px; align-items: center;">
-            <button type="button" class="btn-retro btn-sm" onclick="adjustOfferFishGroupQty(${idx}, -1, ${count})">-</button>
-            <input type="number" min="0" max="${count}" id="fish-group-qty-${idx}" value="0" style="width: 55px; text-align: center;" oninput="onInputOfferFishGroupQty(${idx}, ${count})">
-            <button type="button" class="btn-retro btn-sm" onclick="adjustOfferFishGroupQty(${idx}, 1, ${count})">+</button>
-            <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferFishGroupAll(${idx}, ${count})" title="Oferecer tudo">Tudo</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
+  const runasBalanceEl = document.getElementById('offer-user-runas-balance');
+  if (runasBalanceEl) runasBalanceEl.textContent = 'Carregando...';
+  const petalitasBalanceEl = document.getElementById('offer-user-petalitas-balance');
+  if (petalitasBalanceEl) petalitasBalanceEl.textContent = 'Carregando...';
 
-  // 3. Popula Buffs Permanentes de Pesca (agrupados com descrição clara e quantidade)
   const buffsList = document.getElementById('offer-buffs-list');
-  const rawBuffs = userSessionData?.inventory?.buffs || [];
-  const buffGroups = {};
-  rawBuffs.forEach(b => {
-    const key = b.originalName || b.original_name || b.type || 'Buff';
-    if (!buffGroups[key]) {
-      buffGroups[key] = {
-        name: key,
-        type: b.type,
-        description: b.description || getLocalBuffDescription(b.type),
-        items: []
-      };
-    }
-    buffGroups[key].items.push(b);
-  });
-  const buffGroupList = Object.values(buffGroups);
+  if (buffsList) buffsList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Carregando buffs de pesca ao vivo...</div>';
 
-  if (buffGroupList.length === 0) {
-    buffsList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Nenhum buff de pesca permanente no seu inventário.</div>';
-    window.activeBuffGroups = [];
-  } else {
-    window.activeBuffGroups = buffGroupList;
-    buffsList.innerHTML = buffGroupList.map((bg, idx) => {
-      const count = bg.items.length;
-      return `
-        <div style="display: flex; align-items: center; justify-content: space-between; border: var(--border-retro); padding: 6px 10px; border-radius: 4px; background: var(--bg-card); font-size: 12px;">
-          <div>
-            ⚡ <strong>${escapeHtml(bg.name)}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(bg.description)} <span style="font-weight:700;">(Estoque: ${count})</span></div>
-          </div>
-          <div class="retro-qty-control" style="display: flex; gap: 4px; align-items: center;">
-            <button type="button" class="btn-retro btn-sm" onclick="adjustOfferBuffGroupQty(${idx}, -1, ${count})">-</button>
-            <input type="number" min="0" max="${count}" id="buff-group-qty-${idx}" value="0" style="width: 55px; text-align: center;" oninput="onInputOfferBuffGroupQty(${idx}, ${count})">
-            <button type="button" class="btn-retro btn-sm" onclick="adjustOfferBuffGroupQty(${idx}, 1, ${count})">+</button>
-            <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferBuffGroupAll(${idx}, ${count})" title="Oferecer tudo">Tudo</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  // 4. Popula Itens da Fazenda (Jardim das Sombras)
   const farmList = document.getElementById('offer-farm-list');
-  const farmItems = userSessionData?.inventory?.farmItems || [];
-  if (farmItems.length === 0) {
-    farmList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Nenhum item da fazenda disponível no momento.</div>';
-  } else {
-    farmList.innerHTML = farmItems.map(it => {
-      const maxQty = Number(it.quantity) || 1;
-      return `
-        <div style="display: flex; align-items: center; justify-content: space-between; border: var(--border-retro); padding: 6px 10px; border-radius: 4px; background: var(--bg-card); font-size: 12px;">
-          <div>
-            🌱 <strong>${escapeHtml(it.name || it.itemId)}</strong>
-            <span style="color: var(--text-muted); margin-left: 6px;">(Em estoque: ${maxQty})</span>
-          </div>
-          <div class="retro-qty-control" style="display: flex; gap: 4px; align-items: center;">
-            <button type="button" class="btn-retro btn-sm" onclick="adjustOfferFarmQty('${it.itemId}', -1, ${maxQty})">-</button>
-            <input type="number" min="0" max="${maxQty}" id="farm-qty-${it.itemId}" value="0" style="width: 55px; text-align: center;" oninput="onInputOfferFarmQty('${it.itemId}', ${maxQty})">
-            <button type="button" class="btn-retro btn-sm" onclick="adjustOfferFarmQty('${it.itemId}', 1, ${maxQty})">+</button>
-            <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferFarmAll('${it.itemId}', ${maxQty})" title="Oferecer tudo">Tudo</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
+  if (farmList) farmList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Carregando itens da fazenda ao vivo...</div>';
 
   openModal('modal-market-offer');
+
+  // Busca inventário ao vivo através do endpoint seguro
+  try {
+    const res = await Api.get(`/api/web/user/${encodeURIComponent(pId)}/market/my-inventory?token=${encodeURIComponent(token)}`);
+    if (res.success && res.data) {
+      liveBuyerInventory = res.data;
+
+      // 2. Popula Runas e Cotação
+      if (runasBalanceEl) {
+        runasBalanceEl.textContent = `${Number(liveBuyerInventory.runas || 0).toLocaleString('pt-BR')} ᚱ`;
+      }
+      updateOfferRunasQuote();
+
+      // 3. Popula Buffs Permanentes de Pesca (somente inventory_slot e max_baits)
+      const rawBuffs = Array.isArray(liveBuyerInventory.fishingBuffs) ? liveBuyerInventory.fishingBuffs : [];
+      const permanentBuffs = rawBuffs.filter(b => b.type === 'inventory_slot' || b.type === 'max_baits');
+      const buffGroups = {};
+      permanentBuffs.forEach(b => {
+        const key = b.originalName || b.type || 'Buff';
+        if (!buffGroups[key]) {
+          buffGroups[key] = {
+            name: key,
+            type: b.type,
+            description: b.description || (b.type === 'inventory_slot' ? 'Aumenta capacidade permanente da mochila de pesca' : 'Aumenta limite permanente de iscas simultâneas'),
+            items: []
+          };
+        }
+        buffGroups[key].items.push(b);
+      });
+      const buffGroupList = Object.values(buffGroups);
+
+      if (buffGroupList.length === 0) {
+        buffsList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center;">Nenhum buff de pesca permanente (Slot de Mochila ou Iscas Extras) no seu inventário.</div>';
+        window.activeBuffGroups = [];
+      } else {
+        window.activeBuffGroups = buffGroupList;
+        buffsList.innerHTML = buffGroupList.map((bg, idx) => {
+          const count = bg.items.length;
+          return `
+            <div style="display: flex; align-items: center; justify-content: space-between; border: var(--border-retro); padding: 8px 12px; border-radius: 4px; background: var(--bg-card); font-size: 12px;">
+              <div>
+                ⚡ <strong>${escapeHtml(bg.name)}</strong>
+                <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(bg.description)} <span style="font-weight:700; color: #38bdf8;">(Estoque: ${count})</span></div>
+              </div>
+              <div class="retro-qty-control" style="display: flex; gap: 4px; align-items: center;">
+                <button type="button" class="btn-retro btn-sm" onclick="adjustOfferBuffGroupQty(${idx}, -1, ${count})">-</button>
+                <input type="number" min="0" max="${count}" id="buff-group-qty-${idx}" value="0" style="width: 55px; text-align: center;" oninput="onInputOfferBuffGroupQty(${idx}, ${count})">
+                <button type="button" class="btn-retro btn-sm" onclick="adjustOfferBuffGroupQty(${idx}, 1, ${count})">+</button>
+                <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferBuffGroupAll(${idx}, ${count})" title="Oferecer tudo">Tudo</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 4. Popula Fazenda: Petalitas + Elixirs (verde) + Decorações (roxo)
+      if (petalitasBalanceEl) {
+        petalitasBalanceEl.textContent = Number(liveBuyerInventory.farm?.coins || 0).toLocaleString('pt-BR');
+      }
+
+      const farmData = liveBuyerInventory.farm;
+      if (liveBuyerInventory.farmUnavailable) {
+        farmList.innerHTML = '<div style="font-size: 12px; color: #f59e0b; padding: 12px; text-align: center;">⚠️ Inventário da fazenda temporariamente indisponível. Você ainda pode oferecer Waifus, Zinthos, Runas e Buffs.</div>';
+        window.activeFarmItems = [];
+      } else {
+        const rawFarmItems = Array.isArray(farmData?.items) ? farmData.items : [];
+        // Ordena: primeiro consumíveis / elixirs, depois decorações
+        const sortedFarmItems = [...rawFarmItems].sort((a, b) => {
+          if (a.type === 'consumable' && b.type !== 'consumable') return -1;
+          if (a.type !== 'consumable' && b.type === 'consumable') return 1;
+          return (a.name || a.itemId).localeCompare(b.name || b.itemId);
+        });
+
+        window.activeFarmItems = sortedFarmItems;
+
+        if (sortedFarmItems.length === 0) {
+          farmList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center;">Nenhum elixir ou decoração disponível no seu inventário da fazenda.</div>';
+        } else {
+          farmList.innerHTML = sortedFarmItems.map(it => {
+            const maxQty = Number(it.quantity) || 1;
+            const isConsumable = it.type === 'consumable';
+            const borderColor = isConsumable ? '#10b981' : '#a855f7';
+            const icon = isConsumable ? '🧪' : '🪴';
+            const typeLabel = isConsumable ? 'Elixir' : 'Decoração';
+            return `
+              <div style="display: flex; align-items: center; justify-content: space-between; border: 2px solid ${borderColor}; padding: 8px 12px; border-radius: 4px; background: var(--bg-card); font-size: 12px;">
+                <div>
+                  ${icon} <strong>${escapeHtml(it.name || it.itemId)}</strong>
+                  <span class="badge-tag" style="font-size: 10px; margin-left: 6px; padding: 1px 6px; border: 1px solid ${borderColor}; color: ${borderColor};">${typeLabel}</span>
+                  <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Em estoque: <strong>${maxQty}</strong></div>
+                </div>
+                <div class="retro-qty-control" style="display: flex; gap: 4px; align-items: center;">
+                  <button type="button" class="btn-retro btn-sm" onclick="adjustOfferFarmQty('${it.itemId}', -1, ${maxQty})">-</button>
+                  <input type="number" min="0" max="${maxQty}" id="farm-qty-${it.itemId}" value="0" style="width: 55px; text-align: center;" oninput="onInputOfferFarmQty('${it.itemId}', ${maxQty})">
+                  <button type="button" class="btn-retro btn-sm" onclick="adjustOfferFarmQty('${it.itemId}', 1, ${maxQty})">+</button>
+                  <button type="button" class="btn-retro btn-sm btn-gold" onclick="setOfferFarmAll('${it.itemId}', ${maxQty})" title="Oferecer tudo">Tudo</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    } else {
+      throw new Error(res.error?.message || 'Falha ao buscar inventário');
+    }
+  } catch (err) {
+    if (runasBalanceEl) runasBalanceEl.textContent = '0 ᚱ';
+    if (petalitasBalanceEl) petalitasBalanceEl.textContent = '0';
+    if (buffsList) buffsList.innerHTML = '<div style="font-size: 12px; color: var(--accent-red); padding: 12px; text-align: center;">Não foi possível carregar buffs ao vivo.</div>';
+    if (farmList) farmList.innerHTML = '<div style="font-size: 12px; color: var(--accent-red); padding: 12px; text-align: center;">Não foi possível carregar itens da fazenda ao vivo.</div>';
+  }
 }
 
 function filterOfferWaifus() {
@@ -5900,28 +6040,6 @@ function clearOfferWaifusSearch() {
     searchInput.focus();
   }
   filterOfferWaifus();
-}
-
-function adjustOfferFishGroupQty(idx, delta, max) {
-  const input = document.getElementById(`fish-group-qty-${idx}`);
-  if (!input) return;
-  let val = parseInt(input.value, 10) || 0;
-  val = Math.max(0, Math.min(max, val + delta));
-  input.value = val;
-}
-
-function setOfferFishGroupAll(idx, max) {
-  const input = document.getElementById(`fish-group-qty-${idx}`);
-  if (input) input.value = Math.max(0, max);
-}
-
-function onInputOfferFishGroupQty(idx, max) {
-  const input = document.getElementById(`fish-group-qty-${idx}`);
-  if (!input) return;
-  let val = parseInt(input.value, 10);
-  if (isNaN(val)) return;
-  if (val < 0) input.value = 0;
-  else if (val > max) input.value = max;
 }
 
 function adjustOfferBuffGroupQty(idx, delta, max) {
@@ -5984,25 +6102,6 @@ async function submitMarketOffer() {
 
   const selectedWaifuIds = Array.from(document.querySelectorAll('input[name="offer-waifu-cb"]:checked')).map(cb => cb.value);
 
-  const selectedFishes = [];
-  if (Array.isArray(window.activeFishGroups)) {
-    window.activeFishGroups.forEach((g, idx) => {
-      const input = document.getElementById(`fish-group-qty-${idx}`);
-      const qty = parseInt(input?.value, 10) || 0;
-      if (qty > 0) {
-        for (let i = 0; i < qty && i < g.items.length; i++) {
-          const item = g.items[i];
-          selectedFishes.push({
-            id: item.id,
-            name: item.name,
-            weight: Number(item.weight) || 0,
-            isRare: item.isRare,
-          });
-        }
-      }
-    });
-  }
-
   const selectedBuffs = [];
   if (Array.isArray(window.activeBuffGroups)) {
     window.activeBuffGroups.forEach((bg, idx) => {
@@ -6023,23 +6122,26 @@ async function submitMarketOffer() {
   }
 
   const farmItems = [];
-  const farmList = userSessionData?.inventory?.farmItems || [];
-  farmList.forEach(it => {
-    const qtyInput = document.getElementById(`farm-qty-${it.itemId}`);
-    const qty = parseInt(qtyInput?.value, 10) || 0;
-    if (qty > 0) {
-      farmItems.push({
-        itemId: it.itemId,
-        name: it.name || it.itemId,
-        amount: qty,
-      });
-    }
-  });
+  if (Array.isArray(window.activeFarmItems)) {
+    window.activeFarmItems.forEach(it => {
+      const qtyInput = document.getElementById(`farm-qty-${it.itemId}`);
+      const qty = parseInt(qtyInput?.value, 10) || 0;
+      if (qty > 0) {
+        farmItems.push({
+          itemId: it.itemId,
+          name: it.name || it.itemId,
+          amount: qty,
+        });
+      }
+    });
+  }
 
   const zinthos = parseInt(document.getElementById('offer-zinthos-input')?.value, 10) || 0;
+  const runas = parseFloat(document.getElementById('offer-runas-input')?.value) || 0;
+  const petalitas = parseInt(document.getElementById('offer-petalitas-input')?.value, 10) || 0;
 
-  if (!isFree && selectedWaifuIds.length === 0 && selectedFishes.length === 0 && selectedBuffs.length === 0 && farmItems.length === 0 && zinthos <= 0) {
-    Api.showToast('Selecione ao menos um item, waifu ou Zinthos para oferecer (ou marque "Pedir de graça").', '⚠️');
+  if (!isFree && selectedWaifuIds.length === 0 && selectedBuffs.length === 0 && farmItems.length === 0 && zinthos <= 0 && runas <= 0 && petalitas <= 0) {
+    Api.showToast('Selecione ao menos um item, waifu, Zinthos, Runas ou Petalitas para oferecer (ou marque "Pedir de graça").', '⚠️');
     return;
   }
 
@@ -6060,9 +6162,11 @@ async function submitMarketOffer() {
       offeredItems: {
         isFree,
         zinthos,
+        runas,
+        petalitas,
         waifuIds: selectedWaifuIds,
-        fishes: selectedFishes,
         fishingBuffs: selectedBuffs,
+        fishingBuffIds: selectedBuffs.map(b => b.id),
         farmItems,
       },
     });
@@ -6169,6 +6273,8 @@ function renderMySentOffersPage() {
       } else if (Array.isArray(offered.waifuIds) && offered.waifuIds.length > 0) {
         parts.push(`${offered.waifuIds.length} waifu(s)`);
       }
+      if (offered.runas && Number(offered.runas) > 0) parts.push(`ᚱ ${Number(offered.runas).toLocaleString('pt-BR')} runas`);
+      if (offered.petalitas && Number(offered.petalitas) > 0) parts.push(`🌸 ${Number(offered.petalitas).toLocaleString('pt-BR')} petalitas`);
       if (Array.isArray(offered.fishes) && offered.fishes.length > 0) parts.push(`${offered.fishes.length} peixe(s)`);
       if (Array.isArray(offered.fishingBuffs) && offered.fishingBuffs.length > 0) parts.push(`${offered.fishingBuffs.length} buff(s)`);
       if (Array.isArray(offered.farmItems) && offered.farmItems.length > 0) {
