@@ -304,6 +304,7 @@ enum ListingStatus {
 
 enum OfferStatus {
   PENDING
+  PROCESSING
   ACCEPTED
   REJECTED
   CANCELLED

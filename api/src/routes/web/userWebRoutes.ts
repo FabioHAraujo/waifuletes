@@ -2461,6 +2461,60 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * Consulta o inventário ao vivo do comprador para o modal de ofertas de mercado
+   */
+  fastify.get('/api/web/user/:publicId/market/my-inventory', {
+    schema: {
+      tags: ['Mercado (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId'],
+        properties: { publicId: { type: 'string' } },
+        additionalProperties: false,
+      },
+      querystring: {
+        type: 'object',
+        required: ['token'],
+        properties: { token: { type: 'string' } },
+        additionalProperties: false,
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId } = request.params as { publicId: string };
+      const { token } = request.query as { token: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      try {
+        const invRes = await fetch(`${config.RAVENA_API_URL}/api/market/user-inventory/${encodeURIComponent(session.userId)}`, {
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!invRes.ok) {
+          return reply.status(503).send({
+            success: false,
+            error: { code: 'INVENTORY_UNAVAILABLE', message: 'Não foi possível carregar o inventário ao vivo no momento.' },
+          });
+        }
+        const invData = (await invRes.json()) as any;
+        return reply.send({ success: true, data: invData });
+      } catch (err: any) {
+        return reply.status(503).send({
+          success: false,
+          error: { code: 'INVENTORY_FETCH_ERROR', message: `Erro ao buscar inventário: ${err?.message || 'Serviço externo inacessível'}` },
+        });
+      }
+    },
+  });
+
+  /**
    * Envia uma proposta / oferta para um anúncio
    */
   fastify.post('/api/web/user/:publicId/market/offers', {

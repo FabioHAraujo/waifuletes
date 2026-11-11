@@ -212,6 +212,7 @@ describe('🔮 Sistema de Personagens Míticos — Waifuletes API', () => {
           },
         }),
         update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       };
       mockPrisma.haremEntry.findFirst = vi.fn().mockResolvedValue({
         userId: 'user_seller',

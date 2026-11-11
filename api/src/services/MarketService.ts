@@ -9,9 +9,12 @@ export interface CreateOfferData {
   message?: string;
   offeredItems: {
     zinthos?: number;
+    runas?: number;
+    petalitas?: number;
     waifuIds?: string[];
     fishes?: Array<{ id: number; name?: string; weight?: number; isRare?: boolean }>;
     fishingBuffs?: Array<{ id: number; originalName?: string; type?: string; description?: string }>;
+    fishingBuffIds?: number[];
     farmItems?: Array<{ itemId: string; name?: string; amount: number }>;
     isFree?: boolean;
   };
@@ -540,6 +543,82 @@ export class MarketService {
       }
     }
 
+    // Validação ao vivo de estoque de itens externos (Runas, Buffs, Fazenda e Petalitas)
+    const offeredRunas = Number(data.offeredItems?.runas) || 0;
+    const offeredPetalitas = Number(data.offeredItems?.petalitas) || 0;
+    const offeredBuffs = Array.isArray(data.offeredItems?.fishingBuffs) ? data.offeredItems.fishingBuffs : [];
+    const offeredBuffIds = Array.isArray(data.offeredItems?.fishingBuffIds) ? data.offeredItems.fishingBuffIds : [];
+    const offeredFarmItems = Array.isArray(data.offeredItems?.farmItems) ? data.offeredItems.farmItems : [];
+
+    const hasExternalItems = offeredRunas > 0 || offeredPetalitas > 0 || offeredBuffs.length > 0 || offeredBuffIds.length > 0 || offeredFarmItems.length > 0;
+    if (hasExternalItems) {
+      try {
+        const invRes = await fetch(`${config.RAVENA_API_URL}/api/market/user-inventory/${encodeURIComponent(buyerId)}`, {
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!invRes.ok) {
+          throw new Error(`Serviço de inventário indisponível (HTTP ${invRes.status})`);
+        }
+        const invData = (await invRes.json()) as any;
+        if (!invData || !invData.success) {
+          throw new Error(invData?.error || 'Não foi possível validar seu inventário externo.');
+        }
+
+        // Valida Runas
+        if (offeredRunas > 0) {
+          if ((invData.runas || 0) < offeredRunas) {
+            throw new DomainError(
+              'INSUFFICIENT_RUNAS',
+              `Saldo insuficiente de Runas. Você possui ${invData.runas || 0} ᚱ, mas tentou oferecer ${offeredRunas} ᚱ.`
+            );
+          }
+        }
+
+        // Valida Petalitas
+        if (offeredPetalitas > 0) {
+          const userCoins = invData.farm?.coins || 0;
+          if (userCoins < offeredPetalitas) {
+            throw new DomainError(
+              'INSUFFICIENT_PETALITAS',
+              `Saldo insuficiente de Petalitas. Você possui ${userCoins} petalitas, mas tentou oferecer ${offeredPetalitas}.`
+            );
+          }
+        }
+
+        // Valida Buffs
+        const checkBuffIds = offeredBuffIds.length > 0 ? offeredBuffIds : offeredBuffs.map((b: any) => b.id);
+        if (checkBuffIds.length > 0) {
+          const userBuffIds = new Set((invData.fishingBuffs || []).map((b: any) => b.id));
+          for (const bId of checkBuffIds) {
+            if (!userBuffIds.has(bId)) {
+              throw new DomainError(
+                'INSUFFICIENT_BUFFS',
+                `O buff de pesca selecionado (ID: ${bId}) não foi encontrado no seu inventário atual.`
+              );
+            }
+          }
+        }
+
+        // Valida Itens da Fazenda
+        if (offeredFarmItems.length > 0) {
+          const farmMap = new Map<string, number>((invData.farm?.items || []).map((it: any) => [String(it.itemId), Number(it.quantity) || 0]));
+          for (const reqItem of offeredFarmItems) {
+            const currentQty = Number(farmMap.get(reqItem.itemId) || 0);
+            const needQty = Number(reqItem.amount) || 1;
+            if (currentQty < needQty) {
+              throw new DomainError(
+                'INSUFFICIENT_FARM_ITEMS',
+                `Item da fazenda insuficiente (${reqItem.name || reqItem.itemId}: você possui ${currentQty}, tentou oferecer ${needQty}).`
+              );
+            }
+          }
+        }
+      } catch (valErr: any) {
+        if (valErr instanceof DomainError) throw valErr;
+        throw new DomainError('INVENTORY_VALIDATION_FAILED', `Falha ao validar inventário em tempo real: ${valErr?.message || 'Erro desconhecido'}`);
+      }
+    }
+
     const offer = await this.prisma.marketOffer.create({
       data: {
         listingId,
@@ -652,6 +731,18 @@ export class MarketService {
       throw new DomainError('INVALID_STATUS', 'Esta oferta já foi respondida ou cancelada.');
     }
 
+    // Trava atômica da oferta: move de PENDING para PROCESSING para prevenir concorrência / duplo aceite
+    if (typeof this.prisma.marketOffer?.updateMany === 'function') {
+      const locked = await this.prisma.marketOffer.updateMany({
+        where: { id: offerId, status: OfferStatus.PENDING },
+        data: { status: OfferStatus.PROCESSING },
+      });
+
+      if (locked.count === 0) {
+        throw new DomainError('OFFER_ALREADY_PROCESSED', 'Esta oferta já está sendo processada ou já foi respondida/cancelada.');
+      }
+    }
+
     const listing = offer.listing;
     if (listing.status !== ListingStatus.ACTIVE) {
       throw new DomainError('LISTING_NOT_ACTIVE', 'O anúncio não está mais ativo.');
@@ -746,6 +837,10 @@ export class MarketService {
       // Valida se o comprador pode receber o personagem anunciado
       const buyerCheck = await this.cooldownService.canMarryDaily(offer.buyerId, buyerCharRarity, true);
       if (!buyerCheck.allowed) {
+        await this.prisma.marketOffer.update({
+          where: { id: offer.id },
+          data: { status: OfferStatus.PENDING },
+        });
         return {
           success: false,
           cancelled: false,
@@ -759,6 +854,10 @@ export class MarketService {
         if (legCount > 0) {
           const currentTradeUsed = await this.cooldownService.getDailyTradeCount(sellerId, Rarity.LEGENDARY);
           if (currentTradeUsed + legCount > 10) {
+            await this.prisma.marketOffer.update({
+              where: { id: offer.id },
+              data: { status: OfferStatus.PENDING },
+            });
             return {
               success: false,
               cancelled: false,
@@ -772,6 +871,10 @@ export class MarketService {
           if (wRarity !== 'LEGENDARY') {
             const sellerCheck = await this.cooldownService.canMarryDaily(sellerId, wRarity, true);
             if (!sellerCheck.allowed) {
+              await this.prisma.marketOffer.update({
+                where: { id: offer.id },
+                data: { status: OfferStatus.PENDING },
+              });
               return {
                 success: false,
                 cancelled: false,
@@ -808,24 +911,30 @@ export class MarketService {
       }
     }
 
-    // 4. Valida e transfere itens externos (Pesca e Fazenda) via Ravena
+    // 4. Valida e transfere itens externos (Runas, Buffs, Fazenda e Petalitas) via Ravena
+    const offeredRunas = Number(offered.runas) || 0;
+    const offeredPetalitas = Number(offered.petalitas) || 0;
     const fishes = Array.isArray(offered.fishes) ? offered.fishes : [];
     const buffs = Array.isArray(offered.fishingBuffs) ? offered.fishingBuffs : [];
+    const fishingBuffIds = Array.isArray(offered.fishingBuffIds) ? offered.fishingBuffIds : buffs.map((b: any) => b.id);
     const farmItems = Array.isArray(offered.farmItems) ? offered.farmItems : [];
 
-    const hasExternalItems = fishes.length > 0 || buffs.length > 0 || farmItems.length > 0;
+    const hasExternalItems = offeredRunas > 0 || offeredPetalitas > 0 || fishes.length > 0 || buffs.length > 0 || fishingBuffIds.length > 0 || farmItems.length > 0;
     if (hasExternalItems) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
         const transferRes = await fetch(`${config.RAVENA_API_URL}/api/market/transfer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fromUserId: offer.buyerId,
             toUserId: sellerId,
+            runas: offeredRunas,
+            petalitas: offeredPetalitas,
             fishes,
             buffs,
+            fishingBuffIds,
             farmItems,
           }),
           signal: controller.signal,
@@ -870,130 +979,182 @@ export class MarketService {
       }
     }
 
-    // 5. Executa a transferência de Waifus e Zinthos atomicamente no PostgreSQL
-    await this.prisma.$transaction(async (tx) => {
-      // Passa a waifu anunciada do vendedor para o comprador (remove da coleção do antigo dono e reseta favorito)
-      await tx.haremEntry.update({
-        where: { characterId: listing.characterId },
-        data: {
-          userId: offer.buyerId,
-          collectionId: null,
-          isFavorite: false,
-        },
-      });
-
-      // Se o comprador tiver cobiçado este personagem anunciado, remove o covet dele
-      await tx.characterCovet.deleteMany({
-        where: { characterId: listing.characterId, userId: offer.buyerId },
-      });
-
-      // Atualiza os covets restantes desse personagem para o novo dono
-      await tx.characterCovet.updateMany({
-        where: { characterId: listing.characterId },
-        data: { ownerId: offer.buyerId },
-      });
-
-      // Passa as waifus ofertadas do comprador para o vendedor (remove da coleção do comprador e reseta favorito)
-      for (const wId of waifuIds) {
+    // 5. Executa a transferência de Waifus e Zinthos atomicamente no PostgreSQL com reversão por compensação
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // Passa a waifu anunciada do vendedor para o comprador (remove da coleção do antigo dono e reseta favorito)
         await tx.haremEntry.update({
-          where: { characterId: wId },
+          where: { characterId: listing.characterId },
           data: {
-            userId: sellerId,
+            userId: offer.buyerId,
             collectionId: null,
             isFavorite: false,
           },
         });
 
-        // Atualiza covets das waifus ofertadas para o novo dono
+        // Se o comprador tiver cobiçado este personagem anunciado, remove o covet dele
         await tx.characterCovet.deleteMany({
-          where: { characterId: wId, userId: sellerId },
+          where: { characterId: listing.characterId, userId: offer.buyerId },
         });
+
+        // Atualiza os covets restantes desse personagem para o novo dono
         await tx.characterCovet.updateMany({
-          where: { characterId: wId },
-          data: { ownerId: sellerId },
+          where: { characterId: listing.characterId },
+          data: { ownerId: offer.buyerId },
         });
-      }
 
-      // Transfere Zinthos (se houver)
-      if (offeredZinthos > 0) {
-        await tx.user.update({
-          where: { id: offer.buyerId },
-          data: { kakera: { decrement: offeredZinthos } },
-        });
-        await tx.user.update({
-          where: { id: sellerId },
-          data: { kakera: { increment: offeredZinthos } },
-        });
-        await tx.kakeraTransaction.createMany({
-          data: [
-            {
-              userId: offer.buyerId,
-              amount: -offeredZinthos,
-              reason: KakeraReason.MARKET_TRADE,
-              metadata: { type: 'market_offer_paid', listingId: listing.id, sellerId },
-            },
-            {
+        // Passa as waifus ofertadas do comprador para o vendedor (remove da coleção do comprador e reseta favorito)
+        for (const wId of waifuIds) {
+          await tx.haremEntry.update({
+            where: { characterId: wId },
+            data: {
               userId: sellerId,
-              amount: offeredZinthos,
-              reason: KakeraReason.MARKET_TRADE,
-              metadata: { type: 'market_offer_received', listingId: listing.id, buyerId: offer.buyerId },
+              collectionId: null,
+              isFavorite: false,
             },
-          ],
+          });
+
+          // Atualiza covets das waifus ofertadas para o novo dono
+          await tx.characterCovet.deleteMany({
+            where: { characterId: wId, userId: sellerId },
+          });
+          await tx.characterCovet.updateMany({
+            where: { characterId: wId },
+            data: { ownerId: sellerId },
+          });
+        }
+
+        // Transfere Zinthos (se houver)
+        if (offeredZinthos > 0) {
+          await tx.user.update({
+            where: { id: offer.buyerId },
+            data: { kakera: { decrement: offeredZinthos } },
+          });
+          await tx.user.update({
+            where: { id: sellerId },
+            data: { kakera: { increment: offeredZinthos } },
+          });
+          await tx.kakeraTransaction.createMany({
+            data: [
+              {
+                userId: offer.buyerId,
+                amount: -offeredZinthos,
+                reason: KakeraReason.MARKET_TRADE,
+                metadata: { type: 'market_offer_paid', listingId: listing.id, sellerId },
+              },
+              {
+                userId: sellerId,
+                amount: offeredZinthos,
+                reason: KakeraReason.MARKET_TRADE,
+                metadata: { type: 'market_offer_received', listingId: listing.id, buyerId: offer.buyerId },
+              },
+            ],
+          });
+        }
+
+        // Marca a oferta como ACEITA
+        await tx.marketOffer.update({
+          where: { id: offer.id },
+          data: {
+            status: OfferStatus.ACCEPTED,
+            notifiedBuyer: false,
+            buyerNotifiedStatus: 'ACCEPTED',
+          },
         });
-      }
 
-      // Marca a oferta como ACEITA
-      await tx.marketOffer.update({
-        where: { id: offer.id },
-        data: {
-          status: OfferStatus.ACCEPTED,
-          notifiedBuyer: false,
-          buyerNotifiedStatus: 'ACCEPTED',
-        },
-      });
+        // Marca o anúncio como CONCLUÍDO
+        await tx.marketListing.update({
+          where: { id: listing.id },
+          data: { status: ListingStatus.COMPLETED },
+        });
 
-      // Marca o anúncio como CONCLUÍDO
-      await tx.marketListing.update({
-        where: { id: listing.id },
-        data: { status: ListingStatus.COMPLETED },
-      });
-
-      // Cancela outros anúncios ativos desse mesmo personagem (caso existam)
-      await tx.marketListing.updateMany({
-        where: {
-          characterId: listing.characterId,
-          id: { not: listing.id },
-          status: ListingStatus.ACTIVE,
-        },
-        data: { status: ListingStatus.CANCELLED },
-      });
-
-      // Se o comprador ofertou waifus, cancela anúncios ativos delas também
-      if (waifuIds.length > 0) {
+        // Cancela outros anúncios ativos desse mesmo personagem (caso existam)
         await tx.marketListing.updateMany({
           where: {
-            characterId: { in: waifuIds },
+            characterId: listing.characterId,
+            id: { not: listing.id },
             status: ListingStatus.ACTIVE,
           },
           data: { status: ListingStatus.CANCELLED },
         });
+
+        // Se o comprador ofertou waifus, cancela anúncios ativos delas também
+        if (waifuIds.length > 0) {
+          await tx.marketListing.updateMany({
+            where: {
+              characterId: { in: waifuIds },
+              status: ListingStatus.ACTIVE,
+            },
+            data: { status: ListingStatus.CANCELLED },
+          });
+        }
+
+        // Cancela outras ofertas pendentes no mesmo anúncio
+        await tx.marketOffer.updateMany({
+          where: {
+            listingId: listing.id,
+            id: { not: offer.id },
+            status: OfferStatus.PENDING,
+          },
+          data: {
+            status: OfferStatus.CANCELLED,
+            cancelReason: 'Outra oferta foi aceita pelo vendedor.',
+            notifiedBuyer: false,
+            buyerNotifiedStatus: 'CANCELLED',
+          },
+        });
+      });
+    } catch (pgTxErr: any) {
+      console.error('[Market Transaction] Erro na transação PostgreSQL, iniciando compensação externa:', pgTxErr);
+
+      // Compensating Transaction: Devolve itens externos do vendedor de volta para o comprador
+      if (hasExternalItems) {
+        try {
+          const compController = new AbortController();
+          const compTimeout = setTimeout(() => compController.abort(), 12000);
+          const rollbackRes = await fetch(`${config.RAVENA_API_URL}/api/market/transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fromUserId: sellerId,
+              toUserId: offer.buyerId,
+              runas: offeredRunas,
+              petalitas: offeredPetalitas,
+              fishes,
+              buffs,
+              fishingBuffIds,
+              farmItems,
+            }),
+            signal: compController.signal,
+          });
+          clearTimeout(compTimeout);
+          const rollbackData = (await rollbackRes.json().catch(() => ({}))) as any;
+          if (rollbackRes.ok && rollbackData?.success) {
+            console.log(`[Market Compensation] Sucesso ao devolver itens externos para o comprador ${offer.buyerId}`);
+          } else {
+            console.error(`[Market Compensation] CRÍTICO: Falha ao devolver itens externos para ${offer.buyerId}:`, rollbackData);
+          }
+        } catch (compErr: any) {
+          console.error(`[Market Compensation] CRÍTICO: Exceção ao executar compensação externa para ${offer.buyerId}:`, compErr?.message);
+        }
       }
 
-      // Cancela outras ofertas pendentes no mesmo anúncio
-      await tx.marketOffer.updateMany({
-        where: {
-          listingId: listing.id,
-          id: { not: offer.id },
-          status: OfferStatus.PENDING,
-        },
+      await this.prisma.marketOffer.update({
+        where: { id: offer.id },
         data: {
           status: OfferStatus.CANCELLED,
-          cancelReason: 'Outra oferta foi aceita pelo vendedor.',
+          cancelReason: `Erro no processamento interno da troca: ${pgTxErr?.message || 'Falha no banco'}. Itens externos foram estornados.`,
           notifiedBuyer: false,
           buyerNotifiedStatus: 'CANCELLED',
         },
       });
-    });
+
+      return {
+        success: false,
+        cancelled: true,
+        reason: 'Não foi possível concluir a negociação devido a um erro no banco de dados. Seus itens ofertados foram estornados com sucesso.',
+      };
+    }
 
     // 6. Atualiza cotas diárias de casamento e troca nos classificados
     if (this.cooldownService) {

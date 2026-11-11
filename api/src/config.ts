@@ -45,6 +45,7 @@ const envSchema = z.object({
   INTERNAL_BASE_URL: z.string().default('http://localhost:3000'),
   PUBLIC_BASE_URL: z.string().default('http://localhost:3000'),
   RAVENA_API_URL: z.string().default(process.env.RAVENA_API_URL || 'http://172.22.0.1:5001'),
+  JARDIM_API_URL: z.string().default(process.env.JARDIM_API_URL || 'http://172.22.0.1:3040'),
 
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
