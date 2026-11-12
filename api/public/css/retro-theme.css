@@ -745,6 +745,36 @@ body.dark-mode .waifu-card.rarity-common {
   box-shadow: var(--shadow-retro);
 }
 
+.btn-waifinder {
+  background: linear-gradient(135deg, #ff7a00, #ea580c) !important;
+  color: #ffffff !important;
+  border-color: #9a3412 !important;
+}
+
+.btn-waifinder:hover {
+  background: linear-gradient(135deg, #ff8f1f, #f97316) !important;
+}
+
+.user-zinthos-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+  border: 2px solid #f59e0b;
+  border-radius: 999px;
+}
+
+body.dark-mode .user-zinthos-pill {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fde047;
+  border-color: #fbbf24;
+}
+
 /* Imagem com proporção Mudae exata: 225x350 = 9/14 */
 .card-img-wrapper {
   position: relative;
@@ -2218,15 +2248,14 @@ body.modal-open {
     line-height: 1 !important;
   }
 
-  /* Barra de ferramentas horizontal: ocupa a linha inteira abaixo do logo,
-     botões com altura uniforme (touch target >= 40px) e sem overflow */
+  /* Barra de ferramentas horizontal no mobile: ~30% mais compacta */
   .header-actions {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
-    align-items: stretch !important;
-    justify-content: stretch !important;
-    gap: 6px !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
     width: 100% !important;
     min-width: 0 !important;
   }
@@ -2234,13 +2263,22 @@ body.modal-open {
   .header-actions > .btn-retro:not(.hidden) {
     flex: 1 1 auto !important;
     min-width: 0 !important;
-    min-height: 40px !important;
-    padding: 6px 10px !important;
-    font-size: 12px !important;
+    min-height: 28px !important;
+    padding: 4px 7px !important;
+    font-size: 10.5px !important;
     white-space: nowrap !important;
-    line-height: 1.2 !important;
+    line-height: 1.15 !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    box-shadow: 2px 2px 0px #000000 !important;
+  }
+
+  .header-actions > #btn-toggle-theme:not(.hidden),
+  .header-actions > #btn-theme-toggle:not(.hidden) {
+    flex: 0 0 auto !important;
+    min-width: 30px !important;
+    padding: 4px 8px !important;
+    justify-content: center !important;
   }
 
   /* Título do usuário unificado e enxuto em 1 linha */

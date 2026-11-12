@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Harém do Usuário • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261111-hosting-badge-v2">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261112-ui-updates">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -61,17 +61,17 @@
         </div>
       </a>
       <div class="header-actions">
-        <a id="btn-open-waifinder" href="/waifinder" class="btn-retro btn-sm btn-pink" title="Modo Descoberta Waifinder" style="background:#f43f5e;color:#fff;border-color:#be123c;">
+        <a id="btn-open-waifinder" href="/waifinder" class="btn-retro btn-sm btn-waifinder" title="Modo Descoberta Waifinder">
           <i class="fas fa-fire"></i> Waifinder
         </a>
-        <button id="btn-toggle-theme" class="btn-retro btn-sm" title="Alternar tema">
-          <i class="fas fa-moon"></i> Dark
-        </button>
         <button id="btn-share-public" class="btn-retro btn-sm btn-gold hidden" title="Copiar link público para amigos">
           <i class="fas fa-share-alt"></i> <span class="btn-label-long">Compartilhar!</span><span class="btn-label-short">Link</span>
         </button>
         <button id="btn-session-auth" class="btn-retro btn-sm btn-logout hidden" title="Encerrar sessão (Logout)">
           <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+        <button id="btn-toggle-theme" class="btn-retro btn-sm" title="Alternar tema" aria-label="Alternar tema">
+          <i class="fas fa-moon"></i>
         </button>
       </div>
     </header>
@@ -79,6 +79,7 @@
     <!-- Cabeçalho do Perfil / Painel -->
     <section class="hero-section" id="user-header">
       <h2 class="hero-title" id="user-title">Carregando perfil...</h2>
+      <p id="user-zinthos" class="user-zinthos-pill hidden"></p>
       <div id="session-badge-container" style="margin-top: 4px;"></div>
     </section>
 
@@ -300,9 +301,10 @@
             </div>
             <div class="filters-row" style="margin-top: 10px; justify-content: center;">
               <div class="filter-group">
-                <span><i class="fas fa-gem"></i> Raridade:</span>
+                <span><i class="fas fa-filter"></i> Filtro:</span>
                 <select id="harem-rarity-select" class="retro-select">
                   <option value="">Todas</option>
+                  <option value="COVETED">👀 Cobiçados</option>
                   <option value="LEGENDARY">⭐ Lendário</option>
                   <option value="EPIC">🟣 Épico</option>
                   <option value="RARE">🔵 Raro</option>
@@ -589,10 +591,11 @@
                   <th>Vendedor</th>
                   <th>O que você ofereceu</th>
                   <th>Status</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody id="tbody-my-offers">
-                <tr><td colspan="5" style="text-align: center; padding: 20px;">Carregando suas ofertas...</td></tr>
+                <tr><td colspan="6" style="text-align: center; padding: 20px;">Carregando suas ofertas...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1206,8 +1209,9 @@
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; color: var(--text-muted);">
               <span>Itens da Fazenda:</span>
-              <div style="display: flex; gap: 8px; font-size: 11px;">
+              <div style="display: flex; gap: 8px; font-size: 11px; flex-wrap: wrap;">
                 <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#10b981;margin-right:3px;"></span>Elixirs</span>
+                <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:3px;"></span>Sementes</span>
                 <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#a855f7;margin-right:3px;"></span>Decorações</span>
               </div>
             </div>
@@ -1274,6 +1278,55 @@
         <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-confirm-accept-offer')">Cancelar</button>
         <button type="button" class="btn-retro btn-sm btn-gold" id="btn-confirm-accept-offer" style="font-weight: 800;">
           <i class="fas fa-check"></i> Sim, Aceitar Oferta
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação para Recusar Oferta (com Motivo Opcional) -->
+  <div class="modal-overlay hidden" id="modal-confirm-reject-offer" style="z-index: 10025;">
+    <div class="modal-box" style="max-width: min(500px, 90vw);">
+      <div class="modal-header">
+        <span class="modal-title">👎 Recusar Proposta</span>
+        <button class="modal-close" onclick="closeModal('modal-confirm-reject-offer')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--text-main);">
+          Tem certeza que deseja recusar a proposta para <span id="reject-offer-char-name" style="color: #ef4444;">...</span>?
+        </p>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="retro-label" for="reject-offer-reason-input">Motivo da recusa (opcional — será enviado ao proponente):</label>
+          <textarea id="reject-offer-reason-input" class="retro-input" rows="3" maxlength="300" placeholder="Ex: Procuro personagens épicos ou uma oferta maior de Zinthos..." style="resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-confirm-reject-offer')">Voltar</button>
+        <button type="button" class="btn-retro btn-sm btn-danger" id="btn-confirm-reject-offer" style="font-weight: 800;">
+          <i class="fas fa-times"></i> Confirmar Recusa
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação para Cancelar Proposta Enviada -->
+  <div class="modal-overlay hidden" id="modal-confirm-cancel-offer" style="z-index: 10025;">
+    <div class="modal-box" style="max-width: min(460px, 90vw);">
+      <div class="modal-header">
+        <span class="modal-title">🚫 Cancelar Proposta Enviada</span>
+        <button class="modal-close" onclick="closeModal('modal-confirm-cancel-offer')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text-main);">
+          Deseja cancelar a sua proposta pendente para <span id="cancel-offer-char-name" style="color: #f59e0b;">...</span>?
+        </p>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 0;">
+          Após cancelar, você poderá enviar uma nova proposta com outros itens ou valores para este anúncio.
+        </p>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-retro btn-sm" onclick="closeModal('modal-confirm-cancel-offer')">Voltar</button>
+        <button type="button" class="btn-retro btn-sm btn-danger" id="btn-confirm-cancel-offer" style="font-weight: 800;">
+          <i class="fas fa-ban"></i> Sim, Cancelar Proposta
         </button>
       </div>
     </div>
@@ -1893,7 +1946,7 @@
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261111-hosting-sobre"></script>
-  <script src="/js/user.js?v=20261111-hosting-badge-v2"></script>
+  <script src="/js/api.js?v=20261112-ui-updates"></script>
+  <script src="/js/user.js?v=20261112-ui-updates"></script>
 </body>
 </html>

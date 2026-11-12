@@ -75,8 +75,14 @@ function matchesHaremCard(entry, searchText, rarityFilter) {
   if (!char) return false;
 
   if (rarityFilter) {
-    const r = (char.baseRarity || char.rarity || 'COMMON').toUpperCase();
-    if (r !== rarityFilter.toUpperCase()) return false;
+    const normFilter = rarityFilter.toUpperCase();
+    if (normFilter === 'COVETED') {
+      const hasCovets = Number(entry.unseenCovetsCount || 0) > 0 || Number(entry.totalCovetsCount || 0) > 0;
+      if (!hasCovets) return false;
+    } else {
+      const r = (char.baseRarity || char.rarity || 'COMMON').toUpperCase();
+      if (r !== normFilter) return false;
+    }
   }
 
   if (searchText) {
@@ -1207,7 +1213,15 @@ async function loadUserData() {
 
     const zinthos = Number(userSessionData.kakera || 0).toLocaleString('pt-BR');
     const zinthosEl = document.getElementById('user-zinthos');
-    if (zinthosEl) zinthosEl.textContent = `${zinthos} zinthos`;
+    if (zinthosEl) {
+      if (isOwner) {
+        zinthosEl.innerHTML = `<i class="fas fa-coins"></i> ${zinthos} zinthos`;
+        zinthosEl.classList.remove('hidden');
+      } else {
+        zinthosEl.textContent = '';
+        zinthosEl.classList.add('hidden');
+      }
+    }
 
     if (isOwner) {
       // Auto-manter login de forma transparente e persistente por 3 dias
@@ -1333,7 +1347,12 @@ async function loadUserData() {
               btnHarem.className = 'btn-retro btn-sm';
               btnHarem.style.cssText = 'background: #22c55e; color: #ffffff; border-color: #16a34a; font-weight: 800;';
               btnHarem.innerHTML = '<i class="fas fa-heart"></i> Meu Harém';
-              headerActions.appendChild(btnHarem);
+              const themeBtn = document.getElementById('btn-toggle-theme');
+              if (themeBtn && themeBtn.parentElement === headerActions) {
+                headerActions.insertBefore(btnHarem, themeBtn);
+              } else {
+                headerActions.appendChild(btnHarem);
+              }
             }
           }
         } catch (_) {}
@@ -1427,18 +1446,18 @@ function renderSessionTimer(remainingSeconds) {
   updateBadge();
 }
 
-const RARITY_WEIGHT = { LEGENDARY: 5, EPIC: 4, RARE: 3, UNCOMMON: 2, COMMON: 1 };
+const RARITY_WEIGHT = { MYTHIC: 6, LEGENDARY: 5, EPIC: 4, RARE: 3, UNCOMMON: 2, COMMON: 1 };
 
 function sortHaremCards(harem) {
   return harem.sort((a, b) => {
     // 1. Favorita em destaque
     if (b.isFavorite !== a.isFavorite) return (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
-    // 2. Chaves
-    if ((b.keys || 0) !== (a.keys || 0)) return (b.keys || 0) - (a.keys || 0);
-    // 3. Raridade
-    const rA = RARITY_WEIGHT[a.character?.baseRarity] || 0;
-    const rB = RARITY_WEIGHT[b.character?.baseRarity] || 0;
+    // 2. Raridade (sempre sobressai chaves)
+    const rA = a.character?.isMythic ? RARITY_WEIGHT.MYTHIC : (RARITY_WEIGHT[a.character?.baseRarity || a.character?.rarity] || 0);
+    const rB = b.character?.isMythic ? RARITY_WEIGHT.MYTHIC : (RARITY_WEIGHT[b.character?.baseRarity || b.character?.rarity] || 0);
     if (rB !== rA) return rB - rA;
+    // 3. Chaves
+    if ((b.keys || 0) !== (a.keys || 0)) return (b.keys || 0) - (a.keys || 0);
     // 4. Popularidade
     const popA = a.character?.claimCount || a.character?.likeCount || (100000 - (a.character?.rank || 100000));
     const popB = b.character?.claimCount || b.character?.likeCount || (100000 - (b.character?.rank || 100000));
@@ -2144,7 +2163,8 @@ function renderPrivateHarem(harem) {
   const searchText = (haremFilterState.search || '').trim();
   const rarityFilter = (haremFilterState.rarity || '').trim();
   const hasFilter = Boolean(searchText || rarityFilter);
-  const searchSummary = searchText || (rarityFilter ? (RARITY_CONFIG[rarityFilter]?.label || rarityFilter) : '');
+  const filterLabel = rarityFilter === 'COVETED' ? 'Cobiçados' : (RARITY_CONFIG[rarityFilter]?.label || rarityFilter);
+  const searchSummary = searchText || (rarityFilter ? filterLabel : '');
 
   // 2. Favoritas em Destaque
   const allFavorites = marriedHarem.filter(e => e.isFavorite);
@@ -2919,11 +2939,12 @@ let batchCollectionFilterMode = 'outside'; // 'outside' | 'inside' | 'all'
 function getBatchCandidateHaremEntries() {
   const harem = userSessionData?.harem || [];
   // Exclui personagens míticos e personagens que já estão na coleção de destino
-  return harem.filter(e => {
+  const filtered = harem.filter(e => {
     if (e.character?.isMythic || String(e.character?.rarity || '').toUpperCase() === 'MYTHIC') return false;
     if (e.collectionId && e.collectionId === currentBatchTargetColId) return false;
     return true;
   });
+  return sortHaremCards([...filtered]);
 }
 
 function openBatchAddCharactersModal(colId, colName) {
@@ -5587,11 +5608,37 @@ function acceptMarketOffer(offerId, listingId, characterName) {
 }
 
 async function rejectMarketOffer(offerId, listingId, characterName) {
+  promptRejectMarketOffer(offerId, listingId, characterName);
+}
+
+function promptRejectMarketOffer(offerId, listingId, characterName) {
+  const charNameEl = document.getElementById('reject-offer-char-name');
+  if (charNameEl) charNameEl.textContent = characterName || 'personagem';
+  const reasonInput = document.getElementById('reject-offer-reason-input');
+  if (reasonInput) reasonInput.value = '';
+
+  const confirmBtn = document.getElementById('btn-confirm-reject-offer');
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.onclick = async () => {
+      const reason = reasonInput ? reasonInput.value.trim() : '';
+      confirmBtn.disabled = true;
+      await executeRejectMarketOffer(offerId, listingId, characterName, reason);
+      confirmBtn.disabled = false;
+    };
+  }
+
+  openModal('modal-confirm-reject-offer');
+}
+
+async function executeRejectMarketOffer(offerId, listingId, characterName, reason) {
   try {
     const res = await Api.post(`/api/web/user/${encodeURIComponent(userPublicId)}/market/offers/${encodeURIComponent(offerId)}/reject`, {
       token: userSessionToken,
+      ...(reason ? { reason } : {}),
     });
     if (res.success) {
+      closeModal('modal-confirm-reject-offer');
       Api.showToast('Oferta negada.', '👎');
       openViewOffersModal(listingId, characterName);
       loadMyListings();
@@ -5603,6 +5650,8 @@ async function rejectMarketOffer(offerId, listingId, characterName) {
     Api.showToast('Erro de comunicação ao negar oferta.', '❌');
   }
 }
+
+window.promptRejectMarketOffer = promptRejectMarketOffer;
 
 function createMarketListingCard(listing) {
   if (listing?.id) {
@@ -5880,12 +5929,14 @@ async function openOfferModal(listingId, characterName, imageUrl, interest) {
     balanceEl.textContent = Number(buyerData?.kakera || 0).toLocaleString('pt-BR');
   }
 
-  // 1. Popula Waifus disponíveis do harém do comprador (exceto Míticos)
+  // 1. Popula Waifus disponíveis do harém do comprador (exceto Míticos), ordenado por Raridade > Chaves
   const waifusList = document.getElementById('offer-waifus-list');
-  const harem = (buyerData?.harem || []).filter(item => {
-    const c = item.character;
-    return !c?.isMythic && c?.rarity !== 'MYTHIC' && c?.baseRarity !== 'MYTHIC';
-  });
+  const harem = sortHaremCards(
+    (buyerData?.harem || []).filter(item => {
+      const c = item.character;
+      return !c?.isMythic && c?.rarity !== 'MYTHIC' && c?.baseRarity !== 'MYTHIC';
+    })
+  );
 
   const offerSearchInput = document.getElementById('offer-waifus-search-input');
   if (offerSearchInput) offerSearchInput.value = '';
@@ -6003,24 +6054,27 @@ async function openOfferModal(listingId, characterName, imageUrl, interest) {
         window.activeFarmItems = [];
       } else {
         const rawFarmItems = Array.isArray(farmData?.items) ? farmData.items : [];
-        // Ordena: primeiro consumíveis / elixirs, depois decorações
+        // Ordena: primeiro consumíveis / elixirs, depois sementes, depois decorações
+        const farmTypeOrder = { consumable: 0, seed: 1, decoration: 2 };
         const sortedFarmItems = [...rawFarmItems].sort((a, b) => {
-          if (a.type === 'consumable' && b.type !== 'consumable') return -1;
-          if (a.type !== 'consumable' && b.type === 'consumable') return 1;
+          const oA = farmTypeOrder[a.type] ?? 9;
+          const oB = farmTypeOrder[b.type] ?? 9;
+          if (oA !== oB) return oA - oB;
           return (a.name || a.itemId).localeCompare(b.name || b.itemId);
         });
 
         window.activeFarmItems = sortedFarmItems;
 
         if (sortedFarmItems.length === 0) {
-          farmList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center;">Nenhum elixir ou decoração disponível no seu inventário da fazenda.</div>';
+          farmList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center;">Nenhum elixir, semente ou decoração disponível no seu inventário da fazenda.</div>';
         } else {
           farmList.innerHTML = sortedFarmItems.map(it => {
             const maxQty = Number(it.quantity) || 1;
             const isConsumable = it.type === 'consumable';
-            const borderColor = isConsumable ? '#10b981' : '#a855f7';
-            const icon = isConsumable ? '🧪' : '🪴';
-            const typeLabel = isConsumable ? 'Elixir' : 'Decoração';
+            const isSeed = it.type === 'seed';
+            const borderColor = isConsumable ? '#10b981' : isSeed ? '#f59e0b' : '#a855f7';
+            const icon = isConsumable ? '🧪' : isSeed ? '🌱' : '🪴';
+            const typeLabel = isConsumable ? 'Elixir' : isSeed ? 'Semente' : 'Decoração';
             return `
               <div style="display: flex; align-items: center; justify-content: space-between; border: 2px solid ${borderColor}; padding: 8px 12px; border-radius: 4px; background: var(--bg-card); font-size: 12px;">
                 <div>
@@ -6302,7 +6356,7 @@ function renderMySentOffersPage() {
   }
 
   if (total === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Você não enviou nenhuma oferta até o momento.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Você não enviou nenhuma oferta até o momento.</td></tr>';
     return;
   }
 
@@ -6340,11 +6394,18 @@ function renderMySentOffersPage() {
 
     let statusBadge = `<span class="badge-tag" style="background: #eab308; color: #000;">Pendente</span>`;
     if (offer.status === 'ACCEPTED') statusBadge = `<span class="badge-tag" style="background: #22c55e; color: #fff;">Aceita 🎉</span>`;
-    if (offer.status === 'REJECTED') statusBadge = `<span class="badge-tag" style="background: #64748b; color: #fff;">Negada 👎</span>`;
+    if (offer.status === 'REJECTED') {
+      const rejectReason = offer.cancelReason ? `<div style="font-size: 11px; color: var(--accent-red); margin-top: 4px; font-weight: 700;">Motivo: ${escapeHtml(offer.cancelReason)}</div>` : '';
+      statusBadge = `<span class="badge-tag" style="background: #64748b; color: #fff;">Negada 👎</span>${rejectReason}`;
+    }
     if (offer.status === 'CANCELLED') {
       const reasonTooltip = offer.cancelReason ? ` - Motivo: ${escapeHtml(offer.cancelReason)}` : '';
       statusBadge = `<span class="badge-tag" style="background: #ef4444; color: #fff;" title="${escapeHtml(offer.cancelReason || '')}">Cancelada ⚠️${reasonTooltip}</span>`;
     }
+
+    const actionCell = offer.status === 'PENDING'
+      ? `<button type="button" class="btn-retro btn-sm btn-danger" onclick="promptCancelSentOffer('${offer.id}', '${escapeAttr(charName)}')" title="Cancelar esta proposta para enviar outra"><i class="fas fa-ban"></i> Cancelar</button>`
+      : `<span style="color: var(--text-muted); font-size: 12px;">—</span>`;
 
     return `
       <tr>
@@ -6353,10 +6414,52 @@ function renderMySentOffersPage() {
         <td>${escapeHtml(seller)}</td>
         <td style="font-size: 13px;">${summary}</td>
         <td>${statusBadge}</td>
+        <td style="white-space: nowrap;">${actionCell}</td>
       </tr>
     `;
   }).join('');
 }
+
+function promptCancelSentOffer(offerId, characterName) {
+  const charNameEl = document.getElementById('cancel-offer-char-name');
+  if (charNameEl) charNameEl.textContent = characterName || 'personagem';
+
+  const confirmBtn = document.getElementById('btn-confirm-cancel-offer');
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true;
+      await executeCancelSentOffer(offerId);
+      confirmBtn.disabled = false;
+    };
+  }
+
+  openModal('modal-confirm-cancel-offer');
+}
+
+async function executeCancelSentOffer(offerId) {
+  const auth = typeof getActiveAuthUser === 'function' ? getActiveAuthUser() : {};
+  const token = auth.token || userSessionToken;
+  const pId = auth.publicId || userPublicId || 'token-session';
+
+  try {
+    const res = await Api.post(`/api/web/user/${encodeURIComponent(pId)}/market/offers/${encodeURIComponent(offerId)}/cancel`, {
+      token,
+    });
+    if (res.success) {
+      closeModal('modal-confirm-cancel-offer');
+      Api.showToast('Proposta cancelada! Você já pode enviar uma nova oferta.', '✅');
+      loadMySentOffers();
+      loadGlobalMarket();
+    } else {
+      Api.showToast(res.error?.message || 'Falha ao cancelar proposta.', '❌');
+    }
+  } catch (err) {
+    Api.showToast('Erro de comunicação ao cancelar proposta.', '❌');
+  }
+}
+
+window.promptCancelSentOffer = promptCancelSentOffer;
 
 // Funções de controle de Zinthos no modal de oferta
 function setOfferZinthosMax() {

@@ -245,9 +245,10 @@ const Api = {
     if (!btn) return;
     const isDark = document.body.classList.contains('dark-mode');
     btn.innerHTML = isDark
-      ? '<i class="fas fa-sun"></i> Claro'
-      : '<i class="fas fa-moon"></i> Dark';
+      ? '<i class="fas fa-sun"></i>'
+      : '<i class="fas fa-moon"></i>';
     btn.title = isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro (roxo)';
+    btn.setAttribute('aria-label', btn.title);
   },
 
   toggleTheme() {
