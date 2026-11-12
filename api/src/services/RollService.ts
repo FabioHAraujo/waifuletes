@@ -372,6 +372,14 @@ export class RollService {
         throw new Error('CHOSEN_CHARACTER_NOT_FOUND');
       }
 
+      // Personagens míticos funcionam como showcase e NÃO devem consumir roll do jogador
+      let mythicRollRefunded = false;
+      if (chosen.isMythic && !isFreeRoll) {
+        await this.cooldownService.refundRoll(userId, extraMaxRolls);
+        rollsState = await this.cooldownService.getUserRolls(userId, extraMaxRolls);
+        mythicRollRefunded = true;
+      }
+
       // Buscar membros do grupo que têm esse personagem na wishlist
       const groupWishlistEntries = groupId
         ? await this.prisma.wishlistEntry.findMany({
@@ -611,6 +619,7 @@ export class RollService {
             tags: chosen.tags,
           },
           isMythic: Boolean(chosen.isMythic),
+          mythicRollRefunded,
           available: !isClaimed && !instantMarriage,
           isWishlist: wishMap.has(chosen.id),
           isStarWish: wishMap.get(chosen.id) ?? false,
