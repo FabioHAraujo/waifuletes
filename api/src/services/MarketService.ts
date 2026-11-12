@@ -260,15 +260,21 @@ export class MarketService {
       sorted = [...listings].sort((a, b) => b.character._count.wishlists - a.character._count.wishlists);
     } else if (options.sortBy === 'rarity') {
       const rarityRank: Record<string, number> = {
+        MYTHIC: 6,
         LEGENDARY: 5,
         EPIC: 4,
         RARE: 3,
         UNCOMMON: 2,
         COMMON: 1,
       };
-      sorted = [...listings].sort(
-        (a, b) => (rarityRank[b.character.baseRarity] || 0) - (rarityRank[a.character.baseRarity] || 0)
-      );
+      sorted = [...listings].sort((a, b) => {
+        const scoreB = b.character.isMythic ? rarityRank.MYTHIC : rarityRank[b.character.baseRarity] || 0;
+        const scoreA = a.character.isMythic ? rarityRank.MYTHIC : rarityRank[a.character.baseRarity] || 0;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        const kB = (b.character as any).haremEntries?.find((h: any) => h.userId === b.userId)?.keys || 1;
+        const kA = (a.character as any).haremEntries?.find((h: any) => h.userId === a.userId)?.keys || 1;
+        return kB - kA;
+      });
     }
 
     const formattedListings = sorted.map((l) => {
@@ -667,9 +673,9 @@ export class MarketService {
   }
 
   /**
-   * Rejeita uma oferta recebida
+   * Rejeita uma oferta recebida (com motivo opcional)
    */
-  async rejectOffer(sellerId: string, offerId: string) {
+  async rejectOffer(sellerId: string, offerId: string, reason?: string) {
     const offer = await this.prisma.marketOffer.findUnique({
       where: { id: offerId },
     });
@@ -686,10 +692,13 @@ export class MarketService {
       throw new DomainError('INVALID_STATUS', 'Esta oferta já foi finalizada.');
     }
 
+    const cleanReason = typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 300) : null;
+
     const rejected = await this.prisma.marketOffer.update({
       where: { id: offerId },
       data: {
         status: OfferStatus.REJECTED,
+        cancelReason: cleanReason,
         notifiedBuyer: false,
         buyerNotifiedStatus: 'REJECTED',
       },
@@ -698,15 +707,20 @@ export class MarketService {
       },
     });
 
+    const notifBody = cleanReason
+      ? `O vendedor não aceitou a sua proposta. Motivo: "${cleanReason}". Os itens/zinthos ofertados permanecem com você.`
+      : 'O vendedor não aceitou a sua proposta e os itens/zinthos ofertados foram devolvidos.';
+
     this.notificationService
       .notifyMarketEvent(
         offer.buyerId,
         'MARKET_OFFER_REJECTED',
         `❌ Proposta recusada para ${rejected.listing?.character?.name || 'personagem'}`,
-        'O vendedor não aceitou a sua proposta e os itens/zinthos ofertados foram devolvidos.',
+        notifBody,
         {
           listingId: offer.listingId,
           offerId: offer.id,
+          reason: cleanReason,
           characterId: rejected.listing?.character?.id || null,
           characterName: rejected.listing?.character?.name || null,
           actorPublicId: rejected.listing?.user?.publicId || null,
@@ -716,6 +730,39 @@ export class MarketService {
       .catch(() => {});
 
     return rejected;
+  }
+
+  /**
+   * Cancela uma proposta enviada pelo próprio comprador enquanto ainda estiver pendente
+   */
+  async cancelOffer(buyerId: string, offerId: string) {
+    const offer = await this.prisma.marketOffer.findUnique({
+      where: { id: offerId },
+    });
+
+    if (!offer) {
+      throw new DomainError('NOT_FOUND', 'Oferta não encontrada.');
+    }
+
+    if (offer.buyerId !== buyerId) {
+      throw new DomainError('UNAUTHORIZED', 'Você só pode cancelar propostas enviadas por você.');
+    }
+
+    if (offer.status !== OfferStatus.PENDING) {
+      throw new DomainError('INVALID_STATUS', 'Apenas propostas pendentes podem ser canceladas.');
+    }
+
+    const cancelled = await this.prisma.marketOffer.update({
+      where: { id: offerId },
+      data: {
+        status: OfferStatus.CANCELLED,
+        cancelReason: 'Cancelada pelo comprador',
+        notifiedBuyer: true,
+        buyerNotifiedStatus: 'CANCELLED',
+      },
+    });
+
+    return cancelled;
   }
 
   /**

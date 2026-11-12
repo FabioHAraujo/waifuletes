@@ -144,14 +144,15 @@ export const privateMarketRoutes: FastifyPluginAsync = async (fastify) => {
         required: ['userId'],
         properties: {
           userId: { type: 'string' },
+          reason: { type: 'string' },
         },
       },
     },
     handler: async (request, reply) => {
       const { offerId } = request.params as { offerId: string };
-      const { userId } = request.body as { userId: string };
+      const { userId, reason } = request.body as { userId: string; reason?: string };
 
-      const offer = await marketService.rejectOffer(userId, offerId);
+      const offer = await marketService.rejectOffer(userId, offerId, reason);
       return reply.send({ success: true, data: offer });
     },
   });

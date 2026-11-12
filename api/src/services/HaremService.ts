@@ -24,8 +24,8 @@ export class HaremService {
     let orderBy: any = [
       { character: { isMythic: 'desc' } },
       { isFavorite: 'desc' },
-      { keys: 'desc' },
       { character: { baseRarity: 'desc' } },
+      { keys: 'desc' },
       { character: { claimCount: 'desc' } },
     ];
 

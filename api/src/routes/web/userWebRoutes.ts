@@ -2675,6 +2675,48 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
       body: {
         type: 'object',
         required: ['token'],
+        properties: {
+          token: { type: 'string' },
+          reason: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { publicId, offerId } = request.params as { publicId: string; offerId: string };
+      const { token, reason } = request.body as { token: string; reason?: string };
+
+      const session = publicId === 'token-session'
+        ? await webSessionService.validateTokenOnly(token)
+        : await webSessionService.validateUserSession(publicId, token);
+      if (!session.valid || !session.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Sessão web expirada ou inválida.' },
+        });
+      }
+
+      const offer = await marketService.rejectOffer(session.userId, offerId, reason);
+      return reply.send({ success: true, data: offer });
+    },
+  });
+
+  /**
+   * Cancela uma proposta enviada pelo comprador
+   */
+  fastify.post('/api/web/user/:publicId/market/offers/:offerId/cancel', {
+    schema: {
+      tags: ['Mercado (Web)'],
+      params: {
+        type: 'object',
+        required: ['publicId', 'offerId'],
+        properties: {
+          publicId: { type: 'string' },
+          offerId: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['token'],
         properties: { token: { type: 'string' } },
       },
     },
@@ -2692,7 +2734,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const offer = await marketService.rejectOffer(session.userId, offerId);
+      const offer = await marketService.cancelOffer(session.userId, offerId);
       return reply.send({ success: true, data: offer });
     },
   });
