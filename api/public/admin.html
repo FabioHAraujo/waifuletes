@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel de Administração • Waifuletes ✨</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261110-market-v3">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261112-ui-updates">
   <link rel="stylesheet" href="/vendor/cropper.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -22,13 +22,13 @@
         </div>
       </a>
       <div class="header-actions">
-        <button id="btn-theme-toggle" class="btn-retro btn-sm" title="Alternar Modo Escuro">🌓</button>
         <a href="/" class="btn-retro btn-sm">
           <i class="fas fa-eye"></i> Ver Site
         </a>
         <button id="btn-admin-logout" class="btn-retro btn-sm btn-danger hidden">
           <i class="fas fa-sign-out-alt"></i> Logout
         </button>
+        <button id="btn-theme-toggle" class="btn-retro btn-sm" title="Alternar Modo Escuro"><i class="fas fa-moon"></i></button>
       </div>
     </header>
 
@@ -146,19 +146,39 @@
 
       <!-- Aba 2: Moderação de Sugestões -->
       <div class="tab-content hidden" id="tab-suggestions">
-        <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
-          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <span style="font-weight: 700; font-size: 14px;">Filtrar por Status:</span>
-            <div class="pill-group" id="suggestion-filter-pills">
-              <button class="retro-pill active" data-status="PENDING">Pendentes</button>
-              <button class="retro-pill" data-status="APPROVED">Aprovadas</button>
-              <button class="retro-pill" data-status="REJECTED">Recusadas</button>
-              <button class="retro-pill" data-status="all">Todas</button>
+        <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <span style="font-weight: 700; font-size: 14px;">Filtrar por Status:</span>
+              <div class="pill-group" id="suggestion-filter-pills">
+                <button class="retro-pill active" data-status="PENDING">Pendentes</button>
+                <button class="retro-pill" data-status="APPROVED">Aprovadas</button>
+                <button class="retro-pill" data-status="REJECTED">Recusadas</button>
+                <button class="retro-pill" data-status="all">Todas</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn-retro btn-sm btn-primary" id="btn-approve-page-suggestions" style="font-weight: 800;">
+                <i class="fas fa-check-square"></i> Aceitar Todos da Página
+              </button>
+              <button class="btn-retro btn-sm btn-gold" id="btn-approve-all-suggestions" style="font-weight: 800;">
+                <i class="fas fa-check-double"></i> Aceitar e Aplicar Todos
+              </button>
             </div>
           </div>
-          <button class="btn-retro btn-sm btn-gold" id="btn-approve-all-suggestions" style="font-weight: 800;">
-            <i class="fas fa-check-double"></i> Aceitar e Aplicar Todos
-          </button>
+
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <span style="font-weight: 700; font-size: 14px;">Filtrar por Tipo:</span>
+            <div class="pill-group" id="suggestion-type-pills" style="flex-wrap: wrap;">
+              <button class="retro-pill active" data-type="all">Todos</button>
+              <button class="retro-pill" data-type="IMAGE_REPLACE">Trocar Foto</button>
+              <button class="retro-pill" data-type="IMAGE_ADD">Adicionar Foto</button>
+              <button class="retro-pill" data-type="REPORT_REMOVE">Denúncia/Remover</button>
+              <button class="retro-pill" data-type="RARITY">Troca Raridade</button>
+              <button class="retro-pill" data-type="NEW_CHARACTER">Novo Personagem</button>
+              <button class="retro-pill" data-type="EDIT">Dados Gerais</button>
+            </div>
+          </div>
         </div>
 
         <div id="suggestions-list" style="display: flex; flex-direction: column; gap: 14px;"></div>
@@ -484,7 +504,7 @@
   <div id="retro-toast" class="retro-toast hidden"></div>
 
   <script src="/vendor/cropper.min.js"></script>
-  <script src="/js/api.js?v=20261109-mobile-ux"></script>
-  <script src="/js/admin.js?v=20261107-trades-tab"></script>
+  <script src="/js/api.js?v=20261112-ui-updates"></script>
+  <script src="/js/admin.js?v=20261112-ui-updates"></script>
 </body>
 </html>

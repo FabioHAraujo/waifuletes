@@ -46,6 +46,8 @@ const tradesState = {
 
 let selectedMarryTargetUser = null;
 let suggestionFilterStatus = 'PENDING';
+let suggestionFilterType = 'all';
+let currentDisplayedSuggestions = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   setupAdminEvents();
@@ -68,6 +70,12 @@ function setupAdminEvents() {
     });
   }
   Api.initTheme();
+
+  // Aprovar todos da página atual
+  const btnApprovePage = document.getElementById('btn-approve-page-suggestions');
+  if (btnApprovePage) {
+    btnApprovePage.addEventListener('click', approvePageSuggestions);
+  }
 
   // Aprovar todas sugestões
   const btnApproveAll = document.getElementById('btn-approve-all-suggestions');
@@ -99,13 +107,24 @@ function setupAdminEvents() {
     });
   });
 
-  // Filtros de sugestões
+  // Filtros de sugestões (Status)
   const suggPills = document.querySelectorAll('#suggestion-filter-pills .retro-pill');
   suggPills.forEach(pill => {
     pill.addEventListener('click', () => {
       suggPills.forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
       suggestionFilterStatus = pill.dataset.status;
+      loadSuggestions();
+    });
+  });
+
+  // Filtros de sugestões (Tipo)
+  const suggTypePills = document.querySelectorAll('#suggestion-type-pills .retro-pill');
+  suggTypePills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      suggTypePills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      suggestionFilterType = pill.dataset.type || 'all';
       loadSuggestions();
     });
   });
@@ -704,15 +723,21 @@ async function loadSuggestions() {
   const pendingBadge = document.getElementById('pending-badge');
 
   try {
-    const res = await Api.get(`/api/admin/suggestions?status=${encodeURIComponent(suggestionFilterStatus)}`, {
+    const query = new URLSearchParams({
+      status: suggestionFilterStatus,
+      type: suggestionFilterType || 'all',
+      limit: '100',
+    });
+    const res = await Api.get(`/api/admin/suggestions?${query.toString()}`, {
       'Authorization': `Bearer ${adminToken}`
     });
 
     const suggestions = res?.data?.data || [];
+    currentDisplayedSuggestions = suggestions;
     
     // Atualiza badge de pendentes se disponível
-    if (suggestionFilterStatus === 'PENDING') {
-      pendingBadge.textContent = suggestions.length;
+    if (suggestionFilterStatus === 'PENDING' && (!suggestionFilterType || suggestionFilterType === 'all')) {
+      pendingBadge.textContent = res?.data?.total ?? suggestions.length;
     }
 
     container.innerHTML = '';
@@ -1228,6 +1253,40 @@ async function unblockUserSuggestions(userId) {
     }
   } catch (err) {
     Api.showToast('Erro de comunicação ao desbloquear usuário.', '❌');
+  } finally {
+    Api.hideLoading();
+  }
+}
+
+async function approvePageSuggestions() {
+  const pendingIds = (currentDisplayedSuggestions || [])
+    .filter(s => s && s.status === 'PENDING' && s.id)
+    .map(s => s.id);
+
+  if (pendingIds.length === 0) {
+    Api.showToast('Não há sugestões pendentes exibidas na página atual.', 'ℹ️');
+    return;
+  }
+
+  if (!confirm(`Deseja aceitar e aplicar todas as ${pendingIds.length} sugestões pendentes filtradas na página atual?`)) return;
+
+  Api.showLoading('Aguarde... Aprovando página...', `Processando ${pendingIds.length} sugestão(ões) filtradas...`);
+  try {
+    const res = await Api.post('/api/admin/suggestions/approve-batch', { ids: pendingIds }, {
+      'Authorization': `Bearer ${adminToken}`
+    });
+
+    if (!res.success) {
+      Api.showToast(res.error?.message || 'Falha ao aprovar sugestões da página.', '❌');
+      return;
+    }
+
+    const approvedCount = res.data?.approvedCount ?? pendingIds.length;
+    Api.showToast(`${approvedCount} sugestão(ões) da página aceitas e aplicadas!`, '✅');
+    loadSuggestions();
+  } catch (err) {
+    console.error('Erro ao aprovar sugestões da página:', err);
+    Api.showToast('Erro de comunicação com o servidor.', '❌');
   } finally {
     Api.hideLoading();
   }

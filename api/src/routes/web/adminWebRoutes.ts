@@ -416,7 +416,20 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED', 'all'], default: 'PENDING' },
-          type: { type: 'string', enum: ['RARITY', 'IMAGE', 'EDIT', 'NEW_CHARACTER', 'DELETE_CHARACTER'] },
+          type: {
+            type: 'string',
+            enum: [
+              'all',
+              'RARITY',
+              'IMAGE',
+              'IMAGE_REPLACE',
+              'IMAGE_ADD',
+              'REPORT_REMOVE',
+              'EDIT',
+              'NEW_CHARACTER',
+              'DELETE_CHARACTER',
+            ],
+          },
           page: { type: 'integer', minimum: 1, default: 1 },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
         },
@@ -544,6 +557,35 @@ export const adminWebRoutes: FastifyPluginAsync = async (fastify) => {
     },
     handler: async (_request, reply) => {
       const result = await suggestionService.approveAllSuggestions('admin');
+      return reply.send(result);
+    },
+  });
+
+  /**
+   * Aprovar sugestões pendentes exibidas/filtradas em lote
+   */
+  fastify.post('/api/admin/suggestions/approve-batch', {
+    preHandler: requireAdminAuth,
+    schema: {
+      description: 'Aprova uma lista específica de sugestões pendentes (ex: página filtrada atual)',
+      tags: ['Admin (Web)'],
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['ids'],
+        properties: {
+          ids: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 1,
+            maxItems: 100,
+          },
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      const { ids } = request.body as { ids: string[] };
+      const result = await suggestionService.approveSuggestionsBatch(ids, 'admin');
       return reply.send(result);
     },
   });

@@ -814,7 +814,7 @@ export class SuggestionService {
    */
   async listSuggestions(filter: {
     status?: SuggestionStatus | 'all';
-    type?: SuggestionType;
+    type?: SuggestionType | 'IMAGE_REPLACE' | 'IMAGE_ADD' | 'REPORT_REMOVE' | 'all' | string;
     page?: number;
     limit?: number;
   }) {
@@ -826,8 +826,29 @@ export class SuggestionService {
     if (filter.status && filter.status !== 'all') {
       where.status = filter.status;
     }
-    if (filter.type) {
-      where.type = filter.type;
+    if (filter.type && filter.type !== 'all') {
+      if (filter.type === 'IMAGE_REPLACE') {
+        where.type = 'IMAGE';
+        where.description = { contains: '"action":"REPLACE"' };
+      } else if (filter.type === 'IMAGE_ADD') {
+        where.type = 'IMAGE';
+        where.OR = [
+          { description: null },
+          {
+            AND: [
+              { NOT: { description: { contains: '"action":"REPLACE"' } } },
+              { NOT: { description: { contains: '"action":"DELETE"' } } },
+            ],
+          },
+        ];
+      } else if (filter.type === 'REPORT_REMOVE') {
+        where.OR = [
+          { type: 'DELETE_CHARACTER' },
+          { type: 'IMAGE', description: { contains: '"action":"DELETE"' } },
+        ];
+      } else {
+        where.type = filter.type;
+      }
     }
 
     const [total, suggestions] = await Promise.all([
@@ -1362,21 +1383,16 @@ export class SuggestionService {
   }
 
   /**
-   * Aceita e aplica todas as sugestões pendentes de uma vez
+   * Aplica aprovações em lote para uma lista de IDs pendentes
    */
-  async approveAllSuggestions(reviewedBy = 'admin') {
-    const pendings = await this.prisma.characterSuggestion.findMany({
-      where: { status: 'PENDING' },
-      select: { id: true },
-    });
-
+  private async approveSuggestionIds(ids: string[], reviewedBy = 'admin') {
     const results: any[] = [];
-    for (const p of pendings) {
+    for (const id of ids) {
       try {
-        const res = await this.approveSuggestion(p.id, reviewedBy);
-        results.push({ id: p.id, success: true, message: res.data?.message });
+        const res = await this.approveSuggestion(id, reviewedBy);
+        results.push({ id, success: true, message: res.data?.message });
       } catch (err: any) {
-        results.push({ id: p.id, success: false, error: err.message });
+        results.push({ id, success: false, error: err.message });
       }
     }
 
@@ -1385,11 +1401,52 @@ export class SuggestionService {
     return {
       success: true,
       data: {
-        total: pendings.length,
+        total: ids.length,
         approvedCount: results.filter((r) => r.success).length,
         results,
       },
     };
+  }
+
+  /**
+   * Aceita e aplica todas as sugestões pendentes de uma vez
+   */
+  async approveAllSuggestions(reviewedBy = 'admin') {
+    const pendings = await this.prisma.characterSuggestion.findMany({
+      where: { status: 'PENDING' },
+      select: { id: true },
+    });
+
+    return this.approveSuggestionIds(
+      pendings.map((p) => p.id),
+      reviewedBy
+    );
+  }
+
+  /**
+   * Aceita e aplica um subconjunto específico de sugestões pendentes (ex: itens filtrados na página)
+   */
+  async approveSuggestionsBatch(ids: string[], reviewedBy = 'admin') {
+    const uniqueIds = Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.trim().length > 0)));
+    if (uniqueIds.length === 0) {
+      return {
+        success: true,
+        data: { total: 0, approvedCount: 0, results: [] },
+      };
+    }
+
+    const pendings = await this.prisma.characterSuggestion.findMany({
+      where: {
+        id: { in: uniqueIds },
+        status: 'PENDING',
+      },
+      select: { id: true },
+    });
+
+    return this.approveSuggestionIds(
+      pendings.map((p) => p.id),
+      reviewedBy
+    );
   }
 
   /**
