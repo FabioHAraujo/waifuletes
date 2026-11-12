@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Waifuletes ✨ Sobre o Jogo, Regras & Comandos</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261111-hosting-sobre">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261112-ui-updates">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     .about-section {
@@ -76,15 +76,68 @@
         </div>
       </a>
       <div class="header-actions">
-        <button id="btn-toggle-theme" class="btn-retro btn-sm"><i class="fas fa-moon"></i> Dark</button>
         <a href="/" class="btn-retro btn-sm"><i class="fas fa-home"></i> Início</a>
         <a href="https://github.com/moothz/waifuletes" target="_blank" rel="noopener" class="btn-retro btn-sm btn-gold">
           <i class="fab fa-github"></i> Contribuir no GitHub
         </a>
+        <button id="btn-toggle-theme" class="btn-retro btn-sm" title="Alternar tema" aria-label="Alternar tema"><i class="fas fa-moon"></i></button>
       </div>
     </header>
 
     <main style="margin-top: 20px;">
+      <!-- Seção 0: Ranking da Coleção & Diminishing Returns -->
+      <section class="about-section">
+        <h2 class="about-title"><i class="fas fa-trophy" style="color: #eab308;"></i> Como é Calculado o Ranking da Coleção (Diminishing Returns)</h2>
+        <p>O <strong>Ranking de Coleção</strong> não premia apenas quantidade bruta: ele usa um sistema de <strong>Diminishing Returns</strong> (retorno decrescente por faixa de quantidade) para valorizar raridades altas, fidelidade por chaves e Soulmates!</p>
+
+        <table class="fee-table">
+          <thead>
+            <tr>
+              <th>Raridade</th>
+              <th>Faixa 1 (Integral)</th>
+              <th>Faixa 2 (50%)</th>
+              <th>Faixa 3 (Excedente)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>⚪ Comum</td>
+              <td>Até 200: <strong>2 pts</strong>/un</td>
+              <td>201 a 600: <strong>1 pt</strong>/un</td>
+              <td>601+: <strong>0,5 pt</strong>/un</td>
+            </tr>
+            <tr>
+              <td>🟢 Incomum</td>
+              <td>Até 150: <strong>6 pts</strong>/un</td>
+              <td>151 a 400: <strong>3 pts</strong>/un</td>
+              <td>401+: <strong>1 pt</strong>/un</td>
+            </tr>
+            <tr>
+              <td>🔵 Raro</td>
+              <td>Até 100: <strong>20 pts</strong>/un</td>
+              <td>101 a 250: <strong>10 pts</strong>/un</td>
+              <td>251+: <strong>5 pts</strong>/un</td>
+            </tr>
+            <tr>
+              <td>🟣 Épico</td>
+              <td>Até 50: <strong>60 pts</strong>/un</td>
+              <td>51 a 100: <strong>30 pts</strong>/un</td>
+              <td>101+: <strong>15 pts</strong>/un</td>
+            </tr>
+            <tr>
+              <td>⭐ Lendário</td>
+              <td colspan="3"><strong>200 pts integrais sempre</strong> — sem diminishing returns!</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <ul class="cmd-list">
+          <li><strong>🔑 Chaves acumuladas:</strong> +<strong>1 ponto</strong> para cada chave no seu harém (exceto míticos).</li>
+          <li><strong>💖 Soulmates (10 chaves):</strong> +<strong>3.000 pontos</strong> por cada Soulmate conquistada!</li>
+          <li><strong>🔮 Míticos:</strong> São criações exclusivas e ficam fora da contagem do ranking para manter a disputa justa.</li>
+        </ul>
+      </section>
+
       <!-- Seção 1: O Jogo -->
       <section class="about-section">
         <h2 class="about-title"><i class="fas fa-gamepad" style="color: #e11d48;"></i> O que é o Waifuletes?</h2>
@@ -170,13 +223,28 @@
         </ul>
       </section>
 
-      <!-- Seção 4: Contribuindo no GitHub -->
+      <!-- Seção 4: Contribuindo & Apoio (tipa.ai/moothz) -->
       <section class="about-section" style="border: 2px solid #16a34a;">
-        <h2 class="about-title"><i class="fab fa-github" style="color: #16a34a;"></i> Contribua com o Waifuletes!</h2>
-        <p>O Waifuletes é um projeto de código aberto! Você pode sugerir melhorias de código, novas regras ou correções abrindo um Pull Request no nosso repositório oficial:</p>
-        <p style="margin-top: 10px;">
+        <h2 class="about-title"><i class="fas fa-heart" style="color: #ec4899;"></i> Contribua com a Ravena AI & Waifuletes!</h2>
+        <p>O Waifuletes faz parte do ecossistema da <strong>Ravena AI</strong> e é um projeto de código aberto. Você pode contribuir enviando melhorias e PRs no GitHub oficial:</p>
+        <p style="margin-top: 8px; margin-bottom: 14px;">
           🔗 <a href="https://github.com/moothz/waifuletes" target="_blank" rel="noopener" style="font-weight: 800; color: #2563eb;">github.com/moothz/waifuletes</a>
         </p>
+
+        <div style="background: var(--bg-retro-accent); border: var(--border-retro); border-radius: var(--radius-retro); padding: 14px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 1.05rem; font-weight: 800;">
+            💖 Apoie o projeto Ravena AI via <a href="https://tipa.ai/moothz" target="_blank" rel="noopener" style="color: #ec4899;">tipa.ai/moothz</a>
+          </h3>
+          <p style="margin: 0 0 10px 0; font-size: 0.95rem;">
+            Suas doações ajudam a manter os servidores e APIs no ar (consulte também <span class="cmd-code">!doar-vantagens</span> no chat) e liberam recompensas acumulativas no <strong>Waifuletes</strong>:
+          </p>
+          <ul class="cmd-list" style="margin-bottom: 0;">
+            <li>🎟️ <strong>Bônus de Teto de Rolls:</strong> +<strong>1 Roll Máximo Extra</strong> a cada R$ 10 doados (regeneração automática até o seu novo teto).</li>
+            <li>💎 <strong>Chances de Raridade:</strong> +<strong>2%</strong> de chance em Raros e Lendários (teto de até <strong>10x</strong> aos R$ 450) e +<strong>3,5%</strong> em Épicos por cada R$ 1 doado.</li>
+            <li>🌟 <strong>Super Wishlist VIP:</strong> desbloqueada a partir de R$ 50 (+300% base + 8% por R$ 1 extra, atingindo 8x aos R$ 100 e cap de <strong>20x</strong> aos R$ 250).</li>
+            <li>🔮 <strong>Personagens Míticos:</strong> <strong>1 slot mítico</strong> a cada R$ 50 doados para forjar um personagem exclusivo no painel web (rolls em míticos não gastam seus rolls!).</li>
+          </ul>
+        </div>
       </section>
     </main>
 
@@ -184,21 +252,9 @@
       Waifuletes ✨ Motor de Jogo & Coleções • Integrado com a Ravena AI
     </footer>
   </div>
-  <script src="/js/api.js?v=20261111-hosting-sobre"></script>
+  <script src="/js/api.js?v=20261112-ui-updates"></script>
   <script>
-    const themeBtn = document.getElementById('btn-toggle-theme');
-    if (themeBtn) {
-      themeBtn.addEventListener('click', () => {
-        document.body.classList.toggle('dark-mode');
-        const isDark = document.body.classList.contains('dark-mode');
-        localStorage.setItem('waifu_theme', isDark ? 'dark' : 'light');
-        themeBtn.innerHTML = isDark ? '<i class="fas fa-sun"></i> Light' : '<i class="fas fa-moon"></i> Dark';
-      });
-      if (localStorage.getItem('waifu_theme') === 'dark') {
-        document.body.classList.add('dark-mode');
-        themeBtn.innerHTML = '<i class="fas fa-sun"></i> Light';
-      }
-    }
+    document.addEventListener('DOMContentLoaded', () => Api.initTheme());
   </script>
 </body>
 </html>
