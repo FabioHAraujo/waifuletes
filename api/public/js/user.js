@@ -77,7 +77,7 @@ function matchesHaremCard(entry, searchText, rarityFilter) {
   if (rarityFilter) {
     const normFilter = rarityFilter.toUpperCase();
     if (normFilter === 'COVETED') {
-      const hasCovets = Number(entry.unseenCovetsCount || 0) > 0 || Number(entry.totalCovetsCount || 0) > 0;
+      const hasCovets = Number(entry.unseenCovetsCount || 0) > 0;
       if (!hasCovets) return false;
     } else {
       const r = (char.baseRarity || char.rarity || 'COMMON').toUpperCase();
