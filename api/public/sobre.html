@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Waifuletes ✨ Sobre o Jogo, Regras & Comandos</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/retro-theme.css?v=20261112-ui-updates">
+  <link rel="stylesheet" href="/css/retro-theme.css?v=20261112-retro-modals">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     .about-section {
@@ -194,7 +194,104 @@
         </div>
       </section>
 
-      <!-- Seção 3: Comandos do Jogo -->
+      <!-- Seção 3: Limites do Jogo, Cotas & Cooldowns -->
+      <section class="about-section">
+        <h2 class="about-title"><i class="fas fa-scale-balanced" style="color: #f59e0b;"></i> Limites do Jogo, Cotas &amp; Cooldowns</h2>
+        <p>Para manter a economia saudável e as disputas equilibradas, existem limites diários (com reset às <strong>04:00 BRT</strong>) e cooldowns específicos por raridade:</p>
+
+        <div class="cmd-category">💍 Casamentos, Negociações (0,5) &amp; Cooldowns por Raridade</div>
+        <div style="overflow-x: auto;">
+          <table class="fee-table">
+            <thead>
+              <tr>
+                <th>Raridade</th>
+                <th>Cooldown entre Casamentos</th>
+                <th>Limite Diário (<span class="cmd-code">!mu-casar</span> = 1,0)</th>
+                <th>Negociações nos Classificados</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>⚪ Comum</td>
+                <td><strong>30 minutos</strong></td>
+                <td><strong>25 / dia</strong></td>
+                <td><strong>0,5</strong> por waifu recebida (até 50 trocas puras)</td>
+              </tr>
+              <tr>
+                <td>🟢 Incomum</td>
+                <td><strong>45 minutos</strong></td>
+                <td><strong>20 / dia</strong></td>
+                <td><strong>0,5</strong> por waifu recebida (até 40 trocas puras)</td>
+              </tr>
+              <tr>
+                <td>🔵 Raro</td>
+                <td><strong>1 hora</strong></td>
+                <td><strong>15 / dia</strong></td>
+                <td><strong>0,5</strong> por waifu recebida (até 30 trocas puras)</td>
+              </tr>
+              <tr>
+                <td>🟣 Épico</td>
+                <td><strong>1h 30min</strong></td>
+                <td><strong>10 / dia</strong></td>
+                <td><strong>0,5</strong> por waifu recebida (até 20 trocas puras)</td>
+              </tr>
+              <tr>
+                <td>⭐ Lendário</td>
+                <td><strong>2 horas</strong></td>
+                <td><strong>Ilimitado</strong> no roll</td>
+                <td><strong>10 / dia</strong> (cota separada de 1,0 por Lendária recebida)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: var(--bg-card-subtle); border-left: 4px solid #f59e0b; padding: 12px; margin-top: 12px;">
+          <strong>🤝 Como funciona a cota de 0,5 nas negociações?</strong>
+          <ul class="cmd-list" style="margin-top: 6px; margin-bottom: 0; font-size: 0.95rem;">
+            <li><strong>Peso reduzido (0,5):</strong> Para Comuns, Incomuns, Raros e Épicos, cada personagem recebido em troca nos Classificados consome apenas <strong>0,5</strong> da cota diária da raridade (enquanto um casamento normal via <span class="cmd-code">!mu-casar</span> consome <strong>1,0</strong>).</li>
+            <li><strong>Cota compartilhada e saldo quebrado:</strong> Casamentos e trocas somam na mesma cota diária (exceto Lendário). Se você estiver abaixo do teto (ex: <strong>9,5 / 10</strong> Épicos após 9 casamentos + 1 troca), <strong>ainda pode casar via <span class="cmd-code">!mu-casar</span></strong> ou fechar mais uma troca — só bloqueia ao atingir ou ultrapassar o limite. Na exibição do status, frações são arredondadas para cima (ex: <strong>0,5</strong> aparece como <strong>1</strong>).</li>
+            <li><strong>Lendárias nos Classificados:</strong> Possuem cota exclusiva separada de <strong>10 Lendárias recebidas por dia</strong> em trocas, sem afetar seus casamentos normais no roll.</li>
+            <li><strong>Cooldowns independentes:</strong> O tempo de espera após casar (30min a 2h) é isolado por raridade — casar com uma Comum não impede casar com uma Rara ou Lendária logo em seguida. Após rolar um personagem livre, o grupo tem <strong>300 segundos (5 min)</strong> para casar.</li>
+          </ul>
+        </div>
+
+        <div class="cmd-category">💔 Soft Limite Diário de Divórcios (por Raridade)</div>
+        <p style="font-size: 0.95rem;">Todo divórcio aplica uma taxa fixa de <strong>5%</strong>. Além disso, divorciar vários personagens da <strong>mesma raridade</strong> no mesmo dia reduz progressivamente o reembolso em Zinthos (reset às <strong>04:00 BRT</strong>):</p>
+        <div style="overflow-x: auto;">
+          <table class="fee-table">
+            <thead>
+              <tr>
+                <th>1º Divórcio</th>
+                <th>2º Divórcio</th>
+                <th>3º Divórcio</th>
+                <th>4º Divórcio</th>
+                <th>5º em diante</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>100%</strong> líquido</td>
+                <td><strong>80%</strong> líquido</td>
+                <td><strong>50%</strong> líquido</td>
+                <td><strong>20%</strong> líquido</td>
+                <td><strong>5%</strong> (mínimo)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="cmd-category">⚙️ Outros Limites &amp; Regras Gerais</div>
+        <ul class="cmd-list" style="margin-bottom: 0;">
+          <li>🎲 <strong>Rolls &amp; Recarga:</strong> Teto base de <strong>9 rolls</strong> acumulados, regenerando <strong>1 roll a cada 5 minutos</strong> (rolls extras por doação aceleram a recarga em <strong>+2%</strong> por roll extra). Sortear um <strong>Mítico não gasta roll</strong>. A chance de Lendário por roll possui cap máximo de <strong>0,80%</strong>.</li>
+          <li>🌟 <strong>Wishlist:</strong> Máximo de <strong>1.000 personagens</strong> — cada item adiciona <strong>+0,1%</strong> de bônus nos Zinthos do <span class="cmd-code">!mu-diario</span> e nos fragmentos por roll (dobrando para <strong>2,0x</strong> aos 1.000 itens).</li>
+          <li>💖 <strong>Soulmate:</strong> Conquistada ao acumular <strong>10 chaves</strong> com o mesmo personagem.</li>
+          <li>⭐ <strong>Favoritas, Coleções &amp; Harém:</strong> Máximo de <strong>5 favoritas</strong> em destaque, <strong>15 coleções (pastas)</strong> no harém (nome de até 50 caracteres) e nome do harém de até <strong>20 caracteres</strong>.</li>
+          <li>📈 <strong>Cotas de Investimento (Waifus livres):</strong> Até <strong>4 cotas (25% cada)</strong> por personagem. Completar 4/4 cotas adquire na hora; roletar a waifu livre tendo ao menos 1 cota realiza o casamento instantâneo <strong>sem cooldown de claim</strong>. Se outro jogador casar antes, você recebe <strong>50%</strong> dos Zinthos investidos de volta.</li>
+          <li>🔮 <strong>Personagens Míticos:</strong> Quantidade limitada aos seus <strong>slots</strong> (1 slot a cada R$ 50 doados), com até <strong>5 fotos</strong> por personagem; não podem ser negociados nos Classificados, adicionados à Wishlist/Coleções nem divorciados tradicionalmente.</li>
+        </ul>
+      </section>
+
+      <!-- Seção 4: Comandos do Jogo -->
       <section class="about-section">
         <h2 class="about-title"><i class="fas fa-terminal" style="color: #2563eb;"></i> Comandos Principais (!waifus)</h2>
         
@@ -223,7 +320,7 @@
         </ul>
       </section>
 
-      <!-- Seção 4: Contribuindo & Apoio (tipa.ai/moothz) -->
+      <!-- Seção 5: Contribuindo & Apoio (tipa.ai/moothz) -->
       <section class="about-section" style="border: 2px solid #16a34a;">
         <h2 class="about-title"><i class="fas fa-heart" style="color: #ec4899;"></i> Contribua com a Ravena AI & Waifuletes!</h2>
         <p>O Waifuletes faz parte do ecossistema da <strong>Ravena AI</strong> e é um projeto de código aberto. Você pode contribuir enviando melhorias e PRs no GitHub oficial:</p>
@@ -252,7 +349,7 @@
       Waifuletes ✨ Motor de Jogo & Coleções • Integrado com a Ravena AI
     </footer>
   </div>
-  <script src="/js/api.js?v=20261112-ui-updates"></script>
+  <script src="/js/api.js?v=20261112-retro-modals"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => Api.initTheme());
   </script>

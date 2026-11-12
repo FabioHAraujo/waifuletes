@@ -724,7 +724,14 @@ function setupEventListeners() {
   const btnClearWishlistSelf = document.getElementById('btn-clear-wishlist-self');
   if (btnClearWishlistSelf) {
     btnClearWishlistSelf.addEventListener('click', async () => {
-      if (!confirm('Deseja remover da sua Wishlist apenas as personagens que já são casadas com você?')) return;
+      const confirmed = await Api.showConfirm({
+        icon: '🧹',
+        title: 'Limpar Wishlist',
+        message: 'Deseja remover da sua Wishlist apenas as personagens que já são casadas com você?',
+        confirmText: 'Limpar Casadas Comigo',
+        confirmClass: 'btn-primary'
+      });
+      if (!confirmed) return;
       try {
         const res = await Api.delete(`/api/web/user/${userPublicId}/wishlist/married?token=${encodeURIComponent(userSessionToken)}&onlySelf=true`);
         if (res.success) {
@@ -743,7 +750,14 @@ function setupEventListeners() {
   const btnClearWishlist = document.getElementById('btn-clear-wishlist');
   if (btnClearWishlist) {
     btnClearWishlist.addEventListener('click', async () => {
-      if (!confirm('Deseja remover todas as personagens casadas da sua Wishlist?')) return;
+      const confirmed = await Api.showConfirm({
+        icon: '🧹',
+        title: 'Limpar Wishlist',
+        message: 'Deseja remover todas as personagens casadas da sua Wishlist?',
+        confirmText: 'Limpar Casadas',
+        confirmClass: 'btn-danger'
+      });
+      if (!confirmed) return;
       try {
         const res = await Api.delete(`/api/web/user/${userPublicId}/wishlist/married?token=${encodeURIComponent(userSessionToken)}`);
         if (res.success) {
@@ -2814,7 +2828,16 @@ async function submitNewCollection() {
 }
 
 async function confirmDeleteCollection(collectionId, collectionName) {
-  if (!confirm(`Deseja realmente apagar a coleção "${collectionName}"?\n\nOs personagens não serão excluídos nem divorciados, apenas retornarão ao harém geral.`)) {
+  const confirmed = await Api.showConfirm({
+    icon: '🗂️',
+    title: 'Apagar Coleção',
+    message: `Deseja realmente apagar a coleção "${collectionName}"?`,
+    notice: 'Os personagens não serão excluídos nem divorciados, apenas retornarão ao harém geral.',
+    noticeTone: 'info',
+    confirmText: 'Apagar Coleção',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -5414,7 +5437,16 @@ async function loadMyListings() {
 }
 
 async function cancelMyListing(listingId) {
-  if (!confirm('Deseja realmente cancelar este anúncio? Todas as ofertas pendentes nele serão canceladas.')) return;
+  const confirmed = await Api.showConfirm({
+    icon: '🗑️',
+    title: 'Cancelar Anúncio',
+    message: 'Deseja realmente cancelar este anúncio?',
+    notice: 'Todas as ofertas pendentes recebidas nele serão canceladas automaticamente.',
+    noticeTone: 'warning',
+    confirmText: 'Cancelar Anúncio',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) return;
   try {
     const res = await Api.delete(`/api/web/user/${encodeURIComponent(userPublicId)}/market/listings/${encodeURIComponent(listingId)}?token=${encodeURIComponent(userSessionToken)}`);
     if (res.success) {
@@ -5588,7 +5620,14 @@ async function executeAcceptMarketOffer(offerId, listingId, characterName) {
       loadMarketTab();
     } else {
       // Se foi cancelada por falta de itens, avisa com destaque
-      alert(res.reason || 'Não foi possível aceitar a oferta.');
+      await Api.showAlert({
+        icon: '⚠️',
+        title: 'Oferta Indisponível',
+        message: res.reason || 'Não foi possível aceitar a oferta.',
+        noticeTone: 'warning',
+        confirmText: 'Entendi',
+        confirmClass: 'btn-primary'
+      });
       openViewOffersModal(listingId, characterName);
       loadMyListings();
       loadGlobalMarket();
@@ -7386,8 +7425,16 @@ async function saveMythicCharacter() {
 }
 
 async function confirmDeleteMythic(charId, charName) {
-  const confirmMsg = `Tem certeza que deseja excluir o mítico "${charName}"?\n\nEsta ação apagará permanentemente o personagem do jogo e liberará o slot para você criar uma nova lenda.`;
-  if (!confirm(confirmMsg)) return;
+  const confirmed = await Api.showConfirm({
+    icon: '🐉',
+    title: 'Excluir Personagem Mítico',
+    message: `Tem certeza que deseja excluir o mítico "${charName}"?`,
+    notice: 'Esta ação apagará permanentemente o personagem do jogo e liberará o slot para você criar uma nova lenda.',
+    noticeTone: 'danger',
+    confirmText: 'Excluir Mítico',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) return;
 
   Api.showLoading('Excluindo mítico...', 'Removendo personagem e liberando seu slot...');
   try {

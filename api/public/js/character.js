@@ -479,13 +479,20 @@ const CharacterPage = {
 
   copyShareLink() {
     const url = window.location.origin + `/character/${encodeURIComponent(this.charId)}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url)
-        .then(() => Api.showToast('Link do personagem copiado!', '📋'))
-        .catch(() => Api.showToast(url, '📋'));
-    } else {
-      prompt('Copie o link do personagem:', url);
-    }
+    Api.copyToClipboard(url, 'Link do personagem copiado!').then((copied) => {
+      if (!copied) {
+        Api.showPrompt({
+          icon: '🔗',
+          title: 'Compartilhar Personagem',
+          message: 'Copie o link abaixo para compartilhar este personagem:',
+          defaultValue: url,
+          readOnly: true,
+          selectOnOpen: true,
+          hideCancel: true,
+          confirmText: 'Fechar'
+        });
+      }
+    });
   }
 };
 

@@ -592,9 +592,16 @@ function cancelAdminPhotoUpload() {
   if (input) input.value = '';
 }
 
-function adminDeletePhoto(index) {
+async function adminDeletePhoto(index) {
   if (index >= 0 && index < currentEditingImages.length) {
-    if (!confirm('Deseja realmente remover esta foto da lista do personagem?')) return;
+    const confirmed = await Api.showConfirm({
+      icon: '🖼️',
+      title: 'Remover Foto',
+      message: 'Deseja realmente remover esta foto da lista do personagem?',
+      confirmText: 'Remover Foto',
+      confirmClass: 'btn-danger'
+    });
+    if (!confirmed) return;
     currentEditingImages.splice(index, 1);
     renderAdminPhotosGrid();
   }
@@ -1236,7 +1243,14 @@ async function confirmBlockSuggestions() {
 }
 
 async function unblockUserSuggestions(userId) {
-  if (!confirm('Deseja realmente desbloquear este usuário para que ele volte a enviar sugestões?')) return;
+  const confirmed = await Api.showConfirm({
+    icon: '🔓',
+    title: 'Desbloquear Usuário',
+    message: 'Deseja realmente desbloquear este usuário para que ele volte a enviar sugestões?',
+    confirmText: 'Desbloquear',
+    confirmClass: 'btn-emerald'
+  });
+  if (!confirmed) return;
 
   Api.showLoading('Aguarde... Desbloqueando usuário...', 'Removendo bloqueio no Redis...');
   try {
@@ -1268,7 +1282,14 @@ async function approvePageSuggestions() {
     return;
   }
 
-  if (!confirm(`Deseja aceitar e aplicar todas as ${pendingIds.length} sugestões pendentes filtradas na página atual?`)) return;
+  const confirmedPage = await Api.showConfirm({
+    icon: '✅',
+    title: 'Aprovar Sugestões da Página',
+    message: `Deseja aceitar e aplicar todas as ${pendingIds.length} sugestões pendentes filtradas na página atual?`,
+    confirmText: `Aprovar (${pendingIds.length})`,
+    confirmClass: 'btn-emerald'
+  });
+  if (!confirmedPage) return;
 
   Api.showLoading('Aguarde... Aprovando página...', `Processando ${pendingIds.length} sugestão(ões) filtradas...`);
   try {
@@ -1293,7 +1314,16 @@ async function approvePageSuggestions() {
 }
 
 async function approveAllSuggestions() {
-  if (!confirm('Deseja aceitar e aplicar TODAS as sugestões pendentes agora?')) return;
+  const confirmedAll = await Api.showConfirm({
+    icon: '⚡',
+    title: 'Aprovar Todas as Sugestões',
+    message: 'Deseja aceitar e aplicar TODAS as sugestões pendentes agora?',
+    notice: 'Todas as modificações pendentes na fila serão aplicadas imediatamente no banco de dados.',
+    noticeTone: 'warning',
+    confirmText: 'Aprovar Todas',
+    confirmClass: 'btn-emerald'
+  });
+  if (!confirmedAll) return;
 
   Api.showLoading('Aguarde... Aprovando todas as sugestões...', 'Processando fila e aplicando modificações no banco de dados...');
   try {
@@ -1332,7 +1362,14 @@ async function approveSuggestion(suggestionId, options = {}) {
   } else if (options.overridePhotoAction === 'REPLACE') {
     confirmMsg = 'Confirmar aprovação SUBSTITUINDO a foto atual pela nova foto enviada?';
   }
-  if (!confirm(confirmMsg)) return;
+  const confirmedSingle = await Api.showConfirm({
+    icon: '✅',
+    title: 'Aprovar Sugestão',
+    message: confirmMsg,
+    confirmText: 'Aprovar',
+    confirmClass: 'btn-emerald'
+  });
+  if (!confirmedSingle) return;
 
   Api.showLoading('Aguarde... Aprovando sugestão...', 'Aplicando alterações e atualizando catálogo...');
   try {
@@ -1445,8 +1482,17 @@ ${adv.searchedQueries?.length ? `\n<strong>--- BUSCAS WEB REALIZADAS ---</strong
 }
 
 async function rejectSuggestion(suggestionId) {
-  const reason = prompt('Motivo da recusa (opcional):');
-  if (reason === null) return; // cancelou o prompt
+  const reason = await Api.showPrompt({
+    icon: '❌',
+    title: 'Recusar Sugestão',
+    message: 'Informe um motivo para a recusa (opcional):',
+    inputLabel: 'Motivo da recusa',
+    placeholder: 'Ex: Imagem duplicada, nome incorreto, baixa resolução...',
+    defaultValue: '',
+    confirmText: 'Recusar Sugestão',
+    confirmClass: 'btn-danger'
+  });
+  if (reason === null) return; // cancelou o modal
 
   Api.showLoading('Aguarde... Recusando sugestão...', 'Atualizando status e registrando motivo da recusa...');
   try {
@@ -1715,7 +1761,14 @@ async function impersonateUser(userId) {
 
 async function adminResetRolls(userId, userName) {
   const displayName = userName || userId;
-  if (!confirm(`Deseja realmente resetar os rolls de "${displayName}" para o máximo?`)) return;
+  const confirmed = await Api.showConfirm({
+    icon: '🎲',
+    title: 'Resetar Rolls',
+    message: `Deseja realmente resetar os rolls de "${displayName}" para o máximo?`,
+    confirmText: 'Resetar Rolls',
+    confirmClass: 'btn-primary'
+  });
+  if (!confirmed) return;
 
   Api.showLoading('Aguarde... Resetando rolls...', `Restaurando rolls para o máximo de ${displayName}...`);
   try {
@@ -1738,7 +1791,16 @@ async function adminResetRolls(userId, userName) {
 
 async function adminResetClaimCooldowns(userId, userName) {
   const displayName = userName || userId;
-  if (!confirm(`Deseja realmente resetar todos os cooldowns de casamento de "${displayName}"? O usuário será liberado para casar imediatamente.`)) return;
+  const confirmed = await Api.showConfirm({
+    icon: '⏱️',
+    title: 'Resetar Cooldowns de Casamento',
+    message: `Deseja realmente resetar todos os cooldowns de casamento de "${displayName}"?`,
+    notice: 'O usuário será liberado para realizar casamentos imediatamente.',
+    noticeTone: 'info',
+    confirmText: 'Resetar Cooldowns',
+    confirmClass: 'btn-primary'
+  });
+  if (!confirmed) return;
 
   Api.showLoading('Aguarde... Resetando cooldowns...', `Limpando cooldowns de casamento de ${displayName}...`);
   try {
@@ -2034,17 +2096,27 @@ async function loadAdminTrades() {
 }
 
 async function adminRevertTrade(offerId, charName, sellerName, buyerName) {
-  const msg = `Deseja realmente REVERTER esta negociação dos Classificados?\n\n` +
-    `• Personagem: ${charName}\n` +
-    `• Vendedor original: ${sellerName}\n` +
-    `• Comprador: ${buyerName}\n\n` +
-    `Ao confirmar:\n` +
-    `1. O personagem anunciado retornará para ${sellerName}.\n` +
-    `2. As waifus e itens ofertados retornarão para ${buyerName}.\n` +
-    `3. Os Zinthos pagos serão estornados para ${buyerName}.\n` +
-    `4. O anúncio voltará a ficar ATIVO nos classificados.`;
-
-  if (!confirm(msg)) return;
+  const confirmed = await Api.showConfirm({
+    icon: '⏪',
+    title: 'Reverter Negociação',
+    message: 'Deseja realmente REVERTER esta negociação dos Classificados?',
+    details: [
+      { label: 'Personagem', value: charName },
+      { label: 'Vendedor original', value: sellerName },
+      { label: 'Comprador', value: buyerName }
+    ],
+    steps: [
+      `O personagem anunciado retornará para ${sellerName}.`,
+      `As waifus e itens ofertados retornarão para ${buyerName}.`,
+      `Os Zinthos pagos serão estornados para ${buyerName}.`,
+      'O anúncio voltará a ficar ATIVO nos classificados.'
+    ],
+    notice: 'Ao confirmar, todas as devoluções e estornos acima serão aplicados imediatamente.',
+    noticeTone: 'warning',
+    confirmText: 'Reverter Negociação',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) return;
 
   Api.showLoading('Aguarde...', `Revertendo negociação de ${charName}...`);
   try {
