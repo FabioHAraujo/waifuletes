@@ -5538,6 +5538,25 @@ async function cancelMyListing(listingId) {
 
 let currentOffersMap = new Map();
 
+// Valor de moeda de uma oferta como número finito (ausente/inválido = 0)
+function offerAmount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatOfferCurrencyText(value, symbol, label) {
+  const warn = value < 0 ? ' ⚠️ (negativo, inválido)' : '';
+  return `${symbol} ${value.toLocaleString('pt-BR')} ${label}${warn}`;
+}
+
+function formatOfferCurrencyHtml(value, symbol, label, color) {
+  const invalid = value < 0;
+  const amountHtml = `<span style="color:${invalid ? 'var(--accent-red)' : color};font-weight:800;">${symbol} ${escapeHtml(value.toLocaleString('pt-BR'))} ${label}</span>`;
+  return invalid
+    ? `${amountHtml} <span style="color:var(--accent-red);font-weight:800;">⚠️ valor negativo (inválido)</span>`
+    : amountHtml;
+}
+
 async function openViewOffersModal(listingId, characterName) {
   currentOffersMap.clear();
   const container = document.getElementById('offers-list-container');
@@ -5573,11 +5592,15 @@ async function openViewOffersModal(listingId, characterName) {
             return `<button type="button" class="badge-tag" style="background:#8b5cf6;color:#fff;border:none;cursor:pointer;margin:2px;padding:3px 8px;font-size:12px;" ${waifuPreviewDataAttrs(wId, wId, '', '', '')}><i class="fas fa-image"></i> ${escapeHtml(wId)}</button>`;
           }).join(' ')}</div>`);
         }
-        if (offered.runas && Number(offered.runas) > 0) {
-          parts.push(`<div><strong>Moeda Global (Runas):</strong> <span style="color:#38bdf8;font-weight:800;">ᚱ ${Number(offered.runas).toLocaleString('pt-BR')} Runas</span></div>`);
+        // Exibe qualquer valor diferente de zero (inclusive negativos/fracionados, destacados)
+        // para que o vendedor nunca aceite uma oferta com valores ocultos.
+        const runasVal = offerAmount(offered.runas);
+        if (runasVal !== 0) {
+          parts.push(`<div><strong>Moeda Global (Runas):</strong> ${formatOfferCurrencyHtml(runasVal, 'ᚱ', 'Runas', '#38bdf8')}</div>`);
         }
-        if (offered.petalitas && Number(offered.petalitas) > 0) {
-          parts.push(`<div><strong>Moeda da Fazenda (Petalitas):</strong> <span style="color:#ec4899;font-weight:800;">🌸 ${Number(offered.petalitas).toLocaleString('pt-BR')} Petalitas</span></div>`);
+        const petalitasVal = offerAmount(offered.petalitas);
+        if (petalitasVal !== 0) {
+          parts.push(`<div><strong>Moeda da Fazenda (Petalitas):</strong> ${formatOfferCurrencyHtml(petalitasVal, '🌸', 'Petalitas', '#ec4899')}</div>`);
         }
         if (Array.isArray(offered.fishes) && offered.fishes.length > 0) {
           const fishSummary = {};
@@ -5598,8 +5621,9 @@ async function openViewOffersModal(listingId, characterName) {
         if (Array.isArray(offered.farmItems) && offered.farmItems.length > 0) {
           parts.push(`<div><strong>Itens de Fazenda:</strong> ${offered.farmItems.map(it => `${Number(it.amount) || 0}x ${escapeHtml(it.name || it.itemId)}`).join(', ')}</div>`);
         }
-        if (offered.zinthos && Number(offered.zinthos) > 0) {
-          parts.push(`<div><strong>Moeda (Zinthos):</strong> <span style="color:#f59e0b;font-weight:800;">🪙 ${Number(offered.zinthos).toLocaleString('pt-BR')} Zinthos</span></div>`);
+        const zinthosVal = offerAmount(offered.zinthos);
+        if (zinthosVal !== 0) {
+          parts.push(`<div><strong>Moeda (Zinthos):</strong> ${formatOfferCurrencyHtml(zinthosVal, '🪙', 'Zinthos', '#f59e0b')}</div>`);
         }
         itemsHtml = parts.join('<div style="margin-top: 4px;"></div>') || '<span style="color: var(--text-muted);">Nenhum item especificado</span>';
       }
@@ -6375,9 +6399,28 @@ async function submitMarketOffer() {
     });
   }
 
-  const zinthos = parseInt(document.getElementById('offer-zinthos-input')?.value, 10) || 0;
-  const runas = parseFloat(document.getElementById('offer-runas-input')?.value) || 0;
-  const petalitas = parseInt(document.getElementById('offer-petalitas-input')?.value, 10) || 0;
+  // Moedas: inteiros >= 0. Valores negativos/inválidos bloqueiam o envio;
+  // frações são truncadas (e o campo é atualizado com o valor enviado).
+  const amountFields = [
+    { id: 'offer-zinthos-input', label: 'Zinthos' },
+    { id: 'offer-runas-input', label: 'Runas' },
+    { id: 'offer-petalitas-input', label: 'Petalitas' },
+  ];
+  const amounts = {};
+  for (const field of amountFields) {
+    const input = document.getElementById(field.id);
+    const raw = Number(input?.value || 0);
+    if (input?.validity?.badInput || !Number.isFinite(raw) || raw < 0) {
+      Api.showToast(`Informe um valor válido para ${field.label} (número inteiro maior ou igual a 0).`, '⚠️');
+      input?.focus();
+      return;
+    }
+    amounts[field.label] = Math.max(0, Math.floor(raw));
+    if (input && String(amounts[field.label]) !== String(input.value)) input.value = String(amounts[field.label]);
+  }
+  const zinthos = amounts.Zinthos;
+  const runas = amounts.Runas;
+  const petalitas = amounts.Petalitas;
 
   if (!isFree && selectedWaifuIds.length === 0 && selectedBuffs.length === 0 && farmItems.length === 0 && zinthos <= 0 && runas <= 0 && petalitas <= 0) {
     Api.showToast('Selecione ao menos um item, waifu, Zinthos, Runas ou Petalitas para oferecer (ou marque "Pedir de graça").', '⚠️');
@@ -6512,15 +6555,18 @@ function renderMySentOffersPage() {
       } else if (Array.isArray(offered.waifuIds) && offered.waifuIds.length > 0) {
         parts.push(`${offered.waifuIds.length} waifu(s)`);
       }
-      if (offered.runas && Number(offered.runas) > 0) parts.push(`ᚱ ${Number(offered.runas).toLocaleString('pt-BR')} runas`);
-      if (offered.petalitas && Number(offered.petalitas) > 0) parts.push(`🌸 ${Number(offered.petalitas).toLocaleString('pt-BR')} petalitas`);
+      const runasVal = offerAmount(offered.runas);
+      if (runasVal !== 0) parts.push(formatOfferCurrencyText(runasVal, 'ᚱ', 'runas'));
+      const petalitasVal = offerAmount(offered.petalitas);
+      if (petalitasVal !== 0) parts.push(formatOfferCurrencyText(petalitasVal, '🌸', 'petalitas'));
       if (Array.isArray(offered.fishes) && offered.fishes.length > 0) parts.push(`${offered.fishes.length} peixe(s)`);
       if (Array.isArray(offered.fishingBuffs) && offered.fishingBuffs.length > 0) parts.push(`${offered.fishingBuffs.length} buff(s)`);
       if (Array.isArray(offered.farmItems) && offered.farmItems.length > 0) {
         const farmCount = offered.farmItems.reduce((acc, it) => acc + (Number(it.amount) || 1), 0);
         parts.push(`${farmCount} item(ns) da fazenda`);
       }
-      if (offered.zinthos && Number(offered.zinthos) > 0) parts.push(`🪙 ${Number(offered.zinthos).toLocaleString('pt-BR')} zinthos`);
+      const zinthosVal = offerAmount(offered.zinthos);
+      if (zinthosVal !== 0) parts.push(formatOfferCurrencyText(zinthosVal, '🪙', 'zinthos'));
       summary = parts.join(', ') || 'Nenhum item';
     }
 
