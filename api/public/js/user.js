@@ -77,8 +77,13 @@ function matchesHaremCard(entry, searchText, rarityFilter) {
   if (rarityFilter) {
     const normFilter = rarityFilter.toUpperCase();
     if (normFilter === 'COVETED') {
-      const hasCovets = Number(entry.unseenCovetsCount || 0) > 0;
-      if (!hasCovets) return false;
+      // Cobiças ativas = PENDING + SEEN (IGNORED não conta). O backend ainda não envia
+      // essa contagem (totalCovetsCount inclui IGNORED); enquanto activeCovetsCount não
+      // existir, só é possível usar as não vistas (PENDING).
+      const activeCovets = entry.activeCovetsCount !== undefined && entry.activeCovetsCount !== null
+        ? Number(entry.activeCovetsCount)
+        : Number(entry.unseenCovetsCount || 0);
+      if (!(activeCovets > 0)) return false;
     } else {
       const r = (char.baseRarity || char.rarity || 'COMMON').toUpperCase();
       if (r !== normFilter) return false;
