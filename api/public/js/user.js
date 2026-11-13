@@ -524,13 +524,9 @@ function setupEventListeners() {
   window.addEventListener('resize', () => {
     clearTimeout(marketResizeTimer);
     marketResizeTimer = setTimeout(() => {
-      if (typeof getMarketPageLimit === 'function') {
-        const newLimit = getMarketPageLimit();
-        if (newLimit !== marketState.limit) {
-          marketState.limit = newLimit;
-          if (marketState.page > 1) marketState.page = 1;
-          loadGlobalMarket();
-        }
+      if (typeof getMarketPageLimit === 'function' && getMarketPageLimit() !== marketState.limit) {
+        // loadGlobalMarket aplica o novo limite e volta para a página 1
+        loadGlobalMarket();
       }
     }, 250);
   });
@@ -5500,7 +5496,7 @@ async function loadMyListings() {
       `;
       bindDataActions(card, {
         'view-offers': () => openViewOffersModal(listing.id, char.name),
-        'cancel-listing': () => cancelMyListing(listing.id),
+        'cancel-listing': (event, el) => cancelMyListing(listing.id, el),
       });
       grid.appendChild(card);
     });
@@ -5509,7 +5505,12 @@ async function loadMyListings() {
   }
 }
 
-async function cancelMyListing(listingId) {
+// Ids com requisição em andamento (evita duplo envio por clique duplo/reabertura)
+const listingCancelsInFlight = new Set();
+const offerAcceptsInFlight = new Set();
+
+async function cancelMyListing(listingId, triggerBtn = null) {
+  if (listingCancelsInFlight.has(listingId)) return;
   const confirmed = await Api.showConfirm({
     icon: '🗑️',
     title: 'Cancelar Anúncio',
@@ -5519,7 +5520,9 @@ async function cancelMyListing(listingId) {
     confirmText: 'Cancelar Anúncio',
     confirmClass: 'btn-danger'
   });
-  if (!confirmed) return;
+  if (!confirmed || listingCancelsInFlight.has(listingId)) return;
+  listingCancelsInFlight.add(listingId);
+  if (triggerBtn) triggerBtn.disabled = true;
   try {
     const res = await Api.delete(`/api/web/user/${encodeURIComponent(userPublicId)}/market/listings/${encodeURIComponent(listingId)}?token=${encodeURIComponent(userSessionToken)}`);
     if (res.success) {
@@ -5533,6 +5536,9 @@ async function cancelMyListing(listingId) {
     }
   } catch (err) {
     Api.showToast('Erro de comunicação ao cancelar anúncio.', '❌');
+  } finally {
+    listingCancelsInFlight.delete(listingId);
+    if (triggerBtn) triggerBtn.disabled = false;
   }
 }
 
@@ -5641,6 +5647,7 @@ async function openViewOffersModal(listingId, characterName) {
       if (offer.status === 'CANCELLED') statusBadge = `<span class="badge-tag" style="background: #ef4444; color: #fff;">Cancelada</span>`;
 
       const card = document.createElement('div');
+      card.dataset.offerId = offer.id;
       card.style.background = 'var(--bg-card)';
       card.style.border = 'var(--border-retro)';
       card.style.borderRadius = 'var(--radius-retro)';
@@ -5671,6 +5678,9 @@ async function openViewOffersModal(listingId, characterName) {
         'accept-offer': () => promptAcceptMarketOffer(offer.id),
         'reject-offer': () => rejectMarketOffer(offer.id, listingId, characterName),
       });
+      if (offerAcceptsInFlight.has(offer.id)) {
+        card.querySelectorAll('button[data-action]').forEach(b => { b.disabled = true; });
+      }
       container.appendChild(card);
     });
   } catch (err) {
@@ -5698,9 +5708,19 @@ document.addEventListener('click', (event) => {
   openWaifuPreview(d.previewCharId, d.previewName || '', d.previewImg || '', d.previewSeries || '', d.previewRarity || '');
 });
 
+function setOfferActionsBusy(offerId, busy) {
+  document.querySelectorAll('#offers-list-container [data-offer-id]').forEach(card => {
+    if (card.dataset.offerId === String(offerId)) {
+      card.querySelectorAll('button[data-action]').forEach(b => { b.disabled = busy; });
+    }
+  });
+  const btnConfirm = document.getElementById('btn-confirm-accept-offer');
+  if (btnConfirm) btnConfirm.disabled = busy;
+}
+
 function promptAcceptMarketOffer(offerId) {
   const data = currentOffersMap.get(offerId);
-  if (!data) return;
+  if (!data || offerAcceptsInFlight.has(offerId)) return;
   const { offer, listingId, characterName, itemsHtml } = data;
   const buyerName = offer.buyer?.name || 'Jogador Anônimo';
 
@@ -5725,6 +5745,9 @@ function promptAcceptMarketOffer(offerId) {
 }
 
 async function executeAcceptMarketOffer(offerId, listingId, characterName) {
+  if (offerAcceptsInFlight.has(offerId)) return;
+  offerAcceptsInFlight.add(offerId);
+  setOfferActionsBusy(offerId, true);
   try {
     const res = await Api.post(`/api/web/user/${encodeURIComponent(userPublicId)}/market/offers/${encodeURIComponent(offerId)}/accept`, {
       token: userSessionToken,
@@ -5752,6 +5775,9 @@ async function executeAcceptMarketOffer(offerId, listingId, characterName) {
     }
   } catch (err) {
     Api.showToast('Erro de comunicação ao aceitar oferta.', '❌');
+  } finally {
+    offerAcceptsInFlight.delete(offerId);
+    setOfferActionsBusy(offerId, false);
   }
 }
 
@@ -5911,24 +5937,29 @@ async function loadWishlistMarket() {
 }
 
 function getMarketPageLimit() {
-  const grid = document.getElementById('global-market-grid') || document.getElementById('public-market-grid');
-  if (!grid) return 10;
+  const grid = document.getElementById('global-market-grid');
+  // Com o grid oculto (outra aba/subaba) o grid-template-columns não é resolvido e a
+  // largura é 0: mantém o limite atual em vez de calcular um valor errado.
+  if (!grid || grid.offsetParent === null || grid.clientWidth <= 0) {
+    return marketState.limit || 10;
+  }
 
-  try {
-    const style = window.getComputedStyle(grid);
-    const gridTemplateColumns = style.getPropertyValue('grid-template-columns');
-    if (gridTemplateColumns) {
-      const cols = gridTemplateColumns.split(' ').filter(Boolean).length;
-      if (cols <= 2) {
-        return 10; // Mobile / Retrato: exatamente 2 colunas x até 5 linhas = 10 itens
-      }
-      return cols * 2; // Desktop / Paisagem: exatamente 2 linhas x N colunas (ex: 2x5 = 10, 2x4 = 8, 2x3 = 6)
-    }
-  } catch (_) {}
+  let cols = 0;
+  const style = window.getComputedStyle(grid);
+  const tracks = (style.getPropertyValue('grid-template-columns') || '').trim().split(/\s+/).filter(Boolean);
+  if (tracks.length > 0 && tracks.every(t => /^[\d.]+px$/.test(t))) {
+    // Grid visível: trilhas já resolvidas pelo navegador (mesmo cálculo do auto-fill do CSS)
+    cols = tracks.length;
+  } else {
+    // Fallback pela largura útil do grid (mesmos mínimos do retro-theme.css)
+    const isTablet = window.innerWidth <= 768;
+    const gap = parseFloat(style.columnGap) || (isTablet ? 12 : 16);
+    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const minCard = isTablet ? 160 : 180;
+    cols = Math.max(1, Math.floor((grid.clientWidth - padding + gap) / (minCard + gap)));
+  }
 
-  if (window.innerWidth <= 640) return 10;
-  const width = grid.offsetWidth || window.innerWidth;
-  const cols = Math.max(2, Math.floor(width / (180 + 16)));
+  // Mobile/retrato: 2 colunas x até 5 linhas = 10 itens; desktop: 2 linhas x N colunas
   return cols <= 2 ? 10 : cols * 2;
 }
 
@@ -5936,7 +5967,12 @@ async function loadGlobalMarket() {
   const grid = document.getElementById('global-market-grid');
   if (!grid) return;
 
-  marketState.limit = getMarketPageLimit();
+  // Só volta para a página 1 quando o tamanho da página realmente muda
+  const newLimit = getMarketPageLimit();
+  if (newLimit !== marketState.limit) {
+    marketState.limit = newLimit;
+    marketState.page = 1;
+  }
 
   grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 28px;">Buscando classificados globais...</div>';
 
@@ -5974,12 +6010,24 @@ async function loadGlobalMarket() {
   }
 }
 
-let liveBuyerInventory = {
-  runas: 0,
-  rates: { runasPerZinthos: 0.2857, runasPerJardimCoin: 0.125 },
-  fishingBuffs: [],
-  farm: { coins: 0, items: [] }
-};
+function emptyBuyerInventory() {
+  return {
+    runas: 0,
+    rates: { runasPerZinthos: 0.2857, runasPerJardimCoin: 0.125 },
+    fishingBuffs: [],
+    farm: { coins: 0, items: [] }
+  };
+}
+
+let liveBuyerInventory = emptyBuyerInventory();
+
+// Limpa o inventário ao vivo para que dados de uma abertura anterior do modal
+// não sejam usados em "Tudo"/envio quando a busca falhar.
+function resetLiveBuyerInventory() {
+  liveBuyerInventory = emptyBuyerInventory();
+  window.activeBuffGroups = [];
+  window.activeFarmItems = [];
+}
 
 function updateOfferRunasQuote() {
   const input = document.getElementById('offer-runas-input');
@@ -6145,6 +6193,8 @@ async function openOfferModal(listingId, characterName, imageUrl, interest) {
 
   openModal('modal-market-offer');
 
+  resetLiveBuyerInventory();
+
   // Busca inventário ao vivo através do endpoint seguro
   try {
     const res = await Api.get(`/api/web/user/${encodeURIComponent(pId)}/market/my-inventory?token=${encodeURIComponent(token)}`);
@@ -6253,6 +6303,8 @@ async function openOfferModal(listingId, characterName, imageUrl, interest) {
       throw new Error(res.error?.message || 'Falha ao buscar inventário');
     }
   } catch (err) {
+    resetLiveBuyerInventory();
+    updateOfferRunasQuote();
     if (runasBalanceEl) runasBalanceEl.textContent = '0 ᚱ';
     if (petalitasBalanceEl) petalitasBalanceEl.textContent = '0';
     if (buffsList) buffsList.innerHTML = '<div style="font-size: 12px; color: var(--accent-red); padding: 12px; text-align: center;">Não foi possível carregar buffs ao vivo.</div>';
@@ -6480,12 +6532,18 @@ async function loadMySentOffers() {
   const auth = getActiveAuthUser();
   const token = auth.token || userSessionToken;
   const pId = auth.publicId || userPublicId || 'token-session';
-  if (!token) return;
+  if (!token) {
+    mySentOffersState.items = [];
+    const countBadge = document.getElementById('my-sent-offers-count');
+    if (countBadge) countBadge.textContent = '0';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Faça login pelo link do bot para ver as ofertas que você enviou.</td></tr>';
+    return;
+  }
 
   try {
     const res = await Api.get(`/api/web/user/${encodeURIComponent(pId)}/market/my-offers?token=${encodeURIComponent(token)}`);
     if (!res.success || !Array.isArray(res.data)) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--accent-red); padding: 20px;">Erro ao carregar histórico de ofertas.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--accent-red); padding: 20px;">Erro ao carregar histórico de ofertas.</td></tr>';
       return;
     }
 
@@ -6498,7 +6556,7 @@ async function loadMySentOffers() {
 
     renderMySentOffersPage();
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--accent-red); padding: 20px;">Erro ao carregar histórico de ofertas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--accent-red); padding: 20px;">Erro ao carregar histórico de ofertas.</td></tr>';
   }
 }
 
