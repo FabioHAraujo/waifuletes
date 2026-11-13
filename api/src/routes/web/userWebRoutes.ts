@@ -19,7 +19,7 @@ import { CooldownService } from '../../services/CooldownService.js';
 import { verifyApiKey } from '../../plugins/auth.js';
 import { DomainError } from '../../errors/DomainError.js';
 import { optimizeImageUnder1Mb, MAX_IMAGE_UPLOAD_BYTES } from '../../utils/imageOptimizer.js';
-import { config, activeHostingRates, inactiveHostingRates } from '../../config.js';
+import { config, activeHostingRates, inactiveHostingRates, ravenaMarketHeaders } from '../../config.js';
 import { Rarity, Gender } from '@prisma/client';
 
 interface RavenaBotHealth {
@@ -2550,6 +2550,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const invRes = await fetch(`${config.RAVENA_API_URL}/api/market/user-inventory/${encodeURIComponent(session.userId)}`, {
+          headers: ravenaMarketHeaders(),
           signal: AbortSignal.timeout(6000),
         });
         if (!invRes.ok) {

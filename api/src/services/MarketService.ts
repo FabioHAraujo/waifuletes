@@ -1,5 +1,5 @@
 import { PrismaClient, ListingStatus, OfferStatus, KakeraReason, Rarity } from '@prisma/client';
-import { config } from '../config.js';
+import { config, ravenaMarketHeaders } from '../config.js';
 import { DomainError } from '../errors/DomainError.js';
 import { CharacterService } from './CharacterService.js';
 import { CooldownService } from './CooldownService.js';
@@ -571,6 +571,7 @@ export class MarketService {
     if (hasExternalItems) {
       try {
         const invRes = await fetch(`${config.RAVENA_API_URL}/api/market/user-inventory/${encodeURIComponent(buyerId)}`, {
+          headers: ravenaMarketHeaders(),
           signal: AbortSignal.timeout(6000),
         });
         if (!invRes.ok) {
@@ -1040,7 +1041,7 @@ export class MarketService {
         const timeoutId = setTimeout(() => controller.abort(), 12000);
         const transferRes = await fetch(`${config.RAVENA_API_URL}/api/market/transfer`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: ravenaMarketHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             fromUserId: offer.buyerId,
             toUserId: sellerId,
@@ -1272,7 +1273,7 @@ export class MarketService {
           const compTimeout = setTimeout(() => compController.abort(), 12000);
           const rollbackRes = await fetch(`${config.RAVENA_API_URL}/api/market/transfer`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: ravenaMarketHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
               fromUserId: sellerId,
               toUserId: offer.buyerId,
@@ -1670,7 +1671,7 @@ export class MarketService {
         const timeoutId = setTimeout(() => controller.abort(), 8000);
         const transferRes = await fetch(`${config.RAVENA_API_URL}/api/market/transfer`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: ravenaMarketHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             fromUserId: offer.sellerId,
             toUserId: offer.buyerId,
