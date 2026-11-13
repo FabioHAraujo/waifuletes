@@ -404,6 +404,8 @@ export class MarketService {
         buyerId,
       },
       orderBy: { createdAt: 'desc' },
+      // Histórico limitado: o payload crescia sem limite desde que o corte de 15 dias foi removido
+      take: 200,
       include: {
         listing: {
           include: {
