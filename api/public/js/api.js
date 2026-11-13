@@ -434,6 +434,9 @@ const Api = {
 
     return new Promise((resolve) => {
       let settled = false;
+      // Elementos de fundo tornados inertes enquanto o diálogo está aberto
+      // (impede foco/clique fora do modal; restaurado ao fechar)
+      const inertEls = [];
 
       const settle = (value, isCancel = false) => {
         if (settled) return;
@@ -445,6 +448,7 @@ const Api = {
           this._dialogState.keyHandler = null;
         }
 
+        inertEls.forEach((el) => { el.inert = false; });
         overlay.classList.add('hidden');
         if (!document.querySelector('.modal-overlay:not(.hidden)')) {
           document.body.classList.remove('modal-open');
@@ -491,10 +495,39 @@ const Api = {
           e.preventDefault();
           e.stopImmediatePropagation();
           settle(undefined);
+        } else if (e.key === 'Tab') {
+          // Mantém o foco circulando apenas dentro do diálogo
+          const box = overlay.querySelector('.retro-dialog-box') || overlay;
+          const focusables = Array.from(
+            box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+          ).filter((el) => !el.disabled && el.offsetParent !== null);
+          const active = document.activeElement;
+          if (focusables.length === 0) {
+            e.preventDefault();
+            return;
+          }
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (!box.contains(active)) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+          } else if (e.shiftKey && active === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && active === last) {
+            e.preventDefault();
+            first.focus();
+          }
         }
       };
       this._dialogState.keyHandler = keyHandler;
       window.addEventListener('keydown', keyHandler, true);
+
+      Array.from(document.body.children).forEach((el) => {
+        if (el === overlay || el.inert || el.tagName === 'SCRIPT') return;
+        el.inert = true;
+        inertEls.push(el);
+      });
 
       overlay.classList.remove('hidden');
       document.body.classList.add('modal-open');
