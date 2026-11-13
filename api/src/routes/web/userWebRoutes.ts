@@ -258,6 +258,7 @@ export const userWebRoutes: FastifyPluginAsync = async (fastify) => {
           ...item,
           unseenCovetsCount: covetCountsMap[item.character.id]?.unseen || 0,
           totalCovetsCount: covetCountsMap[item.character.id]?.total || 0,
+          activeCovetsCount: covetCountsMap[item.character.id]?.active || 0,
         }));
 
         let currentInventory = session.inventory || null;
