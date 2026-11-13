@@ -161,7 +161,13 @@ const Api = {
       document.body.appendChild(toast);
     }
 
-    toast.innerHTML = `<span style="font-size: 18px;">${icon}</span> <span>${message}</span>`;
+    // Mensagens podem conter nomes/textos de jogadores: renderiza sempre como texto puro
+    const iconEl = document.createElement('span');
+    iconEl.style.fontSize = '18px';
+    iconEl.textContent = icon == null ? '' : String(icon);
+    const msgEl = document.createElement('span');
+    msgEl.textContent = String(message);
+    toast.replaceChildren(iconEl, document.createTextNode(' '), msgEl);
     toast.classList.remove('hidden');
 
     clearTimeout(this._toastTimer);
@@ -255,6 +261,46 @@ const Api = {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  },
+
+  /**
+   * Escape HTML completo (& < > " ') para texto e valores de atributo entre aspas.
+   */
+  escapeHtml(str) {
+    return this._escapeHtml(str);
+  },
+
+  /**
+   * Escapa um valor para uma string JS entre aspas simples embutida em atributo HTML
+   * entre aspas duplas, ex.: onclick="f('${Api.escapeJsAttr(x)}')".
+   * Primeiro escapa para JS (o parser HTML decodifica entidades antes do JS rodar),
+   * depois escapa para o atributo HTML.
+   */
+  escapeJsAttr(str) {
+    if (str === null || str === undefined) return '';
+    const js = String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\"')
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029')
+      .replace(/</g, '\\x3C')
+      .replace(/>/g, '\\x3E');
+    return this._escapeHtml(js);
+  },
+
+  /**
+   * Escapa tudo e reabilita apenas tags de formatação simples SEM atributos
+   * (b, i, u, s, em, strong, code, pre, br). Útil para textos gerados com
+   * formatação HTML estilo Telegram que podem conter conteúdo de jogadores.
+   */
+  sanitizeBasicHtml(str) {
+    return this._escapeHtml(str).replace(
+      /&lt;(\/?)(b|i|u|s|em|strong|code|pre|br)\s*\/?&gt;/gi,
+      (_, slash, tag) => `<${slash}${tag.toLowerCase()}>`
+    );
   },
 
   _formatMultilineText(str) {
