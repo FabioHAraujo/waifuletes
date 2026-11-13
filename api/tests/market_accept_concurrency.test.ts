@@ -51,12 +51,11 @@ describe.skipIf(!DATABASE_URL)('🔒 Mercado — aceite concorrente de propostas
     // Sem notificações reais durante o teste
     (market as any).notificationService = { notifyMarketEvent: async () => undefined };
 
-    const free = await prisma.character.findFirst({
-      where: { haremEntries: { none: {} }, isMythic: false },
-      select: { id: true },
+    // Personagem próprio do teste (não disputa personagens com outras suítes em paralelo)
+    characterId = `test_mkt_char_${SUFFIX}`;
+    await prisma.character.create({
+      data: { id: characterId, name: 'Personagem Teste Mercado', series: 'Testes', baseRarity: 'COMMON' } as any,
     });
-    if (!free) throw new Error('Nenhum personagem livre no banco de teste');
-    characterId = free.id;
 
     for (const id of ALL_USERS) {
       await prisma.user.create({ data: { id, name: id, kakera: 1000 } });
@@ -70,6 +69,7 @@ describe.skipIf(!DATABASE_URL)('🔒 Mercado — aceite concorrente de propostas
     await prisma.kakeraTransaction.deleteMany({ where: { userId: { in: ALL_USERS } } });
     await prisma.userNotification.deleteMany({ where: { userId: { in: ALL_USERS } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: ALL_USERS } } });
+    await prisma.character.deleteMany({ where: { id: characterId } });
     await prisma.$disconnect();
   });
 

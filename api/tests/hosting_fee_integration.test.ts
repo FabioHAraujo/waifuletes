@@ -43,13 +43,15 @@ describe.skipIf(!DATABASE_URL || !REDIS_URL)('🏠 Taxa de hospedagem — integr
     redis = new Redis(REDIS_URL!);
     service = new HostingFeeService(prisma, redis);
 
-    const free = await prisma.character.findMany({
-      where: { haremEntries: { none: {} }, isMythic: false },
-      select: { id: true },
-      take: 3,
-    });
-    if (free.length < 3) throw new Error('Personagens livres insuficientes no banco de teste');
-    charIds.push(...free.map((c) => c.id));
+    // Personagens próprios do teste (não disputa personagens com outras suítes em paralelo)
+    const rarities = ['COMMON', 'UNCOMMON', 'RARE'];
+    for (let i = 0; i < 3; i++) {
+      const id = `test_host_char_${i}_${SUFFIX}`;
+      await prisma.character.create({
+        data: { id, name: `Personagem Teste Hospedagem ${i}`, series: 'Testes', baseRarity: rarities[i] } as any,
+      });
+      charIds.push(id);
+    }
 
     mythicId = `test_host_mythic_${SUFFIX}`;
     await prisma.character.create({
@@ -72,10 +74,7 @@ describe.skipIf(!DATABASE_URL || !REDIS_URL)('🏠 Taxa de hospedagem — integr
     await prisma.kakeraTransaction.deleteMany({ where: { userId: { in: USERS } } });
     await prisma.userNotification.deleteMany({ where: { userId: { in: USERS } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: USERS } } });
-    await prisma.character.deleteMany({ where: { id: mythicId } });
-    for (const id of charIds) {
-      await prisma.$executeRaw`UPDATE characters SET "claimCount" = GREATEST(0, "claimCount") WHERE id = ${id}`;
-    }
+    await prisma.character.deleteMany({ where: { id: { in: [mythicId, ...charIds] } } });
     await redis.quit();
     await prisma.$disconnect();
   });

@@ -506,7 +506,80 @@ export class MarketService {
   /**
    * Cria uma proposta de oferta para um anúncio
    */
+  /**
+   * Normaliza e valida os itens ofertados. Quantidades precisam ser inteiras e não negativas:
+   * antes, runas/petalitas/quantidades negativas passavam direto para a transferência da Ravena
+   * (o vendedor via só os valores positivos, mas o comprador podia receber runas do vendedor).
+   */
+  private sanitizeOfferedItems(raw: any): CreateOfferData['offeredItems'] {
+    const items = raw && typeof raw === 'object' ? raw : {};
+    const invalid = (msg: string): never => {
+      throw new DomainError('INVALID_OFFER_ITEMS', msg);
+    };
+    const nonNegInt = (value: any, label: string): number => {
+      if (value === undefined || value === null || value === '') return 0;
+      const n = Number(value);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+        invalid(`Quantidade inválida de ${label}: use um número inteiro maior ou igual a zero.`);
+      }
+      return n;
+    };
+    const posInt = (value: any, label: string): number => {
+      const n = Number(value);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+        invalid(`Valor inválido em ${label}: use um número inteiro maior que zero.`);
+      }
+      return n;
+    };
+
+    const waifuIds: string[] = Array.isArray(items.waifuIds)
+      ? [...new Set<string>(items.waifuIds.map((id: any) => String(id || '').trim()).filter(Boolean))]
+      : [];
+    if (waifuIds.length > 20) invalid('Você pode ofertar no máximo 20 waifus por proposta.');
+
+    const fishingBuffs = Array.isArray(items.fishingBuffs)
+      ? items.fishingBuffs.map((b: any) => ({
+          ...(b && typeof b === 'object' ? b : {}),
+          id: posInt(b?.id, 'buffs de pesca'),
+        }))
+      : [];
+    const buffIdSet = new Set<number>([
+      ...fishingBuffs.map((b: any) => b.id),
+      ...(Array.isArray(items.fishingBuffIds) ? items.fishingBuffIds.map((id: any) => posInt(id, 'buffs de pesca')) : []),
+    ]);
+    if (buffIdSet.size > 50) invalid('Você pode ofertar no máximo 50 buffs de pesca por proposta.');
+
+    const farmMap = new Map<string, { itemId: string; name?: string; amount: number }>();
+    if (Array.isArray(items.farmItems)) {
+      for (const it of items.farmItems) {
+        const itemId = String(it?.itemId || '').trim();
+        if (!itemId) invalid('Item da fazenda sem identificador.');
+        const amount = posInt(it?.amount ?? it?.quantity, 'itens da fazenda');
+        const prev = farmMap.get(itemId);
+        farmMap.set(itemId, {
+          itemId,
+          name: typeof it?.name === 'string' ? it.name.slice(0, 80) : prev?.name,
+          amount: (prev?.amount || 0) + amount,
+        });
+      }
+    }
+    if (farmMap.size > 50) invalid('Você pode ofertar no máximo 50 itens da fazenda diferentes por proposta.');
+
+    return {
+      isFree: Boolean(items.isFree),
+      zinthos: nonNegInt(items.zinthos, 'Zinthos'),
+      runas: nonNegInt(items.runas, 'Runas'),
+      petalitas: nonNegInt(items.petalitas, 'Petalitas'),
+      waifuIds,
+      fishes: Array.isArray(items.fishes) ? items.fishes.slice(0, 50) : [],
+      fishingBuffs,
+      fishingBuffIds: [...buffIdSet],
+      farmItems: [...farmMap.values()],
+    };
+  }
+
   async createOffer(buyerId: string, listingId: string, data: CreateOfferData) {
+    data = { ...data, offeredItems: this.sanitizeOfferedItems(data?.offeredItems) };
     const listing = await this.prisma.marketListing.findUnique({
       where: { id: listingId },
       include: { character: true },
